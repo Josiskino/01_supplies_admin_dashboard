@@ -1,6 +1,4 @@
 <script setup>
-import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
-import { VNodeRenderer } from './VNodeRenderer'
 import { layoutConfig } from '@layouts'
 import {
   VerticalNavGroup,
@@ -9,6 +7,8 @@ import {
 } from '@layouts/components'
 import { useLayoutConfigStore } from '@layouts/stores/config'
 import { injectionKeyIsVerticalNavHovered } from '@layouts/symbols'
+import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
+import { VNodeRenderer } from './VNodeRenderer'
 
 const props = defineProps({
   tag: {
@@ -155,7 +155,9 @@ const hideTitleAndIcon = configStore.isVerticalNavMini(isHovered)
 .app-logo {
   display: flex;
   align-items: center;
+  justify-content: center;
   column-gap: 0.75rem;
+  inline-size: 100%;
 
   .app-logo-title {
     font-size: 1.375rem;
@@ -203,7 +205,9 @@ const hideTitleAndIcon = configStore.isVerticalNavMini(isHovered)
   }
 
   .app-title-wrapper {
-    margin-inline-end: auto;
+    display: block;
+    margin-block: 0;
+    margin-inline: auto;
   }
 
   .nav-items {

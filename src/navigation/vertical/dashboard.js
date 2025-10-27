@@ -5,62 +5,53 @@ export default [
     children: [
       {
         title: 'Analytics',
-        to: 'template-dashboards-analytics',
-      },
-      {
-        title: 'CRM',
-        to: 'template-dashboards-crm',
-      },
-      {
-        title: 'Ecommerce',
-        to: 'template-dashboards-ecommerce',
-      },
-      {
-        title: 'Academy',
-        to: 'template-apps-academy-dashboard',
-      },
-      {
-        title: 'Logistics',
-        to: 'template-apps-logistics-dashboard',
+        //to: 'template-dashboards-analytics',
       },
     ],
     badgeContent: '5',
     badgeClass: 'bg-error',
   },
-  {
-    title: 'Shop',
-    icon: { icon: 'tabler-shopping-cart' },
-    to: 'shop',  // <- Route générée automatiquement
-  },
-  {
-    title: 'Front Pages',
-    icon: { icon: 'tabler-files' },
+  { heading: 'App' },
+  { title: 'Couriers',
+    icon: { icon: 'tabler-users' },
     children: [
-      {
-        title: 'Landing',
-        to: 'template-front-pages-landing-page',
-        target: '_blank',
-      },
-      {
-        title: 'Pricing',
-        to: 'template-front-pages-pricing',
-        target: '_blank',
-      },
-      {
-        title: 'Payment',
-        to: 'template-front-pages-payment',
-        target: '_blank',
-      },
-      {
-        title: 'Checkout',
-        to: 'template-front-pages-checkout',
-        target: '_blank',
-      },
-      {
-        title: 'Help Center',
-        to: 'template-front-pages-help-center',
-        target: '_blank',
-      },
-    ],
+      { title: 'List', to: 'couriers-list' },
+      { title: 'Add',  },
+    ]
   },
+  {
+    title: 'Delivery',
+    icon: { icon: 'tabler-truck' },
+    children: [
+      { title: 'Dashboard', to: 'delivery-dashboard' },
+      { title: 'List',  },
+      { title: 'Add',  },
+    ]
+  },
+  {
+    title: 'Partners',
+    icon: { icon: 'tabler-users' },
+    //to: 'app-partners-list',  // <- Route générée automatiquement
+    children: [
+      { title: 'List',  },
+      { title: 'Add',  },
+    ]
+  },
+  { title: 'Reports',
+    icon: { icon: 'tabler-chart-bar' },
+  },
+  { title: 'Roles & Permissions',
+    icon: { icon: 'tabler-lock' },
+    children: [
+      { title: 'Roles', to: 'role' },
+      { title: 'Permissions',  },
+    ]
+  },
+  { title: 'Settings', 
+    icon: { icon: 'tabler-settings' },
+    children: [
+      { title: 'List',  },
+      { title: 'Add',  },
+    ]
+  }, 
 ]
