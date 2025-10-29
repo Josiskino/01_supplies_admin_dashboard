@@ -16,7 +16,7 @@ export const redirects = [
       if (userRole === 'client')
         return { name: 'template-access-control' }
       
-      return { name: 'template-login', query: to.query }
+      return { name: 'auth-login', query: to.query }
     },
   },
   {

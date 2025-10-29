@@ -48,24 +48,48 @@ const headers = [
   },
 ]
 
-const {
-  data: usersData,
-  execute: fetchUsers,
-} = await useApi(createUrl('/apps/users', {
-  query: {
-    q: searchQuery,
-    status: selectedStatus,
-    plan: selectedPlan,
-    role: selectedRole,
-    itemsPerPage,
-    page,
-    sortBy,
-    orderBy,
-  },
-}))
+// Temporairement désactivé - on va utiliser /drivers à la place
+// const {
+//   data: usersData,
+//   execute: fetchUsers,
+// } = await useApi(createUrl('/apps/users', {
+//   query: {
+//     q: searchQuery,
+//     status: selectedStatus,
+//     plan: selectedPlan,
+//     role: selectedRole,
+//     itemsPerPage,
+//     page,
+//     sortBy,
+//     orderBy,
+//   },
+// }))
 
-const users = computed(() => usersData.value.users)
-const totalUsers = computed(() => usersData.value.totalUsers)
+// const users = computed(() => usersData.value.users)
+// const totalUsers = computed(() => usersData.value.totalUsers)
+
+const users = ref([])
+const totalUsers = ref(0)
+
+// 👉 Fetch Drivers
+const fetchDrivers = async () => {
+  try {
+    const response = await $api('/drivers', {
+      method: 'GET',
+    })
+    console.log('Drivers response:', response)
+    console.log('Drivers data structure:', JSON.stringify(response, null, 2))
+    
+    // TODO: Adapter selon la structure de la réponse
+  } catch (error) {
+    console.error('Error fetching drivers:', error)
+  }
+}
+
+// Call on mount
+onMounted(() => {
+  fetchDrivers()
+})
 
 // 👉 search filters
 const roles = [
@@ -179,8 +203,8 @@ const addNewUser = async userData => {
     body: userData,
   })
 
-  // Refetch User
-  fetchUsers()
+  // Refetch drivers
+  fetchDrivers()
 }
 
 const deleteUser = async id => {
@@ -191,8 +215,8 @@ const deleteUser = async id => {
   if (index !== -1)
     selectedRows.value.splice(index, 1)
 
-  // Refetch User
-  fetchUsers()
+  // Refetch drivers
+  fetchDrivers()
 }
 
 const widgetData = ref([
