@@ -20,6 +20,7 @@ declare module 'vue-router/auto-routes' {
   export interface RouteNamedMap {
     'auth-login': RouteRecordInfo<'auth-login', '/auth/login', Record<never, never>, Record<never, never>>,
     'auth-login-forgot-password': RouteRecordInfo<'auth-login-forgot-password', '/auth/login/forgot-password', Record<never, never>, Record<never, never>>,
+    'couriers-add': RouteRecordInfo<'couriers-add', '/couriers/add', Record<never, never>, Record<never, never>>,
     'couriers-list': RouteRecordInfo<'couriers-list', '/couriers/list', Record<never, never>, Record<never, never>>,
     'dashboard': RouteRecordInfo<'dashboard', '/dashboard', Record<never, never>, Record<never, never>>,
     'delivery-dashboard': RouteRecordInfo<'delivery-dashboard', '/delivery/dashboard', Record<never, never>, Record<never, never>>,

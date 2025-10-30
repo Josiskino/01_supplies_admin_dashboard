@@ -1,4 +1,6 @@
 <script setup>
+import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
+
 const searchQuery = ref('')
 const selectedStatus = ref()
 const selectedVehicleType = ref()
@@ -10,6 +12,10 @@ const sortBy = ref()
 const orderBy = ref()
 const selectedRows = ref([])
 const isLoading = ref(false)
+const isAddDriverDrawerOpen = ref(false)
+
+const isSuccessSnackVisible = ref(false)
+const successSnackText = ref('Driver created successfully')
 
 const updateOptions = options => {
   sortBy.value = options.sortBy[0]?.key
@@ -19,31 +25,31 @@ const updateOptions = options => {
 // Headers for drivers table
 const headers = [
   {
-    title: 'Livreur',
+    title: 'Driver',
     key: 'driver',
   },
   {
-    title: 'Téléphone',
+    title: 'Phone',
     key: 'phone',
   },
   {
-    title: 'Type de véhicule',
+    title: 'Vehicle Type',
     key: 'vehicle_type',
   },
   {
-    title: 'Plaque',
+    title: 'Plate',
     key: 'plate_number',
   },
   {
-    title: 'Quartier',
+    title: 'Neighborhood',
     key: 'neighborhood',
   },
   {
-    title: 'Statut',
+    title: 'Status',
     key: 'status',
   },
   {
-    title: 'Livraisons',
+    title: 'Deliveries',
     key: 'deliveries_count',
   },
   {
@@ -212,6 +218,14 @@ const resolveVehicleTypeIcon = vehicleType => {
   return 'tabler-truck'
 }
 
+const addNewDriver = async driverData => {
+  await $api('/drivers', { method: 'POST', body: driverData })
+  isAddDriverDrawerOpen.value = false
+  successSnackText.value = 'Driver created successfully'
+  isSuccessSnackVisible.value = true
+  fetchDrivers()
+}
+
 const deleteDriver = async id => {
   try {
     await $api(`/drivers/${id}`, { method: 'DELETE' })
@@ -305,8 +319,11 @@ const deleteDriver = async id => {
           </VBtn>
 
           <!-- 👉 Add driver button -->
-          <VBtn prepend-icon="tabler-plus">
-            Ajouter un livreur
+          <VBtn
+            prepend-icon="tabler-plus"
+            @click="isAddDriverDrawerOpen = true"
+          >
+            Add Driver
           </VBtn>
         </div>
       </VCardText>
@@ -456,5 +473,19 @@ const deleteDriver = async id => {
       </VDataTableServer>
       <!-- SECTION -->
     </VCard>
+
+    <CouriersAddDrawer
+      v-model:isDrawerOpen="isAddDriverDrawerOpen"
+      @submit="addNewDriver"
+    />
+    <VSnackbar
+      v-model="isSuccessSnackVisible"
+      location="top right"
+      timeout="3000"
+      color="success"
+      variant="elevated"
+    >
+      {{ successSnackText }}
+    </VSnackbar>
   </section>
 </template>

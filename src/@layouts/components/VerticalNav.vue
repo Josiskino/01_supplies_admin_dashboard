@@ -90,7 +90,7 @@ const hideTitleAndIcon = configStore.isVerticalNavMini(isHovered)
 
           <Transition name="vertical-nav-app-title">
             <h1
-              v-show="!hideTitleAndIcon"
+              v-show="false"
               class="app-logo-title"
             >
               {{ layoutConfig.app.title }}
