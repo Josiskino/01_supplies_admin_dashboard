@@ -106,7 +106,7 @@ definePage({
               <VCol cols="12">
                 <RouterLink
                   class="d-flex align-center justify-center"
-                  :to="{ name: 'login' }"
+                  :to="{ name: 'template-login' }"
                 >
                   <VIcon
                     icon="tabler-chevron-left"
@@ -125,5 +125,5 @@ definePage({
 </template>
 
 <style lang="scss">
-@use "@core/scss/template/pages/page-auth.scss";
+@use "@core/scss/template/pages/page-auth";
 </style>

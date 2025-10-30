@@ -8,23 +8,46 @@ const ability = useAbility()
 const userData = useCookie('userData')
 
 const logout = async () => {
+  try {
+    // Call logout endpoint first to invalidate the token on the server
+    try {
+      await $api('/auth/logout', {
+        method: 'POST',
+      })
+    } catch (apiError) {
+      // Continue with logout even if API call fails (e.g., network error, already logged out)
+      console.warn('Logout API call failed, continuing with client-side logout:', apiError)
+    }
 
-  // Remove "accessToken" from cookie
-  useCookie('accessToken').value = null
+    // Reset ability first to avoid reactive issues
+    ability.update([])
+    
+    // Remove "userAbilities" from cookie
+    useCookie('userAbilityRules').value = null
 
-  // Remove "userData" from cookie
-  userData.value = null
+    // Remove "accessToken" from cookie
+    useCookie('accessToken').value = null
 
-  // Redirect to login page
-  await router.push('/login')
+    // Use nextTick to ensure reactive updates complete before navigation
+    await nextTick()
+    
+    // Remove "userData" from cookie
+    userData.value = null
 
-  // ℹ️ We had to remove abilities in then block because if we don't nav menu items mutation is visible while redirecting user to login page
+    // Redirect to login page using replace to avoid history entry
+    await nextTick()
+    await router.replace({ name: 'auth-login' })
+  } catch (error) {
+    console.error('Logout error:', error)
 
-  // Remove "userAbilities" from cookie
-  useCookie('userAbilityRules').value = null
-
-  // Reset ability to initial ability
-  ability.update([])
+    // Force redirect even if there's an error using route name
+    try {
+      await router.replace({ name: 'auth-login' })
+    } catch {
+      // If router fails, use window location as last resort
+      window.location.href = '/app/auth/login'
+    }
+  }
 }
 
 const userProfileList = [
@@ -35,7 +58,7 @@ const userProfileList = [
     title: 'Profile',
     to: {
       name: 'template-apps-user-view-id',
-      params: { id: 21 },
+      params: { id: userData?.id || 1 },
     },
   },
   {
@@ -43,35 +66,9 @@ const userProfileList = [
     icon: 'tabler-settings',
     title: 'Settings',
     to: {
-      name: 'pages-account-settings-tab',
+      name: 'template-pages-account-settings-tab',
       params: { tab: 'account' },
     },
-  },
-  {
-    type: 'navItem',
-    icon: 'tabler-file-dollar',
-    title: 'Billing Plan',
-    to: {
-      name: 'pages-account-settings-tab',
-      params: { tab: 'billing-plans' },
-    },
-    badgeProps: {
-      color: 'error',
-      content: '4',
-    },
-  },
-  { type: 'divider' },
-  {
-    type: 'navItem',
-    icon: 'tabler-currency-dollar',
-    title: 'Pricing',
-    to: { name: 'pages-pricing' },
-  },
-  {
-    type: 'navItem',
-    icon: 'tabler-question-mark',
-    title: 'FAQ',
-    to: { name: 'pages-faq' },
   },
 ]
 </script>
@@ -138,10 +135,10 @@ const userProfileList = [
 
               <div>
                 <h6 class="text-h6 font-weight-medium">
-                  {{ userData.fullName || userData.username }}
+                  {{ userData.name || userData.fullName || userData.username }}
                 </h6>
-                <VListItemSubtitle class="text-capitalize text-disabled">
-                  {{ userData.role }}
+                <VListItemSubtitle class="text-disabled">
+                  {{ userData.email }}
                 </VListItemSubtitle>
               </div>
             </div>

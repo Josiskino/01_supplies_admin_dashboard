@@ -161,7 +161,7 @@ const isPasswordVisible = ref(false)
                 <span class="d-inline-block">Already have an account?</span>
                 <RouterLink
                   class="text-primary ms-1 d-inline-block"
-                  :to="{ name: 'login' }"
+                  :to="{ name: 'template-login' }"
                 >
                   Sign in instead
                 </RouterLink>
@@ -192,5 +192,5 @@ const isPasswordVisible = ref(false)
 </template>
 
 <style lang="scss">
-@use "@core/scss/template/pages/page-auth.scss";
+@use "@core/scss/template/pages/page-auth";
 </style>

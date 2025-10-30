@@ -10,7 +10,7 @@ import { AppContentLayoutNav, ContentWidth, FooterType, NavbarType } from '@layo
 export const { themeConfig, layoutConfig } = defineThemeConfig({
   app: {
     // title: 'supplies', // Logo only - title hidden
-    title: '',
+    title: 'O1 Supplies Administration Dashboard',
     logo: h('img', { src: siteLogo, alt: 'Site Logo', style: 'height: 40px; max-width: 100%; object-fit: contain; margin: 0 auto; display: block;' }),
     contentWidth: ContentWidth.Boxed,
     contentLayoutNav: AppContentLayoutNav.Vertical,

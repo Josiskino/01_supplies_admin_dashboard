@@ -186,7 +186,7 @@ const onSubmit = () => {
                   />
                   <RouterLink
                     class="text-primary ms-2 mb-1"
-                    :to="{ name: 'forgot-password' }"
+                    :to="{ name: 'template-forgot-password' }"
                   >
                     Forgot Password?
                   </RouterLink>
@@ -208,7 +208,7 @@ const onSubmit = () => {
                 <span>New on our platform?</span>
                 <RouterLink
                   class="text-primary ms-1"
-                  :to="{ name: 'register' }"
+                  :to="{ name: 'template-register' }"
                 >
                   Create an account
                 </RouterLink>
@@ -238,5 +238,5 @@ const onSubmit = () => {
 </template>
 
 <style lang="scss">
-@use "@core/scss/template/pages/page-auth.scss";
+@use "@core/scss/template/pages/page-auth";
 </style>

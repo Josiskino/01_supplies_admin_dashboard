@@ -1,45 +1,50 @@
 <script setup>
-import AddNewUserDrawer from '@/views/apps/user/list/AddNewUserDrawer.vue'
-
-// 👉 Store
 const searchQuery = ref('')
-const selectedRole = ref()
-const selectedPlan = ref()
 const selectedStatus = ref()
+const selectedVehicleType = ref()
 
 // Data table options
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(15)
 const page = ref(1)
 const sortBy = ref()
 const orderBy = ref()
 const selectedRows = ref([])
+const isLoading = ref(false)
 
 const updateOptions = options => {
   sortBy.value = options.sortBy[0]?.key
   orderBy.value = options.sortBy[0]?.order
 }
 
-// Headers
+// Headers for drivers table
 const headers = [
   {
-    title: 'User',
-    key: 'user',
+    title: 'Livreur',
+    key: 'driver',
   },
   {
-    title: 'Role',
-    key: 'role',
+    title: 'Téléphone',
+    key: 'phone',
   },
   {
-    title: 'Plan',
-    key: 'plan',
+    title: 'Type de véhicule',
+    key: 'vehicle_type',
   },
   {
-    title: 'Billing',
-    key: 'billing',
+    title: 'Plaque',
+    key: 'plate_number',
   },
   {
-    title: 'Status',
+    title: 'Quartier',
+    key: 'neighborhood',
+  },
+  {
+    title: 'Statut',
     key: 'status',
+  },
+  {
+    title: 'Livraisons',
+    key: 'deliveries_count',
   },
   {
     title: 'Actions',
@@ -48,43 +53,104 @@ const headers = [
   },
 ]
 
-// Temporairement désactivé - on va utiliser /drivers à la place
-// const {
-//   data: usersData,
-//   execute: fetchUsers,
-// } = await useApi(createUrl('/apps/users', {
-//   query: {
-//     q: searchQuery,
-//     status: selectedStatus,
-//     plan: selectedPlan,
-//     role: selectedRole,
-//     itemsPerPage,
-//     page,
-//     sortBy,
-//     orderBy,
-//   },
-// }))
-
-// const users = computed(() => usersData.value.users)
-// const totalUsers = computed(() => usersData.value.totalUsers)
-
-const users = ref([])
-const totalUsers = ref(0)
+// Drivers data
+const drivers = ref([])
+const totalDrivers = ref(0)
 
 // 👉 Fetch Drivers
 const fetchDrivers = async () => {
+  isLoading.value = true
   try {
-    const response = await $api('/drivers', {
+    // Build query parameters
+    // eslint-disable-next-line camelcase
+    const queryParams = {
+      // eslint-disable-next-line camelcase
+      per_page: itemsPerPage.value,
+      page: page.value,
+    }
+
+    if (searchQuery.value) {
+      queryParams.search = searchQuery.value
+    }
+
+    if (selectedStatus.value) {
+      queryParams.status = selectedStatus.value
+    }
+
+    if (selectedVehicleType.value) {
+      // eslint-disable-next-line camelcase
+      queryParams.vehicle_type = selectedVehicleType.value
+    }
+
+    // Build query string
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/drivers${queryString ? `?${queryString}` : ''}`
+
+    console.log('=== Calling /drivers API ===')
+    console.log('URL:', url)
+    console.log('Query params:', queryParams)
+    console.log('===============================')
+
+    const response = await $api(url, {
       method: 'GET',
     })
-    console.log('Drivers response:', response)
-    console.log('Drivers data structure:', JSON.stringify(response, null, 2))
+
+    console.log('=== Response from /drivers API ===')
+    console.log('Full response:', response)
+    console.log('Response type:', typeof response)
+    console.log('Is Array:', Array.isArray(response))
+    console.log('Response length:', Array.isArray(response) ? response.length : 'N/A')
     
-    // TODO: Adapter selon la structure de la réponse
+    // Check if response is wrapped or direct array
+    if (response && typeof response === 'object' && !Array.isArray(response)) {
+      console.log('Response data:', response?.data)
+      console.log('Response meta:', response?.meta)
+      console.log('Response links:', response?.links)
+      console.log('Response keys:', Object.keys(response))
+    } else if (Array.isArray(response)) {
+      console.log('Response is directly an array with', response.length, 'items')
+      console.log('First item:', response[0])
+    } else {
+      console.log('Unexpected response format')
+    }
+    console.log('===============================')
+
+    // Handle different response structures
+    if (response) {
+      if (Array.isArray(response)) {
+        // Response is directly an array
+        drivers.value = response
+        totalDrivers.value = response.length
+      } else if (response.data && Array.isArray(response.data)) {
+        // Response has { data: [...], meta: {...} } structure
+        drivers.value = response.data
+        totalDrivers.value = response.meta?.total || response.data.length
+      } else {
+        drivers.value = []
+        totalDrivers.value = 0
+      }
+    } else {
+      drivers.value = []
+      totalDrivers.value = 0
+    }
   } catch (error) {
     console.error('Error fetching drivers:', error)
+    drivers.value = []
+    totalDrivers.value = 0
+  } finally {
+    isLoading.value = false
   }
 }
+
+// Watch for changes and refetch
+watch([searchQuery, selectedStatus, selectedVehicleType, itemsPerPage], () => {
+  page.value = 1
+  fetchDrivers()
+})
+
+watch(page, () => {
+  fetchDrivers()
+})
 
 // Call on mount
 onMounted(() => {
@@ -92,257 +158,86 @@ onMounted(() => {
 })
 
 // 👉 search filters
-const roles = [
+const statusOptions = [
   {
-    title: 'Admin',
-    value: 'admin',
+    title: 'Libre',
+    value: 'Libre',
   },
   {
-    title: 'Author',
-    value: 'author',
+    title: 'Occupé',
+    value: 'Occupé',
   },
   {
-    title: 'Editor',
-    value: 'editor',
-  },
-  {
-    title: 'Maintainer',
-    value: 'maintainer',
-  },
-  {
-    title: 'Subscriber',
-    value: 'subscriber',
+    title: 'Indisponible',
+    value: 'Indisponible',
   },
 ]
 
-const plans = [
+const vehicleTypes = [
   {
-    title: 'Basic',
-    value: 'basic',
+    title: 'Moto',
+    value: 'moto',
   },
   {
-    title: 'Company',
-    value: 'company',
+    title: 'Voiture',
+    value: 'voiture',
   },
   {
-    title: 'Enterprise',
-    value: 'enterprise',
-  },
-  {
-    title: 'Team',
-    value: 'team',
+    title: 'Vélo',
+    value: 'velo',
   },
 ]
 
-const status = [
-  {
-    title: 'Pending',
-    value: 'pending',
-  },
-  {
-    title: 'Active',
-    value: 'active',
-  },
-  {
-    title: 'Inactive',
-    value: 'inactive',
-  },
-]
-
-const resolveUserRoleVariant = role => {
-  const roleLowerCase = role.toLowerCase()
-  if (roleLowerCase === 'subscriber')
-    return {
-      color: 'success',
-      icon: 'tabler-user',
-    }
-  if (roleLowerCase === 'author')
-    return {
-      color: 'error',
-      icon: 'tabler-device-desktop',
-    }
-  if (roleLowerCase === 'maintainer')
-    return {
-      color: 'info',
-      icon: 'tabler-chart-pie',
-    }
-  if (roleLowerCase === 'editor')
-    return {
-      color: 'warning',
-      icon: 'tabler-edit',
-    }
-  if (roleLowerCase === 'admin')
-    return {
-      color: 'primary',
-      icon: 'tabler-crown',
-    }
+const resolveStatusVariant = statusName => {
+  const status = statusName?.toLowerCase() || ''
+  if (status === 'libre')
+    return 'success'
+  if (status === 'occupé')
+    return 'warning'
+  if (status === 'ocar' || status === 'indisponible')
+    return 'error'
   
-  return {
-    color: 'primary',
-    icon: 'tabler-user',
+  return 'secondary'
+}
+
+const resolveVehicleTypeIcon = vehicleType => {
+  const type = vehicleType?.toLowerCase() || ''
+  if (type === 'moto')
+    return 'tabler-motorbike'
+  if (type === 'voiture' || type === 'car')
+    return 'tabler-car'
+  if (type === 'velo' || type === 'bike')
+    return 'tabler-bike'
+  
+  return 'tabler-truck'
+}
+
+const deleteDriver = async id => {
+  try {
+    await $api(`/drivers/${id}`, { method: 'DELETE' })
+
+    // Delete from selectedRows
+    const index = selectedRows.value.findIndex(row => row === id)
+    if (index !== -1)
+      selectedRows.value.splice(index, 1)
+
+    // Refetch drivers
+    fetchDrivers()
+  } catch (error) {
+    console.error('Error deleting driver:', error)
   }
 }
-
-const resolveUserStatusVariant = stat => {
-  const statLowerCase = stat.toLowerCase()
-  if (statLowerCase === 'pending')
-    return 'warning'
-  if (statLowerCase === 'active')
-    return 'success'
-  if (statLowerCase === 'inactive')
-    return 'secondary'
-  
-  return 'primary'
-}
-
-const isAddNewUserDrawerVisible = ref(false)
-
-const addNewUser = async userData => {
-  await $api('/apps/users', {
-    method: 'POST',
-    body: userData,
-  })
-
-  // Refetch drivers
-  fetchDrivers()
-}
-
-const deleteUser = async id => {
-  await $api(`/apps/users/${ id }`, { method: 'DELETE' })
-
-  // Delete from selectedRows
-  const index = selectedRows.value.findIndex(row => row === id)
-  if (index !== -1)
-    selectedRows.value.splice(index, 1)
-
-  // Refetch drivers
-  fetchDrivers()
-}
-
-const widgetData = ref([
-  {
-    title: 'Session',
-    value: '21,459',
-    change: 29,
-    desc: 'Total Users',
-    icon: 'tabler-users',
-    iconColor: 'primary',
-  },
-  {
-    title: 'Paid Users',
-    value: '4,567',
-    change: 18,
-    desc: 'Last Week Analytics',
-    icon: 'tabler-user-plus',
-    iconColor: 'error',
-  },
-  {
-    title: 'Active Users',
-    value: '19,860',
-    change: -14,
-    desc: 'Last Week Analytics',
-    icon: 'tabler-user-check',
-    iconColor: 'success',
-  },
-  {
-    title: 'Pending Users',
-    value: '237',
-    change: 42,
-    desc: 'Last Week Analytics',
-    icon: 'tabler-user-search',
-    iconColor: 'warning',
-  },
-])
 </script>
 
 <template>
   <section>
-    <!-- 👉 Widgets -->
-    <div class="d-flex mb-6">
-      <VRow>
-        <template
-          v-for="(data, id) in widgetData"
-          :key="id"
-        >
-          <VCol
-            cols="12"
-            md="3"
-            sm="6"
-          >
-            <VCard>
-              <VCardText>
-                <div class="d-flex justify-space-between">
-                  <div class="d-flex flex-column gap-y-1">
-                    <div class="text-body-1 text-high-emphasis">
-                      {{ data.title }}
-                    </div>
-                    <div class="d-flex gap-x-2 align-center">
-                      <h4 class="text-h4">
-                        {{ data.value }}
-                      </h4>
-                      <div
-                        class="text-base"
-                        :class="data.change > 0 ? 'text-success' : 'text-error'"
-                      >
-                        ({{ prefixWithPlus(data.change) }}%)
-                      </div>
-                    </div>
-                    <div class="text-sm">
-                      {{ data.desc }}
-                    </div>
-                  </div>
-                  <VAvatar
-                    :color="data.iconColor"
-                    variant="tonal"
-                    rounded
-                    size="42"
-                  >
-                    <VIcon
-                      :icon="data.icon"
-                      size="26"
-                    />
-                  </VAvatar>
-                </div>
-              </VCardText>
-            </VCard>
-          </VCol>
-        </template>
-      </VRow>
-    </div>
-
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Filters</VCardTitle>
+        <VCardTitle>Livreurs</VCardTitle>
       </VCardItem>
 
       <VCardText>
         <VRow>
-          <!-- 👉 Select Role -->
-          <VCol
-            cols="12"
-            sm="4"
-          >
-            <AppSelect
-              v-model="selectedRole"
-              placeholder="Select Role"
-              :items="roles"
-              clearable
-              clear-icon="tabler-x"
-            />
-          </VCol>
-          <!-- 👉 Select Plan -->
-          <VCol
-            cols="12"
-            sm="4"
-          >
-            <AppSelect
-              v-model="selectedPlan"
-              placeholder="Select Plan"
-              :items="plans"
-              clearable
-              clear-icon="tabler-x"
-            />
-          </VCol>
           <!-- 👉 Select Status -->
           <VCol
             cols="12"
@@ -350,8 +245,21 @@ const widgetData = ref([
           >
             <AppSelect
               v-model="selectedStatus"
-              placeholder="Select Status"
-              :items="status"
+              placeholder="Filtrer par statut"
+              :items="statusOptions"
+              clearable
+              clear-icon="tabler-x"
+            />
+          </VCol>
+          <!-- 👉 Select Vehicle Type -->
+          <VCol
+            cols="12"
+            sm="4"
+          >
+            <AppSelect
+              v-model="selectedVehicleType"
+              placeholder="Filtrer par type de véhicule"
+              :items="vehicleTypes"
               clearable
               clear-icon="tabler-x"
             />
@@ -366,11 +274,10 @@ const widgetData = ref([
           <AppSelect
             :model-value="itemsPerPage"
             :items="[
-              { value: 10, title: '10' },
+              { value: 15, title: '15' },
               { value: 25, title: '25' },
               { value: 50, title: '50' },
               { value: 100, title: '100' },
-              { value: -1, title: 'All' },
             ]"
             style="inline-size: 6.25rem;"
             @update:model-value="itemsPerPage = parseInt($event, 10)"
@@ -383,7 +290,8 @@ const widgetData = ref([
           <div style="inline-size: 15.625rem;">
             <AppTextField
               v-model="searchQuery"
-              placeholder="Search User"
+              placeholder="Rechercher par nom ou téléphone"
+              clearable
             />
           </div>
 
@@ -393,15 +301,12 @@ const widgetData = ref([
             color="secondary"
             prepend-icon="tabler-upload"
           >
-            Export
+            Exporter
           </VBtn>
 
-          <!-- 👉 Add user button -->
-          <VBtn
-            prepend-icon="tabler-plus"
-            @click="isAddNewUserDrawerVisible = true"
-          >
-            Add New User
+          <!-- 👉 Add driver button -->
+          <VBtn prepend-icon="tabler-plus">
+            Ajouter un livreur
           </VBtn>
         </div>
       </VCardText>
@@ -413,81 +318,93 @@ const widgetData = ref([
         v-model:items-per-page="itemsPerPage"
         v-model:model-value="selectedRows"
         v-model:page="page"
-        :items="users"
+        :items="drivers"
+        :loading="isLoading"
         item-value="id"
-        :items-length="totalUsers"
+        :items-length="totalDrivers"
         :headers="headers"
         class="text-no-wrap"
         show-select
         @update:options="updateOptions"
       >
-        <!-- User -->
-        <template #item.user="{ item }">
+        <!-- Driver Info -->
+        <template #item.driver="{ item }">
           <div class="d-flex align-center gap-x-4">
             <VAvatar
               size="34"
-              :variant="!item.avatar ? 'tonal' : undefined"
-              :color="!item.avatar ? resolveUserRoleVariant(item.role).color : undefined"
+              variant="tonal"
+              color="primary"
             >
-              <VImg
-                v-if="item.avatar"
-                :src="item.avatar"
-              />
-              <span v-else>{{ avatarText(item.fullName) }}</span>
+              <VIcon icon="tabler-user" />
             </VAvatar>
             <div class="d-flex flex-column">
-              <h6 class="text-base">
-                <RouterLink
-                  :to="{ name: 'template-apps-user-view-id', params: { id: item.id } }"
-                  class="font-weight-medium text-link"
-                >
-                  {{ item.fullName }}
-                </RouterLink>
+              <h6 class="text-base font-weight-medium">
+                {{ item.user?.name || 'N/A' }}
               </h6>
-              <div class="text-sm">
-                {{ item.email }}
+              <div class="text-sm text-disabled">
+                {{ item.user?.email || 'N/A' }}
               </div>
             </div>
           </div>
         </template>
 
-        <!-- 👉 Role -->
-        <template #item.role="{ item }">
+        <!-- Phone -->
+        <template #item.phone="{ item }">
+          <div class="text-body-1">
+            {{ item.user?.phone || 'N/A' }}
+          </div>
+        </template>
+
+        <!-- Vehicle Type -->
+        <template #item.vehicle_type="{ item }">
           <div class="d-flex align-center gap-x-2">
             <VIcon
-              :size="22"
-              :icon="resolveUserRoleVariant(item.role).icon"
-              :color="resolveUserRoleVariant(item.role).color"
+              :icon="resolveVehicleTypeIcon(item.vehicle_type)"
+              size="20"
+              color="primary"
             />
-
-            <div class="text-capitalize text-high-emphasis text-body-1">
-              {{ item.role }}
+            <div class="text-body-1 text-capitalize">
+              {{ item.vehicle_type || 'N/A' }}
             </div>
           </div>
         </template>
 
-        <!-- Plan -->
-        <template #item.plan="{ item }">
-          <div class="text-body-1 text-high-emphasis text-capitalize">
-            {{ item.currentPlan }}
+        <!-- Plate Number -->
+        <template #item.plate_number="{ item }">
+          <div class="text-body-1 font-weight-medium">
+            {{ item.plate_number || 'N/A' }}
+          </div>
+        </template>
+
+        <!-- Neighborhood -->
+        <template #item.neighborhood="{ item }">
+          <div class="text-body-1">
+            {{ item.neighborhood || 'N/A' }}
           </div>
         </template>
 
         <!-- Status -->
         <template #item.status="{ item }">
           <VChip
-            :color="resolveUserStatusVariant(item.status)"
+            :color="resolveStatusVariant(item.current_status?.status_name)"
             size="small"
             label
             class="text-capitalize"
           >
-            {{ item.status }}
+            {{ item.current_status?.status_name || 'N/A' }}
           </VChip>
+        </template>
+
+        <!-- Deliveries Count -->
+        <template #item.deliveries_count="{ item }">
+          <div class="text-body-1 font-weight-medium">
+            {{ item.deliveries_count || 0 }}
+          </div>
         </template>
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <IconBtn @click="deleteUser(item.id)">
+          <IconBtn @click="deleteDriver(item.id)">
             <VIcon icon="tabler-trash" />
           </IconBtn>
 
@@ -503,26 +420,25 @@ const widgetData = ref([
             <VIcon icon="tabler-dots-vertical" />
             <VMenu activator="parent">
               <VList>
-                <VListItem :to="{ name: 'template-apps-user-view-id', params: { id: item.id } }">
+                <VListItem>
                   <template #prepend>
                     <VIcon icon="tabler-eye" />
                   </template>
-
-                  <VListItemTitle>View</VListItemTitle>
+                  <VListItemTitle>Voir</VListItemTitle>
                 </VListItem>
 
                 <VListItem link>
                   <template #prepend>
                     <VIcon icon="tabler-pencil" />
                   </template>
-                  <VListItemTitle>Edit</VListItemTitle>
+                  <VListItemTitle>Modifier</VListItemTitle>
                 </VListItem>
 
-                <VListItem @click="deleteUser(item.id)">
+                <VListItem @click="deleteDriver(item.id)">
                   <template #prepend>
                     <VIcon icon="tabler-trash" />
                   </template>
-                  <VListItemTitle>Delete</VListItemTitle>
+                  <VListItemTitle>Supprimer</VListItemTitle>
                 </VListItem>
               </VList>
             </VMenu>
@@ -534,16 +450,11 @@ const widgetData = ref([
           <TablePagination
             v-model:page="page"
             :items-per-page="itemsPerPage"
-            :total-items="totalUsers"
+            :total-items="totalDrivers"
           />
         </template>
       </VDataTableServer>
       <!-- SECTION -->
     </VCard>
-    <!-- 👉 Add New User -->
-    <AddNewUserDrawer
-      v-model:isDrawerOpen="isAddNewUserDrawerVisible"
-      @user-data="addNewUser"
-    />
   </section>
 </template>

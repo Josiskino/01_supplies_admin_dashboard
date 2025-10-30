@@ -18,14 +18,23 @@ const form = ref({
 })
 
 const isPasswordVisible = ref(false)
+const isLoading = ref(false)
+
 const errors = ref({
   email: undefined,
   password: undefined,
 })
+
 const router = useRouter()
 const ability = useAbility()
 
 const login = async () => {
+  isLoading.value = true
+  errors.value = {
+    email: undefined,
+    password: undefined,
+  }
+  
   try {
     const res = await $api('/auth/login', {
       method: 'POST',
@@ -42,6 +51,7 @@ const login = async () => {
     if (!res) {
       console.error('No response from server')
       errors.value = { email: ['Failed to connect to server'] }
+      
       return
     }
 
@@ -59,8 +69,10 @@ const login = async () => {
       // Backend: ['create-delivery', 'view-delivery']
       // CASL needs: [{ action: 'create', subject: 'delivery' }, ...]
       const permissions = userData?.permissions || []
+
       userAbilityRules = permissions.map(permission => {
         const [action, subject] = permission.split('-')
+        
         return { action, subject }
       })
     } else if (res.accessToken) {
@@ -71,6 +83,7 @@ const login = async () => {
     } else {
       console.error('Invalid response format:', res)
       errors.value = { email: ['Invalid server response'] }
+      
       return
     }
 
@@ -78,6 +91,7 @@ const login = async () => {
     if (!accessToken || !userData) {
       console.error('Missing required data:', { accessToken, userData })
       errors.value = { email: ['Invalid server response'] }
+      
       return
     }
 
@@ -97,6 +111,8 @@ const login = async () => {
   } catch (err) {
     console.error('Login error:', err)
     errors.value = { email: ['Login failed. Please try again.'] }
+  } finally {
+    isLoading.value = false
   }
 }
 
@@ -207,6 +223,8 @@ const onSubmit = () => {
                 <VBtn
                   block
                   type="submit"
+                  :loading="isLoading"
+                  :disabled="isLoading"
                 >
                   Login
                 </VBtn>
