@@ -79,123 +79,6 @@ const roles = ref([
       ],
     },
   },
-  {
-    role: 'Users',
-    users: [
-      avatar1,
-      avatar2,
-      avatar3,
-      avatar4,
-      avatar5,
-    ],
-    details: {
-      name: 'Users',
-      permissions: [
-        {
-          name: 'User Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Content Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Disputes Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Database Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-      ],
-    },
-  },
-  {
-    role: 'Support',
-    users: [
-      avatar1,
-      avatar2,
-      avatar3,
-      avatar4,
-      avatar5,
-      avatar6,
-    ],
-    details: {
-      name: 'Support',
-      permissions: [
-        {
-          name: 'Repository Management',
-          read: true,
-          write: true,
-          create: false,
-        },
-        {
-          name: 'Content Management',
-          read: true,
-          write: true,
-          create: false,
-        },
-        {
-          name: 'Database Management',
-          read: true,
-          write: true,
-          create: false,
-        },
-      ],
-    },
-  },
-  {
-    role: 'Restricted User',
-    users: [
-      avatar1,
-      avatar2,
-      avatar3,
-      avatar4,
-      avatar5,
-      avatar6,
-      avatar7,
-      avatar8,
-      avatar9,
-      avatar10,
-    ],
-    details: {
-      name: 'Restricted User',
-      permissions: [
-        {
-          name: 'User Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Content Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Disputes Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-        {
-          name: 'Database Management',
-          read: true,
-          write: false,
-          create: false,
-        },
-      ],
-    },
-  },
 ])
 
 const isRoleDialogVisible = ref(false)
@@ -218,56 +101,19 @@ const editPermission = value => {
       sm="6"
       lg="4"
     >
-      <VCard>
+      <VCard class="h-100">
         <VCardText class="d-flex align-center pb-4">
           <div class="text-body-1">
             Total {{ item.users.length }} users
           </div>
-
-          <VSpacer />
-
-          <div class="v-avatar-group">
-            <template
-              v-for="(user, index) in item.users"
-              :key="user"
-            >
-              <VAvatar
-                v-if="item.users.length > 4 && item.users.length !== 4 && index < 3"
-                size="40"
-                :image="user"
-              />
-
-              <VAvatar
-                v-if="item.users.length === 4"
-                size="40"
-                :image="user"
-              />
-            </template>
-            <VAvatar
-              v-if="item.users.length > 4"
-              :color="$vuetify.theme.current.dark ? '#373B50' : '#EEEDF0'"
-            >
-              <span>
-                +{{ item.users.length - 3 }}
-              </span>
-            </VAvatar>
-          </div>
         </VCardText>
 
-        <VCardText>
+        <VCardText class="d-flex flex-column justify-space-between" style="min-height: 120px;">
           <div class="d-flex justify-space-between align-center">
             <div>
               <h5 class="text-h5">
                 {{ item.role }}
               </h5>
-              <div class="d-flex align-center">
-                <a
-                  href="javascript:void(0)"
-                  @click="editPermission(item.details)"
-                >
-                  Edit Role
-                </a>
-              </div>
             </div>
             <IconBtn>
               <VIcon

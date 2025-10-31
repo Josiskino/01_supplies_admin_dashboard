@@ -147,9 +147,6 @@ const onSubmit = () => {
             <RouterLink to="/">
               <div class="app-logo">
                 <VNodeRenderer :nodes="themeConfig.app.logo" />
-                <h1 class="app-logo-title">
-                  {{ themeConfig.app.title }}
-                </h1>
               </div>
             </RouterLink>
           </VCardTitle>
@@ -211,12 +208,12 @@ const onSubmit = () => {
                     label="Remember me"
                   />
 
-                  <RouterLink
+                  <!-- <RouterLink
                     class="text-primary"
                     :to="{ name: 'auth-login-forgot-password' }"
                   >
                     Forgot Password?
-                  </RouterLink>
+                  </RouterLink> -->
                 </div>
 
                 <!-- login button -->

@@ -22,6 +22,12 @@ const updateOptions = options => {
 // Headers
 const headers = [
   {
+    title: '#',
+    key: 'index',
+    sortable: false,
+    width: '60px',
+  },
+  {
     title: 'User',
     key: 'user',
   },
@@ -30,12 +36,8 @@ const headers = [
     key: 'role',
   },
   {
-    title: 'Plan',
-    key: 'plan',
-  },
-  {
-    title: 'Billing',
-    key: 'billing',
+    title: 'Email',
+    key: 'email',
   },
   {
     title: 'Status',
@@ -271,10 +273,17 @@ const deleteUser = async id => {
           </div>
         </template>
 
-        <!-- Plan -->
-        <template #item.plan="{ item }">
-          <div class="text-body-1 text-high-emphasis text-capitalize">
-            {{ item.currentPlan }}
+        <!-- Index/Counter -->
+        <template #item.index="{ index }">
+          <span class="text-high-emphasis font-weight-medium">
+            {{ (page - 1) * itemsPerPage + index + 1 }}
+          </span>
+        </template>
+
+        <!-- Email -->
+        <template #item.email="{ item }">
+          <div class="text-body-1 text-high-emphasis">
+            {{ item.email }}
           </div>
         </template>
 

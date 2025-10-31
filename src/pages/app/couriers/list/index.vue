@@ -1,5 +1,8 @@
 <script setup>
+import { useStatusManagement } from '@/composables/useStatusManagement'
 import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
+
+const { getStatusOptions, getStatusColor, getStatusLabel } = useStatusManagement()
 
 const searchQuery = ref('')
 const selectedStatus = ref()
@@ -164,32 +167,19 @@ onMounted(() => {
 })
 
 // 👉 search filters
-const statusOptions = [
-  {
-    title: 'Libre',
-    value: 'Libre',
-  },
-  {
-    title: 'Occupé',
-    value: 'Occupé',
-  },
-  {
-    title: 'Indisponible',
-    value: 'Indisponible',
-  },
-]
+const statusOptions = computed(() => getStatusOptions('drivers'))
 
 const vehicleTypes = [
   {
-    title: 'Moto',
+    title: 'Motorcycle',
     value: 'moto',
   },
   {
-    title: 'Voiture',
+    title: 'Car',
     value: 'voiture',
   },
   {
-    title: 'Vélo',
+    title: 'Bicycle',
     value: 'velo',
   },
 ]
@@ -247,7 +237,7 @@ const deleteDriver = async id => {
   <section>
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Livreurs</VCardTitle>
+        <VCardTitle>Drivers</VCardTitle>
       </VCardItem>
 
       <VCardText>
@@ -259,7 +249,7 @@ const deleteDriver = async id => {
           >
             <AppSelect
               v-model="selectedStatus"
-              placeholder="Filtrer par statut"
+              placeholder="Filter by status"
               :items="statusOptions"
               clearable
               clear-icon="tabler-x"
@@ -272,7 +262,7 @@ const deleteDriver = async id => {
           >
             <AppSelect
               v-model="selectedVehicleType"
-              placeholder="Filtrer par type de véhicule"
+              placeholder="Filter by vehicle type"
               :items="vehicleTypes"
               clearable
               clear-icon="tabler-x"
@@ -304,7 +294,7 @@ const deleteDriver = async id => {
           <div style="inline-size: 15.625rem;">
             <AppTextField
               v-model="searchQuery"
-              placeholder="Rechercher par nom ou téléphone"
+              placeholder="Search by name or phone"
               clearable
             />
           </div>
@@ -315,7 +305,7 @@ const deleteDriver = async id => {
             color="secondary"
             prepend-icon="tabler-upload"
           >
-            Exporter
+            Export
           </VBtn>
 
           <!-- 👉 Add driver button -->
@@ -403,12 +393,17 @@ const deleteDriver = async id => {
         <!-- Status -->
         <template #item.status="{ item }">
           <VChip
-            :color="resolveStatusVariant(item.current_status?.status_name)"
+            :color="getStatusColor('drivers', item.current_status?.status_name || item.status)"
             size="small"
             label
             class="text-capitalize"
           >
-            {{ item.current_status?.status_name || 'N/A' }}
+            <VIcon
+              :icon="getStatusIcon('drivers', item.current_status?.status_name || item.status)"
+              size="14"
+              class="me-1"
+            />
+            {{ getStatusLabel('drivers', item.current_status?.status_name || item.status) || item.current_status?.status_name || item.status || 'N/A' }}
           </VChip>
         </template>
 
@@ -441,21 +436,21 @@ const deleteDriver = async id => {
                   <template #prepend>
                     <VIcon icon="tabler-eye" />
                   </template>
-                  <VListItemTitle>Voir</VListItemTitle>
+                  <VListItemTitle>View</VListItemTitle>
                 </VListItem>
 
                 <VListItem link>
                   <template #prepend>
                     <VIcon icon="tabler-pencil" />
                   </template>
-                  <VListItemTitle>Modifier</VListItemTitle>
+                  <VListItemTitle>Edit</VListItemTitle>
                 </VListItem>
 
                 <VListItem @click="deleteDriver(item.id)">
                   <template #prepend>
                     <VIcon icon="tabler-trash" />
                   </template>
-                  <VListItemTitle>Supprimer</VListItemTitle>
+                  <VListItemTitle>Delete</VListItemTitle>
                 </VListItem>
               </VList>
             </VMenu>

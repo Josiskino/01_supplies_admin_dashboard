@@ -57,8 +57,7 @@ const userProfileList = [
     icon: 'tabler-user',
     title: 'Profile',
     to: {
-      name: 'template-apps-user-view-id',
-      params: { id: userData?.id || 1 },
+      name: 'auth-profile',
     },
   },
   {

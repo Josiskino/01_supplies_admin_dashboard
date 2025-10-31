@@ -356,6 +356,15 @@
     "whenever": true,
     "analytics": true,
     "app": true,
-    "firebase": true
+    "firebase": true,
+    "calculateDeliveryPrice": true,
+    "calculateDistance": true,
+    "calculateDistanceFromUrls": true,
+    "extractCoordinatesFromUrl": true,
+    "parseCoordinates": true,
+    "testCoordinateParsing": true,
+    "testDistanceCalculation": true,
+    "useDeliveryStatuses": true,
+    "useStatusManagement": true
   }
 }

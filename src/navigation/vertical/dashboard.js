@@ -19,7 +19,7 @@ export default [
     icon: { icon: 'tabler-users' },
     children: [
       { title: 'List', to: 'couriers-list' },
-      { title: 'Add'  },
+      { title: 'Activity', to: 'couriers-activity' },
     ],
   },
   {
@@ -27,17 +27,15 @@ export default [
     icon: { icon: 'tabler-truck' },
     children: [
       { title: 'Dashboard', to: 'delivery-dashboard' },
-      { title: 'List'  },
-      { title: 'Add'  },
+      { title: 'List', to: 'delivery-list' },
     ],
   },
   {
     title: 'Partners',
     icon: { icon: 'tabler-users' },
 
-    //to: 'app-partners-list',  // <- Route générée automatiquement
     children: [
-      { title: 'List'  },
+      { title: 'List', to: 'partners-list' },
       { title: 'Add'  },
     ],
   },
@@ -47,16 +45,14 @@ export default [
   { 
     title: 'Roles & Permissions',
     icon: { icon: 'tabler-lock' },
-    children: [
-      { title: 'Roles', to: 'role' },
-      { title: 'Permissions'  },
-    ],
+    to: 'role',
+
+    // children: [
+    //   { title: 'Roles', to: 'role' },
+    // ],
   },
   { title: 'Settings', 
     icon: { icon: 'tabler-settings' },
-    children: [
-      { title: 'List'  },
-      { title: 'Add'  },
-    ],
+    to: 'settings',
   }, 
 ]
