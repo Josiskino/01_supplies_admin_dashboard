@@ -51,6 +51,15 @@ export default [
     //   { title: 'Roles', to: 'role' },
     // ],
   },
+  {
+    title: 'Financial',
+    icon: { icon: 'tabler-currency-dollar' },
+
+    children: [
+      { title: 'Transactions', to: 'financial-transactions' },
+      { title: 'Report', to: 'financial-report' },
+    ],
+  },
   { title: 'Settings', 
     icon: { icon: 'tabler-settings' },
     to: 'settings',

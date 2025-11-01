@@ -365,6 +365,7 @@
     "testCoordinateParsing": true,
     "testDistanceCalculation": true,
     "useDeliveryStatuses": true,
-    "useStatusManagement": true
+    "useStatusManagement": true,
+    "useFinancialReports": true
   }
 }
