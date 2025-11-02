@@ -1,13 +1,44 @@
 <script setup>
-import { useStatusManagement } from '@/composables/useStatusManagement'
 import PartnerAddDialog from '../add.vue'
 
-const { getStatusOptions, getStatusColor, getStatusLabel } = useStatusManagement()
-
 const searchQuery = ref('')
-const statusOptions = computed(() => getStatusOptions('partners'))
+const partnerStatuses = ref([])
+const statusOptions = computed(() => {
+  return partnerStatuses.value.map(status => ({
+    title: status.name,
+    value: status.id, // On utilise l'ID comme valeur pour l'envoi
+  }))
+})
 const selectedStatus = ref()
 const selectedBusinessSector = ref()
+const isLoadingStatuses = ref(false)
+
+// 👉 Fetch Partner Statuses
+const fetchPartnerStatuses = async () => {
+  isLoadingStatuses.value = true
+  try {
+    const response = await $api('/status/partner-statuses', {
+      method: 'GET',
+    })
+
+    console.log('=== Partner Statuses Response ===')
+    console.log('Full response:', response)
+    
+    if (response && response.success && response.data && Array.isArray(response.data)) {
+      partnerStatuses.value = response.data
+      console.log('Loaded statuses:', partnerStatuses.value)
+    } else {
+      console.warn('Unexpected response format:', response)
+      partnerStatuses.value = []
+    }
+    console.log('==================================')
+  } catch (error) {
+    console.error('Error fetching partner statuses:', error)
+    partnerStatuses.value = []
+  } finally {
+    isLoadingStatuses.value = false
+  }
+}
 
 // Data table options
 const itemsPerPage = ref(15)
@@ -33,32 +64,40 @@ const headers = [
     key: 'prospection_date',
   },
   {
-    title: 'Company Name',
-    key: 'company_name',
+    title: 'Merchant Name',
+    key: 'merchant_name',
   },
   {
     title: 'Contact',
     key: 'contact',
   },
   {
-    title: 'Business Sector',
-    key: 'business_sector',
+    title: 'Activity Sector',
+    key: 'activity_sector',
   },
   {
-    title: 'Zone',
-    key: 'zone',
+    title: 'Engagement Type',
+    key: 'engagement_type',
+  },
+  {
+    title: 'Interest Shown',
+    key: 'interest_shown',
   },
   {
     title: 'Address',
     key: 'address',
   },
   {
-    title: 'Interest Level',
-    key: 'interest_level',
+    title: 'Location',
+    key: 'location',
   },
   {
     title: 'Status',
     key: 'status',
+  },
+  {
+    title: 'Deliveries',
+    key: 'deliveries_count',
   },
   {
     title: 'Actions',
@@ -93,15 +132,17 @@ const fetchPartners = async () => {
 
     if (selectedBusinessSector.value) {
       // eslint-disable-next-line camelcase
-      queryParams.business_sector = selectedBusinessSector.value
+      queryParams.activity_sector = selectedBusinessSector.value
     }
 
     // Build query string
     const queryString = new URLSearchParams(queryParams).toString()
-    const url = `/partners${queryString ? `?${queryString}` : ''}`
+    const url = `/merchants${queryString ? `?${queryString}` : ''}`
 
-    console.log('=== Calling /partners API ===')
-    console.log('URL:', url)
+    console.log('=== Calling /merchants API ===')
+    console.log('Base URL:', import.meta.env.VITE_API_BASE_URL || '/api')
+    console.log('Endpoint URL:', url)
+    console.log('Full URL will be:', `${import.meta.env.VITE_API_BASE_URL || '/api'}${url}`)
     console.log('Query params:', queryParams)
     console.log('===============================')
 
@@ -109,7 +150,7 @@ const fetchPartners = async () => {
       method: 'GET',
     })
 
-    console.log('=== Response from /partners API ===')
+    console.log('=== Response from /merchants API ===')
     console.log('Full response:', response)
     console.log('Response type:', typeof response)
     console.log('Is Array:', Array.isArray(response))
@@ -168,6 +209,7 @@ watch(page, () => {
 
 // Call on mount
 onMounted(() => {
+  fetchPartnerStatuses()
   fetchPartners()
 })
 
@@ -200,29 +242,31 @@ const businessSectors = [
 
 const resolveStatusVariant = statusName => {
   const status = statusName?.toLowerCase() || ''
-  if (status === 'libre')
+  if (status === 'actif' || status === 'active')
     return 'success'
-  if (status === 'occupé')
-    return 'warning'
-  if (status === 'ocar' || status === 'indisponible')
+  if (status === 'inactif' || status === 'inactive')
+    return 'secondary'
+  if (status === 'suspendu' || status === 'suspended')
     return 'error'
+  if (status === 'prospection' || status === 'prospecting')
+    return 'info'
   
   return 'secondary'
 }
 
-const resolveBusinessSectorIcon = businessSector => {
-  const sector = businessSector?.toLowerCase() || ''
-  if (sector === 'restaurant')
+const resolveBusinessSectorIcon = activitySector => {
+  const sector = activitySector?.toLowerCase() || ''
+  if (sector.includes('restaurant') || sector.includes('restauration'))
     return 'tabler-tools-kitchen-2'
-  if (sector === 'retail')
+  if (sector.includes('retail') || sector.includes('commerce'))
     return 'tabler-shopping-bag'
-  if (sector === 'ecommerce')
+  if (sector.includes('ecommerce') || sector.includes('e-commerce'))
     return 'tabler-shopping-cart'
-  if (sector === 'healthcare')
+  if (sector.includes('healthcare') || sector.includes('santé'))
     return 'tabler-heart'
-  if (sector === 'technology')
+  if (sector.includes('technology') || sector.includes('technologie'))
     return 'tabler-device-laptop'
-  if (sector === 'services')
+  if (sector.includes('services'))
     return 'tabler-briefcase'
   
   return 'tabler-building'
@@ -237,7 +281,7 @@ const addNewPartner = async () => {
 
 const deletePartner = async id => {
   try {
-    await $api(`/partners/${id}`, { method: 'DELETE' })
+    await $api(`/merchants/${id}`, { method: 'DELETE' })
 
     // Delete from selectedRows
     const index = selectedRows.value.findIndex(row => row === id)
@@ -270,18 +314,19 @@ const deletePartner = async id => {
               v-model="selectedStatus"
               placeholder="Filter by status"
               :items="statusOptions"
+              :loading="isLoadingStatuses"
               clearable
               clear-icon="tabler-x"
             />
           </VCol>
-          <!-- 👉 Select Business Sector -->
+          <!-- 👉 Select Activity Sector -->
           <VCol
             cols="12"
             sm="4"
           >
             <AppSelect
               v-model="selectedBusinessSector"
-              placeholder="Filter by business sector"
+              placeholder="Filter by activity sector"
               :items="businessSectors"
               clearable
               clear-icon="tabler-x"
@@ -353,71 +398,139 @@ const deletePartner = async id => {
         show-select
         @update:options="updateOptions"
       >
-        <!-- Company Name -->
-        <template #item.company_name="{ item }">
+        <!-- Prospection Date -->
+        <template #item.prospection_date="{ item }">
+          <div class="text-body-1">
+            {{ item.prospection_date ? new Date(item.prospection_date).toLocaleDateString() : 'N/A' }}
+          </div>
+        </template>
+
+        <!-- Merchant Name -->
+        <template #item.merchant_name="{ item }">
           <div class="d-flex align-center gap-x-4">
             <VAvatar
               size="34"
               variant="tonal"
               color="primary"
             >
-              <VIcon icon="tabler-user" />
+              <VIcon icon="tabler-building-store" />
             </VAvatar>
             <div class="d-flex flex-column">
               <h6 class="text-base font-weight-medium">
-                {{ item.user?.name || 'N/A' }}
+                {{ item.merchant_name || 'N/A' }}
               </h6>
-              <div class="text-sm text-disabled">
-                {{ item.user?.email || 'N/A' }}
-              </div>
             </div>
           </div>
         </template>
 
-        <!-- Phone -->
-        <template #item.phone="{ item }">
-          <div class="text-body-1">
-            {{ item.user?.phone || 'N/A' }}
+        <!-- Contact -->
+        <template #item.contact="{ item }">
+          <div class="d-flex flex-column">
+            <div
+              v-if="item.contact_name"
+              class="text-body-1 font-weight-medium"
+            >
+              {{ item.contact_name }}
+            </div>
+            <div
+              v-if="item.phone"
+              :class="item.contact_name ? 'text-sm text-disabled' : 'text-body-1 font-weight-medium'"
+            >
+              {{ item.phone }}
+            </div>
+            <div
+              v-if="!item.contact_name && !item.phone"
+              class="text-body-1 text-disabled"
+            >
+              N/A
+            </div>
           </div>
         </template>
 
-        <!-- Business Sector -->
-        <template #item.business_sector="{ item }">
+        <!-- Activity Sector -->
+        <template #item.activity_sector="{ item }">
           <div class="d-flex align-center gap-x-2">
             <VIcon
-              :icon="resolveBusinessSectorIcon(item.business_sector)"
+              :icon="resolveBusinessSectorIcon(item.activity_sector)"
               size="20"
               color="primary"
             />
-            <div class="text-body-1 text-capitalize">
-              {{ item.business_sector || 'N/A' }}
+            <div class="text-body-1">
+              {{ item.activity_sector || 'N/A' }}
             </div>
           </div>
         </template>
 
-        <!-- Plate Number -->
-        <template #item.plate_number="{ item }">
-          <div class="text-body-1 font-weight-medium">
-            {{ item.plate_number || 'N/A' }}
+        <!-- Engagement Type -->
+        <template #item.engagement_type="{ item }">
+          <VChip
+            color="info"
+            size="small"
+            variant="tonal"
+            class="text-capitalize"
+          >
+            {{ item.engagement_type || 'N/A' }}
+          </VChip>
+        </template>
+
+        <!-- Interest Shown -->
+        <template #item.interest_shown="{ item }">
+          <div class="text-body-2" style="max-width: 200px;">
+            {{ item.interest_shown || 'N/A' }}
           </div>
         </template>
 
-        <!-- Neighborhood -->
-        <template #item.neighborhood="{ item }">
-          <div class="text-body-1">
-            {{ item.neighborhood || 'N/A' }}
+        <!-- Address -->
+        <template #item.address="{ item }">
+          <div
+            v-if="item.address"
+            class="d-flex flex-column"
+            style="max-width: 200px;"
+          >
+            <div
+              v-if="item.address_label"
+              class="text-xs text-disabled mb-1"
+            >
+              {{ item.address_label }}
+            </div>
+            <div class="text-body-2">
+              {{ item.address }}
+            </div>
+          </div>
+          <div
+            v-else
+            class="text-body-2 text-disabled"
+          >
+            —
+          </div>
+        </template>
+
+        <!-- Location -->
+        <template #item.location="{ item }">
+          <div
+            v-if="item.location"
+            class="text-body-2"
+            style="max-width: 200px;"
+          >
+            {{ item.location }}
+          </div>
+          <div
+            v-else
+            class="text-body-2 text-disabled"
+          >
+            —
           </div>
         </template>
 
         <!-- Status -->
         <template #item.status="{ item }">
           <VChip
-            :color="resolveStatusVariant(item.current_status?.status_name)"
+            :color="resolveStatusVariant(item.status?.name)"
             size="small"
             label
             class="text-capitalize"
           >
-            {{ item.current_status?.status_name || 'N/A' }}
+            {{ item.status?.name || 'N/A' }}
           </VChip>
         </template>
 

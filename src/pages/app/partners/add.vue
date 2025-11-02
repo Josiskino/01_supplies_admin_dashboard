@@ -16,79 +16,101 @@ const dialogVisible = computed({
 
 // Form data
 const form = ref({
-  company_name: '',
-  contact_name: '',
-  contact_phone: '',
-  contact_email: '',
-  business_sector: '',
-  zone: '',
-  address: '',
-  interest_level: '',
-  status: 'prospecting',
   prospection_date: new Date().toISOString().split('T')[0], // Today's date
-  notes: '',
+  merchant_name: '',
+  contact_name: '',
+  phone: '',
+  activity_sector: '',
+  engagement_type: '',
+  interest_shown: '',
+  other_info: '',
+  status_id: null,
+  location: '',
+  address: '',
+  address_label: '',
 })
 
 // Loading states
 const isSubmitting = ref(false)
+const partnerStatuses = ref([])
+const isLoadingStatuses = ref(false)
+
+// 👉 Fetch Partner Statuses
+const fetchPartnerStatuses = async () => {
+  isLoadingStatuses.value = true
+  try {
+    const response = await $api('/status/partner-statuses', {
+      method: 'GET',
+    })
+    
+    if (response && response.success && response.data && Array.isArray(response.data)) {
+      partnerStatuses.value = response.data
+    } else {
+      partnerStatuses.value = []
+    }
+  } catch (error) {
+    console.error('Error fetching partner statuses:', error)
+    partnerStatuses.value = []
+  } finally {
+    isLoadingStatuses.value = false
+  }
+}
+
+// Status options from API
+const statusOptions = computed(() => {
+  return partnerStatuses.value.map(status => ({
+    title: status.name,
+    value: status.id,
+  }))
+})
 
 // Options
-const businessSectorOptions = [
-  { title: 'Restaurant', value: 'restaurant' },
-  { title: 'Retail', value: 'retail' },
-  { title: 'E-commerce', value: 'ecommerce' },
-  { title: 'Healthcare', value: 'healthcare' },
-  { title: 'Education', value: 'education' },
-  { title: 'Technology', value: 'technology' },
-  { title: 'Manufacturing', value: 'manufacturing' },
-  { title: 'Services', value: 'services' },
-  { title: 'Other', value: 'other' },
+const activitySectorOptions = [
+  { title: 'Restauration', value: 'Restauration' },
+  { title: 'Commerce', value: 'Commerce' },
+  { title: 'E-commerce', value: 'E-commerce' },
+  { title: 'Santé', value: 'Santé' },
+  { title: 'Éducation', value: 'Éducation' },
+  { title: 'Technologie', value: 'Technologie' },
+  { title: 'Manufacture', value: 'Manufacture' },
+  { title: 'Services', value: 'Services' },
+  { title: 'Autre', value: 'Autre' },
 ]
 
-const interestLevelOptions = [
-  { title: 'Very High', value: 'very_high' },
-  { title: 'High', value: 'high' },
-  { title: 'Medium', value: 'medium' },
-  { title: 'Low', value: 'low' },
-  { title: 'Very Low', value: 'very_low' },
+const engagementTypeOptions = [
+  { title: 'Partenaire', value: 'partenaire' },
+  { title: 'Client', value: 'client' },
+  { title: 'Fournisseur', value: 'fournisseur' },
+  { title: 'Autre', value: 'autre' },
 ]
 
-const statusOptions = [
-  { title: 'Prospecting', value: 'prospecting' },
-  { title: 'Contacted', value: 'contacted' },
-  { title: 'Interested', value: 'interested' },
-  { title: 'Negotiating', value: 'negotiating' },
-  { title: 'Partner', value: 'partner' },
-  { title: 'Rejected', value: 'rejected' },
-]
-
-const zoneOptions = [
-  { title: 'North Zone', value: 'north' },
-  { title: 'South Zone', value: 'south' },
-  { title: 'East Zone', value: 'east' },
-  { title: 'West Zone', value: 'west' },
-  { title: 'Central Zone', value: 'central' },
-]
+// Load statuses on mount
+onMounted(() => {
+  fetchPartnerStatuses()
+})
 
 // Submit form
 const onSubmit = async () => {
   isSubmitting.value = true
   try {
     const payload = {
-      company_name: form.value.company_name,
-      contact_name: form.value.contact_name,
-      contact_phone: form.value.contact_phone,
-      contact_email: form.value.contact_email,
-      business_sector: form.value.business_sector,
-      zone: form.value.zone,
-      address: form.value.address,
-      interest_level: form.value.interest_level,
-      status: form.value.status,
       prospection_date: form.value.prospection_date,
-      notes: form.value.notes,
+      merchant_name: form.value.merchant_name,
+      contact_name: form.value.contact_name,
+      phone: form.value.phone,
+      activity_sector: form.value.activity_sector,
+      engagement_type: form.value.engagement_type,
+      interest_shown: form.value.interest_shown,
+      other_info: form.value.other_info,
+      status_id: form.value.status_id,
+      location: form.value.location,
+      address: form.value.address,
+      address_label: form.value.address_label,
     }
 
-    await $api('/partners', {
+    console.log('Creating merchant with payload:', payload)
+
+    await $api('/merchants', {
       method: 'POST',
       body: payload,
     })
@@ -106,17 +128,18 @@ const onSubmit = async () => {
 // Reset form
 const resetForm = () => {
   form.value = {
-    company_name: '',
-    contact_name: '',
-    contact_phone: '',
-    contact_email: '',
-    business_sector: '',
-    zone: '',
-    address: '',
-    interest_level: '',
-    status: 'prospecting',
     prospection_date: new Date().toISOString().split('T')[0],
-    notes: '',
+    merchant_name: '',
+    contact_name: '',
+    phone: '',
+    activity_sector: '',
+    engagement_type: '',
+    interest_shown: '',
+    other_info: '',
+    status_id: null,
+    location: '',
+    address: '',
+    address_label: '',
   }
 }
 
@@ -146,15 +169,28 @@ const onClose = () => {
       <VCardText>
         <VForm @submit.prevent="onSubmit">
           <VRow>
-            <!-- Company Name -->
+            <!-- Prospection Date -->
             <VCol
               cols="12"
               md="6"
             >
               <AppTextField
-                v-model="form.company_name"
-                label="Company Name"
-                placeholder="Enter company name"
+                v-model="form.prospection_date"
+                type="date"
+                label="Prospection Date"
+                required
+              />
+            </VCol>
+
+            <!-- Merchant Name -->
+            <VCol
+              cols="12"
+              md="6"
+            >
+              <AppTextField
+                v-model="form.merchant_name"
+                label="Merchant Name"
+                placeholder="Enter merchant name"
                 required
               />
             </VCol>
@@ -171,79 +207,53 @@ const onClose = () => {
               />
             </VCol>
 
-            <!-- Contact Phone -->
+            <!-- Phone -->
             <VCol
               cols="12"
               md="6"
             >
               <AppTextField
-                v-model="form.contact_phone"
-                label="Contact Phone"
-                placeholder="Enter phone number"
+                v-model="form.phone"
+                label="Phone"
+                placeholder="+228 90 12 34 56"
               />
             </VCol>
 
-            <!-- Contact Email -->
-            <VCol
-              cols="12"
-              md="6"
-            >
-              <AppTextField
-                v-model="form.contact_email"
-                type="email"
-                label="Contact Email"
-                placeholder="Enter email address"
-              />
-            </VCol>
-
-            <!-- Business Sector -->
+            <!-- Activity Sector -->
             <VCol
               cols="12"
               md="6"
             >
               <AppSelect
-                v-model="form.business_sector"
-                :items="businessSectorOptions"
-                label="Business Sector"
-                placeholder="Select business sector"
+                v-model="form.activity_sector"
+                :items="activitySectorOptions"
+                label="Activity Sector"
+                placeholder="Select activity sector"
                 clearable
               />
             </VCol>
 
-            <!-- Zone -->
+            <!-- Engagement Type -->
             <VCol
               cols="12"
               md="6"
             >
               <AppSelect
-                v-model="form.zone"
-                :items="zoneOptions"
-                label="Zone"
-                placeholder="Select zone"
+                v-model="form.engagement_type"
+                :items="engagementTypeOptions"
+                label="Engagement Type"
+                placeholder="Select engagement type"
                 clearable
               />
             </VCol>
 
-            <!-- Address -->
+            <!-- Interest Shown -->
             <VCol cols="12">
-              <AppTextField
-                v-model="form.address"
-                label="Address"
-                placeholder="Enter company address"
-              />
-            </VCol>
-
-            <!-- Interest Level -->
-            <VCol
-              cols="12"
-              md="6"
-            >
-              <AppSelect
-                v-model="form.interest_level"
-                :items="interestLevelOptions"
-                label="Interest Level"
-                placeholder="Select interest level"
-                clearable
+              <VTextarea
+                v-model="form.interest_shown"
+                label="Interest Shown"
+                placeholder="Describe the interest shown by the merchant..."
+                rows="3"
               />
             </VCol>
 
@@ -253,31 +263,59 @@ const onClose = () => {
               md="6"
             >
               <AppSelect
-                v-model="form.status"
+                v-model="form.status_id"
                 :items="statusOptions"
+                :loading="isLoadingStatuses"
                 label="Status"
                 placeholder="Select status"
+                clearable
               />
             </VCol>
 
-            <!-- Prospection Date -->
+            <!-- Location -->
             <VCol
               cols="12"
               md="6"
             >
               <AppTextField
-                v-model="form.prospection_date"
-                type="date"
-                label="Prospection Date"
+                v-model="form.location"
+                label="Location (Coordinates)"
+                placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
               />
             </VCol>
 
-            <!-- Notes -->
+            <!-- Address -->
+            <VCol
+              cols="12"
+              md="6"
+            >
+              <AppTextField
+                v-model="form.address"
+                label="Address"
+                placeholder="123 Avenue de la République, Lomé"
+              />
+            </VCol>
+
+            <!-- Address Label -->
+            <VCol
+              cols="12"
+              md="6"
+            >
+              <AppTextField
+                v-model="form.address_label"
+                label="Address Label"
+                placeholder="Siège social"
+                hint="e.g., Siège social, Bureau, etc."
+              />
+            </VCol>
+
+            <!-- Other Info -->
             <VCol cols="12">
               <VTextarea
-                v-model="form.notes"
-                label="Notes"
-                placeholder="Additional notes about the partner..."
+                v-model="form.other_info"
+                label="Other Information"
+                placeholder="Additional information about the merchant..."
                 rows="3"
               />
             </VCol>
@@ -298,7 +336,7 @@ const onClose = () => {
         <VBtn
           color="primary"
           :loading="isSubmitting"
-          :disabled="!form.company_name"
+          :disabled="!form.merchant_name || !form.prospection_date"
           @click="onSubmit"
         >
           Create Partner
