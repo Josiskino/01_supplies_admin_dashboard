@@ -367,10 +367,8 @@ export const useStatusManagement = () => {
     }
   }
 
-  // Load statuses on composable initialization
-  onMounted(() => {
-    loadStatuses()
-  })
+  // Note: loadStatuses() is not called automatically anymore
+  // Use loadStatuses() manually if needed, or use specific endpoints like /status/driver-statuses
 
   return {
     statusCategories: readonly(statusCategories),

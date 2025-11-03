@@ -106,42 +106,36 @@ const fetchDrivers = async () => {
 
     console.log('=== Response from /drivers API ===')
     console.log('Full response:', response)
-    console.log('Response type:', typeof response)
-    console.log('Is Array:', Array.isArray(response))
-    console.log('Response length:', Array.isArray(response) ? response.length : 'N/A')
     
-    // Check if response is wrapped or direct array
-    if (response && typeof response === 'object' && !Array.isArray(response)) {
-      console.log('Response data:', response?.data)
-      console.log('Response meta:', response?.meta)
-      console.log('Response links:', response?.links)
-      console.log('Response keys:', Object.keys(response))
-    } else if (Array.isArray(response)) {
-      console.log('Response is directly an array with', response.length, 'items')
-      console.log('First item:', response[0])
-    } else {
-      console.log('Unexpected response format')
-    }
-    console.log('===============================')
-
-    // Handle different response structures
-    if (response) {
-      if (Array.isArray(response)) {
-        // Response is directly an array
-        drivers.value = response
-        totalDrivers.value = response.length
-      } else if (response.data && Array.isArray(response.data)) {
-        // Response has { data: [...], meta: {...} } structure
-        drivers.value = response.data
-        totalDrivers.value = response.meta?.total || response.data.length
+    // Handle response structure: { data: [...], meta: {...}, links: {...} }
+    if (response && response.data && Array.isArray(response.data)) {
+      // Extract data array
+      drivers.value = response.data
+      
+      // Extract total from meta (meta.total is an array, get first element)
+      const metaTotal = response.meta?.total
+      if (Array.isArray(metaTotal) && metaTotal.length > 0) {
+        totalDrivers.value = metaTotal[0]
+      } else if (typeof metaTotal === 'number') {
+        totalDrivers.value = metaTotal
       } else {
-        drivers.value = []
-        totalDrivers.value = 0
+        totalDrivers.value = response.data.length
       }
+      
+      console.log('Drivers loaded:', drivers.value.length)
+      console.log('Total drivers:', totalDrivers.value)
+      console.log('Meta:', response.meta)
+    } else if (Array.isArray(response)) {
+      // Fallback: response is directly an array
+      drivers.value = response
+      totalDrivers.value = response.length
+      console.log('Response is directly an array')
     } else {
+      console.warn('Unexpected response format:', response)
       drivers.value = []
       totalDrivers.value = 0
     }
+    console.log('===============================')
   } catch (error) {
     console.error('Error fetching drivers:', error)
     drivers.value = []
@@ -171,26 +165,28 @@ const statusOptions = computed(() => getStatusOptions('drivers'))
 
 const vehicleTypes = [
   {
-    title: 'Motorcycle',
-    value: 'moto',
+    title: 'Moto',
+    value: 'Moto',
   },
   {
     title: 'Car',
-    value: 'voiture',
+    value: 'Car',
   },
   {
     title: 'Bicycle',
-    value: 'velo',
+    value: 'Bicycle',
   },
 ]
 
 const resolveStatusVariant = statusName => {
   const status = statusName?.toLowerCase() || ''
-  if (status === 'libre')
+  if (status === 'libre' || status === 'disponible' || status === 'available')
     return 'success'
-  if (status === 'occupé')
+  if (status === 'occupé' || status === 'busy')
     return 'warning'
-  if (status === 'ocar' || status === 'indisponible')
+  if (status === 'indisponible' || status === 'offline' || status === 'unavailable')
+    return 'error'
+  if (status === 'suspendu' || status === 'suspended')
     return 'error'
   
   return 'secondary'
@@ -198,22 +194,46 @@ const resolveStatusVariant = statusName => {
 
 const resolveVehicleTypeIcon = vehicleType => {
   const type = vehicleType?.toLowerCase() || ''
-  if (type === 'moto')
+  if (type === 'moto' || type === 'motorcycle' || type === 'motorbike')
     return 'tabler-motorbike'
-  if (type === 'voiture' || type === 'car')
+  if (type === 'voiture' || type === 'car' || type === 'auto')
     return 'tabler-car'
-  if (type === 'velo' || type === 'bike')
+  if (type === 'velo' || type === 'bike' || type === 'bicycle' || type === 'vélo')
     return 'tabler-bike'
   
   return 'tabler-truck'
 }
 
 const addNewDriver = async driverData => {
-  await $api('/drivers', { method: 'POST', body: driverData })
-  isAddDriverDrawerOpen.value = false
-  successSnackText.value = 'Driver created successfully'
-  isSuccessSnackVisible.value = true
-  fetchDrivers()
+  try {
+    console.log('=== Sending driver creation request ===')
+    console.log('Driver data:', driverData)
+    console.log('========================================')
+    
+    const response = await $api('/drivers', {
+      method: 'POST',
+      body: driverData,
+      onResponseError({ response }) {
+        console.error('=== Driver creation error ===')
+        console.error('Status:', response.status)
+        console.error('Error data:', response._data)
+        console.error('Errors:', response._data?.errors || response._data?.message || response._data)
+        console.error('============================')
+      },
+    })
+    
+    console.log('Driver created successfully:', response)
+    isAddDriverDrawerOpen.value = false
+    successSnackText.value = 'Driver created successfully'
+    isSuccessSnackVisible.value = true
+    fetchDrivers()
+  } catch (error) {
+    console.error('Error creating driver:', error)
+    // Show error to user
+    isSuccessSnackVisible.value = true
+    successSnackText.value = error.data?.message || 'Error creating driver. Check console for details.'
+    // Don't close drawer on error
+  }
 }
 
 const deleteDriver = async id => {
@@ -346,7 +366,7 @@ const deleteDriver = async id => {
             </VAvatar>
             <div class="d-flex flex-column">
               <h6 class="text-base font-weight-medium">
-                {{ item.user?.name || 'N/A' }}
+                {{ item.user?.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'N/A' }}
               </h6>
               <div class="text-sm text-disabled">
                 {{ item.user?.email || 'N/A' }}
@@ -358,7 +378,7 @@ const deleteDriver = async id => {
         <!-- Phone -->
         <template #item.phone="{ item }">
           <div class="text-body-1">
-            {{ item.user?.phone || 'N/A' }}
+            {{ item.phone || item.user?.phone || 'N/A' }}
           </div>
         </template>
 
@@ -393,17 +413,12 @@ const deleteDriver = async id => {
         <!-- Status -->
         <template #item.status="{ item }">
           <VChip
-            :color="getStatusColor('drivers', item.current_status?.status_name || item.status)"
+            :color="resolveStatusVariant(item.current_status?.name)"
             size="small"
             label
             class="text-capitalize"
           >
-            <VIcon
-              :icon="getStatusIcon('drivers', item.current_status?.status_name || item.status)"
-              size="14"
-              class="me-1"
-            />
-            {{ getStatusLabel('drivers', item.current_status?.status_name || item.status) || item.current_status?.status_name || item.status || 'N/A' }}
+            {{ item.current_status?.name || 'N/A' }}
           </VChip>
         </template>
 
