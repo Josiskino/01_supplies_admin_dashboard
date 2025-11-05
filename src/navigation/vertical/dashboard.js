@@ -82,8 +82,17 @@ export const getUserRole = () => {
   // Check different possible role field names
   const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
 
-  console.log('[Navigation] UserData:', userData)
-  console.log('[Navigation] Detected role:', role)
+  console.log('[Navigation] ==========================================')
+  console.log('[Navigation] UserData structure:', {
+    'userData.role': userData.role,
+    'userData.role?.name': userData.role?.name,
+    'userData.roles': userData.roles,
+    'userData.roles?.[0]': userData.roles?.[0],
+    'userData.roles?.[0]?.name': userData.roles?.[0]?.name,
+  })
+  console.log('[Navigation] Detected role (raw):', role)
+  console.log('[Navigation] Detected role (type):', typeof role)
+  console.log('[Navigation] ==========================================')
 
   return role
 }
@@ -101,11 +110,15 @@ export const getFilteredNavigation = () => {
     return allNavItems.filter(item => item.title === 'Dashboards' || item.heading)
   }
 
-  // Normalize user role for comparison
+  // Normalize user role for comparison (case-insensitive)
   const normalizedUserRole = userRole?.toString().trim().toLowerCase()
 
-  // If user is admin, show all items (except those explicitly restricted with empty roles array)
-  const isAdmin = normalizedUserRole === 'admin' || normalizedUserRole === 'super admin' || normalizedUserRole === 'superadmin'
+  // If user is admin, show all items
+  // Check for: "Super Admin", "super admin", "SuperAdmin", "admin", etc.
+  const isAdmin = normalizedUserRole === 'admin' || 
+                  normalizedUserRole === 'super admin' || 
+                  normalizedUserRole === 'superadmin' ||
+                  normalizedUserRole === 'super-admin'
 
   if (isAdmin) {
     console.log('[Navigation] Admin role detected, showing all items')
@@ -122,10 +135,20 @@ export const getFilteredNavigation = () => {
     if (!item.roles || item.roles.length === 0) return false
 
     // Check if user role is in the allowed roles (case-insensitive comparison)
-    const normalizedItemRoles = item.roles.map(r => r?.toString().trim())
-    const isAllowed = normalizedItemRoles.some(r => r.toLowerCase() === normalizedUserRole)
+    const normalizedItemRoles = item.roles.map(r => {
+      const roleStr = r?.toString().trim().toLowerCase()
 
-    console.log(`[Navigation] Item "${item.title}": ${isAllowed ? 'ALLOWED' : 'DENIED'} (userRole: "${normalizedUserRole}", allowedRoles: ${normalizedItemRoles.join(', ')})`)
+      console.log(`[Navigation] Normalizing role "${r}" -> "${roleStr}"`)
+
+      return roleStr
+    })
+
+    const isAllowed = normalizedItemRoles.includes(normalizedUserRole)
+
+    console.log(`[Navigation] Item "${item.title}": ${isAllowed ? 'ALLOWED' : 'DENIED'}`)
+    console.log(`  - User role: "${normalizedUserRole}"`)
+    console.log(`  - Allowed roles: [${normalizedItemRoles.join(', ')}]`)
+    console.log(`  - Match: ${isAllowed}`)
 
     return isAllowed
   })

@@ -5,13 +5,6 @@ import FinancialExpenseBreakdownChart from '@/components/charts/FinancialExpense
 import FinancialRevenueVsExpensesChart from '@/components/charts/FinancialRevenueVsExpensesChart.vue'
 import { useFinancialReports } from '@/composables/useFinancialReports'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'financial',
-  },
-})
-
 const { t } = useI18n()
 
 const {

@@ -4,13 +4,6 @@ import SettingsLocations from '@/views/apps/ecommerce/settings/SettingsLocations
 import SettingsNotifications from '@/views/apps/ecommerce/settings/SettingsNotifications.vue'
 import SettingsStatuses from '@/views/apps/ecommerce/settings/SettingsStatuses.vue'
 
-definePage({
-  meta: {
-    action: 'manage',
-    subject: 'settings',
-  },
-})
-
 const { t } = useI18n()
 
 const tabsData = computed(() => [

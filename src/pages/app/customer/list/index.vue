@@ -2,13 +2,6 @@
 import CustomerAddDrawer from '@/pages/app/customer/add/index.vue'
 import { useI18n } from 'vue-i18n'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'customers',
-  },
-})
-
 const { t } = useI18n()
 
 const searchQuery = ref('')

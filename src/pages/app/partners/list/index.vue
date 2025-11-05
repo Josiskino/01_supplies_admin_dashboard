@@ -2,13 +2,6 @@
 import { useI18n } from 'vue-i18n'
 import PartnerAddDialog from '../add.vue'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'partners',
-  },
-})
-
 const { t } = useI18n()
 
 const searchQuery = ref('')

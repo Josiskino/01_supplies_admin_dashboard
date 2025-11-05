@@ -42,29 +42,39 @@ const login = async () => {
         email: form.value.email,
         password: form.value.password,
       },
-      onResponseError({ response }) {
-        errors.value = response._data?.errors
-      },
     })
+
+    console.log('Login response:', res)
 
     // Check if response exists
     if (!res) {
       console.error('No response from server')
       errors.value = { email: ['Failed to connect to server'] }
-      
+
       return
     }
 
-    console.log('Login response:', res)
-    
     // Handle backend response format: { success, message, data: { token, user } }
     let accessToken, userData, userAbilityRules
-    
+
+    // Check if the response indicates an error
+    if (!res.success) {
+      // Handle error response
+      const errorMessage = res.message || 'Login failed. Please try again.'
+      if (res.errors) {
+        errors.value = res.errors
+      } else {
+        errors.value = { email: [errorMessage] }
+      }
+
+      return
+    }
+
     if (res.success && res.data) {
       // Your backend format
       accessToken = res.data.token
       userData = res.data.user
-      
+
       // Convert permissions from backend format to CASL format
       // Backend: ['create-delivery', 'view-delivery']
       // CASL needs: [{ action: 'create', subject: 'delivery' }, ...]
@@ -72,7 +82,7 @@ const login = async () => {
 
       userAbilityRules = permissions.map(permission => {
         const [action, subject] = permission.split('-')
-        
+
         return { action, subject }
       })
     } else if (res.accessToken) {
@@ -83,7 +93,7 @@ const login = async () => {
     } else {
       console.error('Invalid response format:', res)
       errors.value = { email: ['Invalid server response'] }
-      
+
       return
     }
 
@@ -110,7 +120,26 @@ const login = async () => {
     })
   } catch (err) {
     console.error('Login error:', err)
-    errors.value = { email: ['Login failed. Please try again.'] }
+    console.error('Error details:', err.response || err)
+
+    // Handle error response from ofetch
+    if (err.response) {
+      const errorData = err.response._data || err.response
+      if (errorData?.errors) {
+        errors.value = errorData.errors
+      } else if (errorData?.message) {
+        errors.value = { email: [errorData.message] }
+      } else {
+        errors.value = { email: ['Login failed. Please try again.'] }
+      }
+    } else if (err.message) {
+      errors.value = { email: [err.message] }
+    } else {
+      // Ensure errors.value has the correct structure
+      if (!errors.value || !errors.value.email) {
+        errors.value = { email: ['Login failed. Please try again.'] }
+      }
+    }
   } finally {
     isLoading.value = false
   }
@@ -166,7 +195,7 @@ const onSubmit = () => {
             <VRow>
               <!-- Error message -->
               <VCol 
-                v-if="errors.email && errors.email[0]" 
+                v-if="errors && errors.email && Array.isArray(errors.email) && errors.email[0]" 
                 cols="12"
               >
                 <VAlert
@@ -185,7 +214,7 @@ const onSubmit = () => {
                   label="Email or Username"
                   type="email"
                   placeholder="johndoe@email.com"
-                  :error-messages="errors.email"
+                  :error-messages="errors?.email || []"
                 />
               </VCol>
 
@@ -197,7 +226,7 @@ const onSubmit = () => {
                   placeholder="············"
                   :type="isPasswordVisible ? 'text' : 'password'"
                   :append-inner-icon="isPasswordVisible ? 'tabler-eye-off' : 'tabler-eye'"
-                  :error-messages="errors.password"
+                  :error-messages="errors?.password || []"
                   @click:append-inner="isPasswordVisible = !isPasswordVisible"
                 />
 

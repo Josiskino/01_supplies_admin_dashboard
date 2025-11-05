@@ -3,13 +3,6 @@ import { useI18n } from 'vue-i18n'
 import RoleCards from '@/views/apps/roles/RoleCards.vue';
 import UserList from '@/views/apps/roles/UserList.vue';
 
-definePage({
-  meta: {
-    action: 'manage',
-    subject: 'roles',
-  },
-})
-
 const { t } = useI18n()
 </script>
 

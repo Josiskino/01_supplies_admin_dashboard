@@ -3,13 +3,6 @@
 import { useI18n } from 'vue-i18n'
 import ExpenseAddDialog from './add.vue'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'financial',
-  },
-})
-
 const { t } = useI18n()
 
 const searchQuery = ref('')

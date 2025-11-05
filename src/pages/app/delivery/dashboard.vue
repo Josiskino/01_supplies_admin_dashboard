@@ -8,13 +8,6 @@ import LogisticsShipmentStatistics from '@/views/apps/logistics/LogisticsShipmen
 import LogisticsVehicleOverview from '@/views/apps/logistics/LogisticsVehicleOverview.vue'
 import { useI18n } from 'vue-i18n'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'deliveries',
-  },
-})
-
 const { t } = useI18n()
 
 const kpis = computed(() => [

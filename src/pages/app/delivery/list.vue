@@ -4,13 +4,6 @@ import { useI18n } from 'vue-i18n'
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
 import DeliveryAddDialog from './add.vue'
 
-definePage({
-  meta: {
-    action: 'view',
-    subject: 'deliveries',
-  },
-})
-
 const { t } = useI18n()
 const { getStatusOptions, getStatusColor, getStatusLabel } = useDeliveryStatuses()
 
