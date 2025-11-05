@@ -1,13 +1,21 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
+
 const props = defineProps({
   isDrawerOpen: {
     type: Boolean,
     default: false,
   },
+  driverToEdit: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['update:isDrawerOpen', 'submit'])
+const emit = defineEmits(['update:isDrawerOpen', 'submit', 'driverAdded', 'resetDriverToEdit'])
+
+const { t } = useI18n()
 
 const localIsOpen = computed({
   get: () => props.isDrawerOpen,
@@ -17,13 +25,15 @@ const localIsOpen = computed({
 const isSubmitting = ref(false)
 const driverStatuses = ref([])
 const isLoadingStatuses = ref(false)
+const isPasswordVisible = ref(false)
 
-const form = ref({
+const initialFormData = {
   // User fields
   first_name: '',
   last_name: '',
   user_email: '',
   user_password: '',
+
   // Driver fields
   phone: '',
   age: null,
@@ -37,6 +47,14 @@ const form = ref({
   has_bags: false,
   has_contract: false,
   current_status_id: null,
+}
+
+const form = ref({ ...initialFormData })
+const originalFormData = ref({ ...initialFormData })
+
+// Check if form has changes
+const hasChanges = computed(() => {
+  return JSON.stringify(form.value) !== JSON.stringify(originalFormData.value)
 })
 
 // 👉 Fetch Driver Statuses
@@ -68,49 +86,85 @@ const statusOptions = computed(() => {
   }))
 })
 
+// Load driver data for editing
+const loadDriverData = () => {
+  console.log('=== Loading driver data ===')
+  console.log('Drawer open:', props.isDrawerOpen)
+  console.log('Driver to edit:', props.driverToEdit)
+
+  if (props.driverToEdit) {
+    form.value = {
+      // User fields
+      first_name: props.driverToEdit.first_name || '',
+      last_name: props.driverToEdit.last_name || '',
+      user_email: props.driverToEdit.user?.email || '',
+      user_password: '', // Don't pre-fill password
+      // Driver fields
+      phone: props.driverToEdit.phone || props.driverToEdit.user?.phone || '',
+      age: props.driverToEdit.age || null,
+      vehicle_type: props.driverToEdit.vehicle_type || '',
+      plate_number: props.driverToEdit.plate_number || '',
+      neighborhood: props.driverToEdit.neighborhood || '',
+      schedule: props.driverToEdit.schedule || '',
+      working_days: props.driverToEdit.working_days || '',
+      works_holidays: props.driverToEdit.works_holidays || false,
+      weekend_schedule: props.driverToEdit.weekend_schedule || '',
+      has_bags: props.driverToEdit.has_bags || false,
+      has_contract: props.driverToEdit.has_contract || false,
+      current_status_id: props.driverToEdit.current_status?.id || props.driverToEdit.current_status_id || null,
+    }
+    originalFormData.value = JSON.parse(JSON.stringify(form.value))
+    console.log('Form loaded with data:', form.value)
+  } else {
+    console.log('No driver to edit, resetting form')
+    resetForm()
+  }
+  console.log('================================')
+}
+
+// Watch for drawer visibility and driverToEdit changes
+watch([() => props.isDrawerOpen, () => props.driverToEdit], ([isOpen, driver]) => {
+  if (isOpen) {
+    // Use nextTick to ensure driverToEdit is set before loading
+    nextTick(() => {
+      loadDriverData()
+    })
+  }
+}, { immediate: false })
+
 // Load statuses on mount
 onMounted(() => {
   fetchDriverStatuses()
 })
 
 const resetForm = () => {
-  form.value = {
-    // User fields
-    first_name: '',
-    last_name: '',
-    user_email: '',
-    user_password: '',
-    // Driver fields
-    phone: '',
-    age: null,
-    vehicle_type: '',
-    plate_number: '',
-    neighborhood: '',
-    schedule: '',
-    working_days: '',
-    works_holidays: false,
-    weekend_schedule: '',
-    has_bags: false,
-    has_contract: false,
-    current_status_id: null,
-  }
+  form.value = { ...initialFormData }
+  originalFormData.value = { ...initialFormData }
 }
 
 const onClose = () => {
   localIsOpen.value = false
   resetForm()
+
+  // Reset driverToEdit when closing (emit to parent)
+  emit('resetDriverToEdit')
 }
 
 const onSubmit = async () => {
+  if (props.driverToEdit && !hasChanges.value) return
+
   isSubmitting.value = true
   try {
     // Construct payload with all required fields
     const payload = {
-      // User fields
-      user_name: `${form.value.first_name} ${form.value.last_name}`.trim(),
-      user_email: form.value.user_email,
-      user_password: form.value.user_password,
-      user_phone: form.value.phone,
+      // User fields (only include if creating new or if changed)
+      ...(props.driverToEdit ? {} : {
+        user_name: `${form.value.first_name} ${form.value.last_name}`.trim(),
+        user_email: form.value.user_email,
+        user_password: form.value.user_password,
+        user_phone: form.value.phone,
+      }),
+
       // Driver fields
       first_name: form.value.first_name,
       last_name: form.value.last_name,
@@ -124,25 +178,54 @@ const onSubmit = async () => {
       has_bags: form.value.has_bags,
       has_contract: form.value.has_contract,
       works_holidays: form.value.works_holidays,
+
       // Numbers - convert to number or undefined
       age: form.value.age ? Number(form.value.age) : undefined,
       current_status_id: form.value.current_status_id ? Number(form.value.current_status_id) : undefined,
     }
+
+    // For editing, include user_email if it changed
+    if (props.driverToEdit && form.value.user_email !== originalFormData.value.user_email) {
+      payload.user_email = form.value.user_email
+    }
+
+    // For editing, only include user_password if it's provided
+    if (props.driverToEdit && form.value.user_password) {
+      payload.user_password = form.value.user_password
+    }
     
-    // Remove undefined fields to avoid sending them
+    // Remove undefined and empty string fields
     Object.keys(payload).forEach(key => {
-      if (payload[key] === undefined) {
+      if (payload[key] === undefined || payload[key] === '') {
         delete payload[key]
       }
     })
     
-    console.log('=== Creating driver payload ===')
+    if (props.driverToEdit) {
+      console.log('=== Updating driver payload ===')
+      console.log('Driver ID:', props.driverToEdit.id)
+    } else {
+      console.log('=== Creating driver payload ===')
+    }
     console.log('Payload:', payload)
     console.log('Form values:', form.value)
     console.log('===============================')
     
-    emit('submit', payload)
+    if (props.driverToEdit) {
+      // Update existing driver - use PUT
+      await $api(`/drivers/${props.driverToEdit.id}`, {
+        method: 'PUT',
+        body: payload,
+      })
+      emit('driverAdded')
+    } else {
+      // Create new driver
+      emit('submit', payload)
+    }
+
     onClose()
+  } catch (error) {
+    console.error(`Error ${props.driverToEdit ? 'updating' : 'creating'} driver:`, error)
   } finally {
     isSubmitting.value = false
   }
@@ -158,9 +241,13 @@ const onSubmit = async () => {
     class="d-flex flex-column"
   >
     <VToolbar flat>
-      <VToolbarTitle>Add Driver</VToolbarTitle>
+      <VToolbarTitle>{{ driverToEdit ? $t('Edit Driver') : $t('Add Driver') }}</VToolbarTitle>
       <VSpacer />
-      <VBtn icon variant="text" @click="onClose">
+      <VBtn
+        icon
+        variant="text"
+        @click="onClose"
+      >
         <VIcon icon="tabler-x" />
       </VBtn>
     </VToolbar>
@@ -168,13 +255,19 @@ const onSubmit = async () => {
     <VDivider />
 
     <div class="drawer-scroll">
-      <VForm class="pa-4" @submit.prevent="onSubmit">
+      <VForm
+        class="pa-4"
+        @submit.prevent="onSubmit"
+      >
         <VRow>
           <!-- First Name -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.first_name"
-              label="First Name"
+              :label="$t('First Name')"
               placeholder="Koffi"
               dense
               required
@@ -182,10 +275,13 @@ const onSubmit = async () => {
           </VCol>
 
           <!-- Last Name -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.last_name"
-              label="Last Name"
+              :label="$t('Last Name')"
               placeholder="Mensah"
               dense
               required
@@ -197,10 +293,10 @@ const onSubmit = async () => {
             <AppTextField
               v-model="form.user_email"
               type="email"
-              label="Email"
+              :label="$t('Email')"
               placeholder="koffi.mensah@example.com"
               dense
-              required
+              :required="!driverToEdit"
             />
           </VCol>
 
@@ -208,11 +304,13 @@ const onSubmit = async () => {
           <VCol cols="12">
             <AppTextField
               v-model="form.user_password"
-              type="password"
-              label="Password"
-              placeholder="Enter password"
+              :type="isPasswordVisible ? 'text' : 'password'"
+              :label="driverToEdit ? $t('New Password (leave blank to keep current)') : $t('Password')"
+              placeholder="············"
+              :append-inner-icon="isPasswordVisible ? 'tabler-eye-off' : 'tabler-eye'"
               dense
-              required
+              :required="!driverToEdit"
+              @click:append-inner="isPasswordVisible = !isPasswordVisible"
             />
           </VCol>
 
@@ -220,7 +318,7 @@ const onSubmit = async () => {
           <VCol cols="12">
             <AppTextField
               v-model="form.phone"
-              label="Phone"
+              :label="$t('Phone')"
               placeholder="+228 91 23 45 67"
               dense
               required
@@ -228,11 +326,14 @@ const onSubmit = async () => {
           </VCol>
 
           <!-- Age -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model.number="form.age"
               type="number"
-              label="Age"
+              :label="$t('Age')"
               placeholder="28"
               dense
               min="18"
@@ -241,14 +342,17 @@ const onSubmit = async () => {
           </VCol>
 
           <!-- Vehicle Type -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppSelect
               v-model="form.vehicle_type"
-              label="Vehicle type"
+              :label="$t('Vehicle type')"
               :items="[
-                { title: 'Moto', value: 'Moto' },
-                { title: 'Car', value: 'Car' },
-                { title: 'Bicycle', value: 'Bicycle' },
+                { title: t('Moto'), value: 'Moto' },
+                { title: t('Car'), value: 'Car' },
+                { title: t('Bicycle'), value: 'Bicycle' },
               ]"
               dense
               clearable
@@ -256,63 +360,81 @@ const onSubmit = async () => {
           </VCol>
 
           <!-- Plate Number -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.plate_number"
-              label="Plate number"
+              :label="$t('Plate number')"
               placeholder="LOM-1234-AB"
               dense
             />
           </VCol>
 
           <!-- Neighborhood -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.neighborhood"
-              label="Neighborhood"
+              :label="$t('Neighborhood')"
               placeholder="Baguida"
               dense
             />
           </VCol>
 
           <!-- Schedule -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.schedule"
-              label="Schedule"
+              :label="$t('Schedule')"
               placeholder="8h-18h"
               dense
             />
           </VCol>
 
           <!-- Working Days -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.working_days"
-              label="Working Days"
+              :label="$t('Working Days')"
               placeholder="L-V"
               dense
             />
           </VCol>
 
           <!-- Weekend Schedule -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppTextField
               v-model="form.weekend_schedule"
-              label="Weekend Schedule"
+              :label="$t('Weekend Schedule')"
               placeholder="S&D"
               dense
             />
           </VCol>
 
           <!-- Status -->
-          <VCol cols="12" md="6">
+          <VCol
+            cols="12"
+            md="6"
+          >
             <AppSelect
               v-model="form.current_status_id"
               :items="statusOptions"
               :loading="isLoadingStatuses"
-              label="Status"
-              placeholder="Select status"
+              :label="$t('Status')"
+              :placeholder="$t('Select status')"
               dense
               clearable
             />
@@ -321,27 +443,35 @@ const onSubmit = async () => {
           <!-- Checkboxes -->
           <VCol cols="12">
             <VRow class="align-center">
-              <VCol cols="12" sm="6">
+              <VCol
+                cols="12"
+                sm="6"
+              >
                 <VCheckbox
                   v-model="form.has_bags"
-                  label="Has bags"
+                  :label="$t('Has bags')"
                 />
               </VCol>
-              <VCol cols="12" sm="6">
+              <VCol
+                cols="12"
+                sm="6"
+              >
                 <VCheckbox
                   v-model="form.has_contract"
-                  label="Has contract"
+                  :label="$t('Has contract')"
                 />
               </VCol>
-              <VCol cols="12" sm="6">
+              <VCol
+                cols="12"
+                sm="6"
+              >
                 <VCheckbox
                   v-model="form.works_holidays"
-                  label="Works holidays"
+                  :label="$t('Works holidays')"
                 />
               </VCol>
             </VRow>
           </VCol>
-
         </VRow>
       </VForm>
     </div>
@@ -349,11 +479,24 @@ const onSubmit = async () => {
     <VDivider />
 
     <div class="drawer-actions pa-4 d-flex gap-3">
-      <VBtn :loading="isSubmitting" :disabled="isSubmitting" color="primary" class="flex-1-1" @click="onSubmit">
-        Save
+      <VBtn
+        :loading="isSubmitting"
+        :disabled="driverToEdit ? (!hasChanges || isSubmitting) : (isSubmitting || !form.first_name || !form.last_name || !form.user_email || (!driverToEdit && !form.user_password))"
+        color="primary"
+        class="flex-1-1"
+        @click="onSubmit"
+      >
+        {{ driverToEdit ? $t('Update Driver') : $t('Save') }}
       </VBtn>
-      <VBtn :loading="isSubmitting" :disabled="isSubmitting" color="secondary" variant="tonal" class="flex-1-1" @click="onClose">
-        Cancel
+      <VBtn
+        :loading="isSubmitting"
+        :disabled="isSubmitting"
+        color="secondary"
+        variant="tonal"
+        class="flex-1-1"
+        @click="onClose"
+      >
+        {{ $t('Cancel') }}
       </VBtn>
     </div>
   </VNavigationDrawer>

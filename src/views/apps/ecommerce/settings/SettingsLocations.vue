@@ -1,4 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const pricingSettings = ref({
   range_0_1km: 375,
   range_1_5km: 500,
@@ -23,7 +27,7 @@ const savePricingSettings = async () => {
 <template>
   <div>
     <VCard
-      title="Distance-Based Pricing Configuration"
+      :title="$t('Distance-Based Pricing Configuration')"
       class="mb-6"
     >
       <VCardText>
@@ -33,10 +37,10 @@ const savePricingSettings = async () => {
           class="mb-6"
         >
           <VAlertTitle class="mb-2">
-            Pricing Structure
+            {{ $t('Pricing Structure') }}
           </VAlertTitle>
           <p class="mb-0">
-            Configure delivery prices based on distance ranges. Prices are automatically calculated based on the distance between pickup and delivery locations.
+            {{ $t('Configure delivery prices based on distance ranges. Prices are automatically calculated based on the distance between pickup and delivery locations.') }}
           </p>
         </VAlert>
 
@@ -49,7 +53,7 @@ const savePricingSettings = async () => {
             <AppTextField
               v-model="pricingSettings.range_0_1km"
               type="number"
-              label="0 - 1 km"
+              :label="$t('0 - 1 km')"
               placeholder="375"
               suffix="FCFA"
             >
@@ -58,7 +62,7 @@ const savePricingSettings = async () => {
               </template>
             </AppTextField>
             <p class="text-sm text-medium-emphasis mt-1">
-              Price for deliveries from 0 to 1 kilometer
+              {{ $t('Price for deliveries from 0 to 1 kilometer') }}
             </p>
           </VCol>
 
@@ -70,7 +74,7 @@ const savePricingSettings = async () => {
             <AppTextField
               v-model="pricingSettings.range_1_5km"
               type="number"
-              label="1.1 - 5 km"
+              :label="$t('1.1 - 5 km')"
               placeholder="500"
               suffix="FCFA"
             >
@@ -79,7 +83,7 @@ const savePricingSettings = async () => {
               </template>
             </AppTextField>
             <p class="text-sm text-medium-emphasis mt-1">
-              Price for deliveries from 1.1 to 5 kilometers
+              {{ $t('Price for deliveries from 1.1 to 5 kilometers') }}
             </p>
           </VCol>
 
@@ -91,7 +95,7 @@ const savePricingSettings = async () => {
             <AppTextField
               v-model="pricingSettings.range_5_6km"
               type="number"
-              label="5.1 - 6 km"
+              :label="$t('5.1 - 6 km')"
               placeholder="600"
               suffix="FCFA"
             >
@@ -100,7 +104,7 @@ const savePricingSettings = async () => {
               </template>
             </AppTextField>
             <p class="text-sm text-medium-emphasis mt-1">
-              Price for deliveries from 5.1 to 6 kilometers
+              {{ $t('Price for deliveries from 5.1 to 6 kilometers') }}
             </p>
           </VCol>
 
@@ -112,7 +116,7 @@ const savePricingSettings = async () => {
             <AppTextField
               v-model="pricingSettings.additional_per_km"
               type="number"
-              label="Additional per km (6.1+ km)"
+              :label="$t('Additional per km (6.1+ km)')"
               placeholder="100"
               suffix="FCFA"
             >
@@ -121,7 +125,7 @@ const savePricingSettings = async () => {
               </template>
             </AppTextField>
             <p class="text-sm text-medium-emphasis mt-1">
-              Additional price per kilometer beyond 6 km
+              {{ $t('Additional price per kilometer beyond 6 km') }}
             </p>
           </VCol>
         </VRow>
@@ -137,7 +141,7 @@ const savePricingSettings = async () => {
           <VCardText>
             <h6 class="text-h6 mb-3">
               <VIcon icon="tabler-calculator" class="me-2" />
-              Pricing Examples
+              {{ $t('Pricing Examples') }}
             </h6>
             <VRow>
               <VCol cols="12" sm="6" md="3">
@@ -175,7 +179,7 @@ const savePricingSettings = async () => {
             @click="savePricingSettings"
           >
             <VIcon icon="tabler-device-floppy" class="me-2" />
-            Save Pricing Settings
+            {{ $t('Save Pricing Settings') }}
           </VBtn>
         </div>
       </VCardText>

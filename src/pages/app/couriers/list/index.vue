@@ -1,8 +1,17 @@
 <script setup>
 import { useStatusManagement } from '@/composables/useStatusManagement'
 import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
+import { useI18n } from 'vue-i18n'
+
+definePage({
+  meta: {
+    action: 'view',
+    subject: 'couriers',
+  },
+})
 
 const { getStatusOptions, getStatusColor, getStatusLabel } = useStatusManagement()
+const { t } = useI18n()
 
 const searchQuery = ref('')
 const selectedStatus = ref()
@@ -16,9 +25,12 @@ const orderBy = ref()
 const selectedRows = ref([])
 const isLoading = ref(false)
 const isAddDriverDrawerOpen = ref(false)
+const driverToEdit = ref(null)
+const isDeleteDialogOpen = ref(false)
+const driverToDelete = ref(null)
 
 const isSuccessSnackVisible = ref(false)
-const successSnackText = ref('Driver created successfully')
+const successSnackText = ref(t('Driver created successfully'))
 
 const updateOptions = options => {
   sortBy.value = options.sortBy[0]?.key
@@ -26,41 +38,41 @@ const updateOptions = options => {
 }
 
 // Headers for drivers table
-const headers = [
+const headers = computed(() => [
   {
-    title: 'Driver',
+    title: t('Driver'),
     key: 'driver',
   },
   {
-    title: 'Phone',
+    title: t('Phone'),
     key: 'phone',
   },
   {
-    title: 'Vehicle Type',
+    title: t('Vehicle Type'),
     key: 'vehicle_type',
   },
   {
-    title: 'Plate',
+    title: t('Plate'),
     key: 'plate_number',
   },
   {
-    title: 'Neighborhood',
+    title: t('Neighborhood'),
     key: 'neighborhood',
   },
   {
-    title: 'Status',
+    title: t('Status'),
     key: 'status',
   },
   {
-    title: 'Deliveries',
+    title: t('Deliveries'),
     key: 'deliveries_count',
   },
   {
-    title: 'Actions',
+    title: t('Actions'),
     key: 'actions',
     sortable: false,
   },
-]
+])
 
 // Drivers data
 const drivers = ref([])
@@ -163,20 +175,20 @@ onMounted(() => {
 // 👉 search filters
 const statusOptions = computed(() => getStatusOptions('drivers'))
 
-const vehicleTypes = [
+const vehicleTypes = computed(() => [
   {
-    title: 'Moto',
+    title: t('Moto'),
     value: 'Moto',
   },
   {
-    title: 'Car',
+    title: t('Car'),
     value: 'Car',
   },
   {
-    title: 'Bicycle',
+    title: t('Bicycle'),
     value: 'Bicycle',
   },
-]
+])
 
 const resolveStatusVariant = statusName => {
   const status = statusName?.toLowerCase() || ''
@@ -206,6 +218,13 @@ const resolveVehicleTypeIcon = vehicleType => {
 
 const addNewDriver = async driverData => {
   try {
+    if (driverToEdit.value) {
+      // This should not happen as the drawer handles updates itself
+      console.warn('addNewDriver called during edit mode')
+
+      return
+    }
+
     console.log('=== Sending driver creation request ===')
     console.log('Driver data:', driverData)
     console.log('========================================')
@@ -224,32 +243,92 @@ const addNewDriver = async driverData => {
     
     console.log('Driver created successfully:', response)
     isAddDriverDrawerOpen.value = false
-    successSnackText.value = 'Driver created successfully'
+    successSnackText.value = t('Driver created successfully')
     isSuccessSnackVisible.value = true
     fetchDrivers()
   } catch (error) {
     console.error('Error creating driver:', error)
+
     // Show error to user
     isSuccessSnackVisible.value = true
-    successSnackText.value = error.data?.message || 'Error creating driver. Check console for details.'
+    successSnackText.value = error.data?.message || t('Error creating driver. Check console for details.')
+
     // Don't close drawer on error
   }
 }
 
-const deleteDriver = async id => {
+// Edit driver
+const editDriver = driver => {
+  console.log('=== Editing driver ===')
+  console.log('Driver data:', driver)
+  console.log('Driver ID:', driver?.id)
+
+  if (!driver || !driver.id) {
+    console.error('Invalid driver data:', driver)
+
+    return
+  }
+
+  // Set driver data and open drawer immediately
+  driverToEdit.value = { ...driver }
+
+  // Force reactivity update
+  nextTick(() => {
+    isAddDriverDrawerOpen.value = true
+    console.log('Drawer should be open:', isAddDriverDrawerOpen.value)
+    console.log('driverToEdit set:', driverToEdit.value)
+  })
+
+  console.log('========================')
+}
+
+// Confirm delete driver
+const confirmDeleteDriver = driver => {
+  driverToDelete.value = driver
+  isDeleteDialogOpen.value = true
+}
+
+// Delete driver
+const deleteDriver = async () => {
+  if (!driverToDelete.value) return
+
   try {
-    await $api(`/drivers/${id}`, { method: 'DELETE' })
+    await $api(`/drivers/${driverToDelete.value.id}`, {
+      method: 'DELETE',
+    })
 
     // Delete from selectedRows
-    const index = selectedRows.value.findIndex(row => row === id)
+    const index = selectedRows.value.findIndex(row => row === driverToDelete.value.id)
     if (index !== -1)
       selectedRows.value.splice(index, 1)
 
+    successSnackText.value = t('Driver deleted successfully')
+    isSuccessSnackVisible.value = true
+
     // Refetch drivers
     fetchDrivers()
+    isDeleteDialogOpen.value = false
+    driverToDelete.value = null
   } catch (error) {
     console.error('Error deleting driver:', error)
+    successSnackText.value = t('Error deleting driver')
+    isSuccessSnackVisible.value = true
+    isDeleteDialogOpen.value = false
+    driverToDelete.value = null
   }
+}
+
+const cancelDelete = () => {
+  isDeleteDialogOpen.value = false
+  driverToDelete.value = null
+}
+
+// Handle driver added/updated
+const onDriverAdded = () => {
+  driverToEdit.value = null
+  successSnackText.value = t('Driver updated successfully')
+  isSuccessSnackVisible.value = true
+  fetchDrivers()
 }
 </script>
 
@@ -257,7 +336,7 @@ const deleteDriver = async id => {
   <section>
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Drivers</VCardTitle>
+        <VCardTitle>{{ $t('Drivers') }}</VCardTitle>
       </VCardItem>
 
       <VCardText>
@@ -269,7 +348,7 @@ const deleteDriver = async id => {
           >
             <AppSelect
               v-model="selectedStatus"
-              placeholder="Filter by status"
+              :placeholder="$t('Filter by status')"
               :items="statusOptions"
               clearable
               clear-icon="tabler-x"
@@ -282,7 +361,7 @@ const deleteDriver = async id => {
           >
             <AppSelect
               v-model="selectedVehicleType"
-              placeholder="Filter by vehicle type"
+              :placeholder="$t('Filter by vehicle type')"
               :items="vehicleTypes"
               clearable
               clear-icon="tabler-x"
@@ -314,7 +393,7 @@ const deleteDriver = async id => {
           <div style="inline-size: 15.625rem;">
             <AppTextField
               v-model="searchQuery"
-              placeholder="Search by name or phone"
+              :placeholder="$t('Search by name or phone')"
               clearable
             />
           </div>
@@ -325,7 +404,7 @@ const deleteDriver = async id => {
             color="secondary"
             prepend-icon="tabler-upload"
           >
-            Export
+            {{ $t('Export') }}
           </VBtn>
 
           <!-- 👉 Add driver button -->
@@ -333,7 +412,7 @@ const deleteDriver = async id => {
             prepend-icon="tabler-plus"
             @click="isAddDriverDrawerOpen = true"
           >
-            Add Driver
+            {{ $t('Add Driver') }}
           </VBtn>
         </div>
       </VCardText>
@@ -366,10 +445,10 @@ const deleteDriver = async id => {
             </VAvatar>
             <div class="d-flex flex-column">
               <h6 class="text-base font-weight-medium">
-                {{ item.user?.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'N/A' }}
+                {{ item.user?.name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || $t('N/A') }}
               </h6>
               <div class="text-sm text-disabled">
-                {{ item.user?.email || 'N/A' }}
+                {{ item.user?.email || $t('N/A') }}
               </div>
             </div>
           </div>
@@ -378,7 +457,7 @@ const deleteDriver = async id => {
         <!-- Phone -->
         <template #item.phone="{ item }">
           <div class="text-body-1">
-            {{ item.phone || item.user?.phone || 'N/A' }}
+            {{ item.phone || item.user?.phone || $t('N/A') }}
           </div>
         </template>
 
@@ -391,7 +470,7 @@ const deleteDriver = async id => {
               color="primary"
             />
             <div class="text-body-1 text-capitalize">
-              {{ item.vehicle_type || 'N/A' }}
+              {{ item.vehicle_type || $t('N/A') }}
             </div>
           </div>
         </template>
@@ -399,14 +478,14 @@ const deleteDriver = async id => {
         <!-- Plate Number -->
         <template #item.plate_number="{ item }">
           <div class="text-body-1 font-weight-medium">
-            {{ item.plate_number || 'N/A' }}
+            {{ item.plate_number || $t('N/A') }}
           </div>
         </template>
 
         <!-- Neighborhood -->
         <template #item.neighborhood="{ item }">
           <div class="text-body-1">
-            {{ item.neighborhood || 'N/A' }}
+            {{ item.neighborhood || $t('N/A') }}
           </div>
         </template>
 
@@ -418,7 +497,7 @@ const deleteDriver = async id => {
             label
             class="text-capitalize"
           >
-            {{ item.current_status?.name || 'N/A' }}
+            {{ item.current_status?.name || $t('N/A') }}
           </VChip>
         </template>
 
@@ -431,45 +510,19 @@ const deleteDriver = async id => {
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <IconBtn @click="deleteDriver(item.id)">
+          <IconBtn @click.stop="editDriver(item)">
+            <VIcon icon="tabler-pencil" />
+            <VTooltip activator="parent">
+              {{ $t('Edit Driver') }}
+            </VTooltip>
+          </IconBtn>
+
+          <IconBtn @click.stop="confirmDeleteDriver(item)">
             <VIcon icon="tabler-trash" />
+            <VTooltip activator="parent">
+              {{ $t('Delete Driver') }}
+            </VTooltip>
           </IconBtn>
-
-          <IconBtn>
-            <VIcon icon="tabler-eye" />
-          </IconBtn>
-
-          <VBtn
-            icon
-            variant="text"
-            color="medium-emphasis"
-          >
-            <VIcon icon="tabler-dots-vertical" />
-            <VMenu activator="parent">
-              <VList>
-                <VListItem>
-                  <template #prepend>
-                    <VIcon icon="tabler-eye" />
-                  </template>
-                  <VListItemTitle>View</VListItemTitle>
-                </VListItem>
-
-                <VListItem link>
-                  <template #prepend>
-                    <VIcon icon="tabler-pencil" />
-                  </template>
-                  <VListItemTitle>Edit</VListItemTitle>
-                </VListItem>
-
-                <VListItem @click="deleteDriver(item.id)">
-                  <template #prepend>
-                    <VIcon icon="tabler-trash" />
-                  </template>
-                  <VListItemTitle>Delete</VListItemTitle>
-                </VListItem>
-              </VList>
-            </VMenu>
-          </VBtn>
         </template>
 
         <!-- pagination -->
@@ -486,8 +539,46 @@ const deleteDriver = async id => {
 
     <CouriersAddDrawer
       v-model:isDrawerOpen="isAddDriverDrawerOpen"
+      :driver-to-edit="driverToEdit"
       @submit="addNewDriver"
+      @driver-added="onDriverAdded"
+      @reset-driver-to-edit="driverToEdit = null"
     />
+
+    <!-- Delete Confirmation Dialog -->
+    <VDialog
+      v-model="isDeleteDialogOpen"
+      max-width="500"
+      persistent
+    >
+      <VCard>
+        <VCardTitle class="text-h5">
+          {{ $t('Confirm Deletion') }}
+        </VCardTitle>
+        <VCardText>
+          {{ $t('Are you sure you want to delete the driver') }} 
+          <strong>{{ driverToDelete?.first_name }} {{ driverToDelete?.last_name }} ({{ driverToDelete?.user?.name }})</strong>?
+          <br>
+          {{ $t('This action cannot be undone.') }}
+        </VCardText>
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            color="secondary"
+            variant="tonal"
+            @click="cancelDelete"
+          >
+            {{ $t('Cancel') }}
+          </VBtn>
+          <VBtn
+            color="error"
+            @click="deleteDriver"
+          >
+            {{ $t('Delete') }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
     <VSnackbar
       v-model="isSuccessSnackVisible"
       location="top right"

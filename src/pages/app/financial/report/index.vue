@@ -1,8 +1,18 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
 import FinancialExpenseBreakdownChart from '@/components/charts/FinancialExpenseBreakdownChart.vue'
 import FinancialRevenueVsExpensesChart from '@/components/charts/FinancialRevenueVsExpensesChart.vue'
 import { useFinancialReports } from '@/composables/useFinancialReports'
+
+definePage({
+  meta: {
+    action: 'view',
+    subject: 'financial',
+  },
+})
+
+const { t } = useI18n()
 
 const {
   period,
@@ -17,13 +27,23 @@ const {
 } = useFinancialReports()
 
 // Period options
-const periodOptions = [
-  { title: 'Today', value: 'today' },
-  { title: 'This Week', value: 'week' },
-  { title: 'This Month', value: 'month' },
-  { title: 'This Year', value: 'year' },
-  { title: 'Custom Range', value: 'custom' },
-]
+const periodOptions = computed(() => [
+  { title: t('Today'), value: 'today' },
+  { title: t('This Week'), value: 'week' },
+  { title: t('This Month'), value: 'month' },
+  { title: t('This Year'), value: 'year' },
+  { title: t('Custom Range'), value: 'custom' },
+])
+
+// Table headers
+const tableHeaders = computed(() => [
+  { title: t('Driver'), key: 'driver' },
+  { title: t('Deliveries'), key: 'deliveries' },
+  { title: t('Revenue'), key: 'revenue' },
+  { title: t('Expenses'), key: 'expenses' },
+  { title: t('Net Profit'), key: 'profit' },
+  { title: t('Profit Margin'), key: 'margin' },
+])
 
 // Format price helper
 const formatPrice = value => {
@@ -94,9 +114,9 @@ onMounted(() => {
       <VCardItem class="pb-4">
         <div class="d-flex justify-space-between align-center flex-wrap">
           <div>
-            <VCardTitle>Financial Reports</VCardTitle>
+            <VCardTitle>{{ $t('Financial Reports') }}</VCardTitle>
             <VCardSubtitle>
-              Comprehensive financial analysis and reporting
+              {{ $t('Comprehensive financial analysis and reporting') }}
             </VCardSubtitle>
           </div>
           <VBtn
@@ -104,7 +124,7 @@ onMounted(() => {
             prepend-icon="tabler-download"
             @click="exportReport"
           >
-            Export Report
+            {{ $t('Export Report') }}
           </VBtn>
         </div>
       </VCardItem>
@@ -119,8 +139,8 @@ onMounted(() => {
             <AppSelect
               v-model="period"
               :items="periodOptions"
-              label="Period"
-              placeholder="Select period"
+              :label="$t('Period')"
+              :placeholder="$t('Select period')"
             />
           </VCol>
 
@@ -132,8 +152,8 @@ onMounted(() => {
             >
               <AppDateTimePicker
                 v-model="dateFrom"
-                label="Date From"
-                placeholder="Select start date"
+                :label="$t('Date From')"
+                :placeholder="$t('Select start date')"
                 :config="{ dateFormat: 'Y-m-d' }"
               />
             </VCol>
@@ -143,8 +163,8 @@ onMounted(() => {
             >
               <AppDateTimePicker
                 v-model="dateTo"
-                label="Date To"
-                placeholder="Select end date"
+                :label="$t('Date To')"
+                :placeholder="$t('Select end date')"
                 :config="{ dateFormat: 'Y-m-d' }"
               />
             </VCol>
@@ -168,7 +188,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Total Revenue
+                {{ $t('Total Revenue') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1 text-success">
                 {{ formatPrice(financialSummary.totalRevenue) }}
@@ -178,7 +198,7 @@ onMounted(() => {
                   icon="tabler-trending-up"
                   size="14"
                 />
-                From deliveries
+                {{ $t('From deliveries') }}
               </div>
             </div>
             <VAvatar
@@ -205,7 +225,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Total Expenses
+                {{ $t('Total Expenses') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1 text-error">
                 {{ formatPrice(financialSummary.totalExpenses) }}
@@ -215,7 +235,7 @@ onMounted(() => {
                   icon="tabler-trending-down"
                   size="14"
                 />
-                Driver expenses
+                {{ $t('Driver expenses') }}
               </div>
             </div>
             <VAvatar
@@ -242,7 +262,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Net Profit
+                {{ $t('Net Profit') }}
               </div>
               <div
                 class="text-h4 font-weight-medium mt-1"
@@ -258,7 +278,7 @@ onMounted(() => {
                   :icon="financialSummary.netProfit >= 0 ? 'tabler-trending-up' : 'tabler-trending-down'"
                   size="14"
                 />
-                Revenue - Expenses
+                {{ $t('Revenue - Expenses') }}
               </div>
             </div>
             <VAvatar
@@ -285,7 +305,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Profit Margin
+                {{ $t('Profit Margin') }}
               </div>
               <div
                 class="text-h4 font-weight-medium mt-1"
@@ -294,7 +314,7 @@ onMounted(() => {
                 {{ financialSummary.profitMargin.toFixed(1) }}%
               </div>
               <div class="text-xs text-medium-emphasis mt-1">
-                Percentage
+                {{ $t('Percentage') }}
               </div>
             </div>
             <VAvatar
@@ -321,9 +341,9 @@ onMounted(() => {
       >
         <VCard>
           <VCardItem>
-            <VCardTitle>Revenue vs Expenses</VCardTitle>
+            <VCardTitle>{{ $t('Revenue vs Expenses') }}</VCardTitle>
             <VCardSubtitle>
-              Comparison over selected period
+              {{ $t('Comparison over selected period') }}
             </VCardSubtitle>
           </VCardItem>
           <VCardText>
@@ -339,9 +359,9 @@ onMounted(() => {
       >
         <VCard>
           <VCardItem>
-            <VCardTitle>Expense Breakdown</VCardTitle>
+            <VCardTitle>{{ $t('Expense Breakdown') }}</VCardTitle>
             <VCardSubtitle>
-              Expenses by type
+              {{ $t('Expenses by type') }}
             </VCardSubtitle>
           </VCardItem>
           <VCardText>
@@ -354,21 +374,14 @@ onMounted(() => {
     <!-- Driver Statistics -->
     <VCard class="mb-6">
       <VCardItem>
-        <VCardTitle>Driver Performance</VCardTitle>
+        <VCardTitle>{{ $t('Driver Performance') }}</VCardTitle>
         <VCardSubtitle>
-          Revenue and expenses by driver
+          {{ $t('Revenue and expenses by driver') }}
         </VCardSubtitle>
       </VCardItem>
       <VCardText>
         <VDataTable
-          :headers="[
-            { title: 'Driver', key: 'driver' },
-            { title: 'Deliveries', key: 'deliveries' },
-            { title: 'Revenue', key: 'revenue' },
-            { title: 'Expenses', key: 'expenses' },
-            { title: 'Net Profit', key: 'profit' },
-            { title: 'Profit Margin', key: 'margin' },
-          ]"
+          :headers="tableHeaders"
           :items="driverStats"
           :loading="isLoading"
           class="text-no-wrap"
@@ -384,10 +397,10 @@ onMounted(() => {
               </VAvatar>
               <div>
                 <div class="text-body-1 font-weight-medium">
-                  {{ item.driver?.name || 'Unknown' }}
+                  {{ item.driver?.name || $t('Unknown') }}
                 </div>
                 <div class="text-sm text-medium-emphasis">
-                  {{ item.driver?.vehicle_type || 'N/A' }}
+                  {{ item.driver?.vehicle_type || $t('N/A') }}
                 </div>
               </div>
             </div>
@@ -439,7 +452,7 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                No data available
+                {{ $t('No data available') }}
               </h6>
             </div>
           </template>
@@ -456,17 +469,17 @@ onMounted(() => {
       >
         <VCard>
           <VCardItem>
-            <VCardTitle>Revenue Details</VCardTitle>
+            <VCardTitle>{{ $t('Revenue Details') }}</VCardTitle>
           </VCardItem>
           <VCardText>
             <div class="d-flex flex-column gap-4">
               <div class="d-flex justify-space-between align-center">
                 <div>
                   <div class="text-body-1 font-weight-medium">
-                    Completed Deliveries
+                    {{ $t('Completed Deliveries') }}
                   </div>
                   <div class="text-sm text-medium-emphasis">
-                    {{ financialSummary?.completedDeliveries || 0 }} deliveries
+                    {{ financialSummary?.completedDeliveries || 0 }} {{ $t('deliveries') }}
                   </div>
                 </div>
                 <span class="text-h6 text-success">
@@ -479,10 +492,10 @@ onMounted(() => {
               <div class="d-flex justify-space-between align-center">
                 <div>
                   <div class="text-body-1 font-weight-medium">
-                    Average per Delivery
+                    {{ $t('Average per Delivery') }}
                   </div>
                   <div class="text-sm text-medium-emphasis">
-                    Per completed delivery
+                    {{ $t('Per completed delivery') }}
                   </div>
                 </div>
                 <span class="text-h6">
@@ -501,7 +514,7 @@ onMounted(() => {
       >
         <VCard>
           <VCardItem>
-            <VCardTitle>Expense Details</VCardTitle>
+            <VCardTitle>{{ $t('Expense Details') }}</VCardTitle>
           </VCardItem>
           <VCardText>
             <div class="d-flex flex-column gap-4">
@@ -524,7 +537,7 @@ onMounted(() => {
                     {{ expense.type }}
                   </VChip>
                   <div class="text-sm text-medium-emphasis">
-                    {{ expense.count }} transactions
+                    {{ expense.count }} {{ $t('transactions') }}
                   </div>
                 </div>
                 <span class="text-h6 text-error">
@@ -537,10 +550,10 @@ onMounted(() => {
               <div class="d-flex justify-space-between align-center">
                 <div>
                   <div class="text-body-1 font-weight-medium">
-                    Average per Transaction
+                    {{ $t('Average per Transaction') }}
                   </div>
                   <div class="text-sm text-medium-emphasis">
-                    Per expense transaction
+                    {{ $t('Per expense transaction') }}
                   </div>
                 </div>
                 <span class="text-h6">

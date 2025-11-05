@@ -24,6 +24,8 @@ declare module 'vue-router/auto-routes' {
     'couriers-activity': RouteRecordInfo<'couriers-activity', '/couriers/activity', Record<never, never>, Record<never, never>>,
     'couriers-add': RouteRecordInfo<'couriers-add', '/couriers/add', Record<never, never>, Record<never, never>>,
     'couriers-list': RouteRecordInfo<'couriers-list', '/couriers/list', Record<never, never>, Record<never, never>>,
+    'customer-add': RouteRecordInfo<'customer-add', '/customer/add', Record<never, never>, Record<never, never>>,
+    'customer-list': RouteRecordInfo<'customer-list', '/customer/list', Record<never, never>, Record<never, never>>,
     'dashboard': RouteRecordInfo<'dashboard', '/dashboard', Record<never, never>, Record<never, never>>,
     'delivery-add': RouteRecordInfo<'delivery-add', '/delivery/add', Record<never, never>, Record<never, never>>,
     'delivery-dashboard': RouteRecordInfo<'delivery-dashboard', '/delivery/dashboard', Record<never, never>, Record<never, never>>,

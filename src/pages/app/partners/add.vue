@@ -1,13 +1,21 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
+
 const props = defineProps({
   isDialogVisible: {
     type: Boolean,
     required: true,
   },
+  partnerToEdit: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['update:isDialogVisible', 'partnerAdded'])
+const emit = defineEmits(['update:isDialogVisible', 'partnerAdded', 'resetPartnerToEdit'])
+
+const { t } = useI18n()
 
 const dialogVisible = computed({
   get: () => props.isDialogVisible,
@@ -15,7 +23,7 @@ const dialogVisible = computed({
 })
 
 // Form data
-const form = ref({
+const initialFormData = {
   prospection_date: new Date().toISOString().split('T')[0], // Today's date
   merchant_name: '',
   contact_name: '',
@@ -28,7 +36,10 @@ const form = ref({
   location: '',
   address: '',
   address_label: '',
-})
+}
+
+const form = ref({ ...initialFormData })
+const originalFormData = ref({ ...initialFormData })
 
 // Loading states
 const isSubmitting = ref(false)
@@ -84,6 +95,70 @@ const engagementTypeOptions = [
   { title: 'Autre', value: 'autre' },
 ]
 
+// Format hint for location field
+const locationFormatHint = computed(() => {
+  return t("Format: 6°10'53.8\"N 1°12'35.7\"E")
+})
+
+// Check if form has changes
+const hasChanges = computed(() => {
+  return JSON.stringify(form.value) !== JSON.stringify(originalFormData.value)
+})
+
+// Load partner data for editing
+const loadPartnerData = () => {
+  console.log('=== Loading partner data ===')
+  console.log('Dialog visible:', props.isDialogVisible)
+  console.log('Partner to edit:', props.partnerToEdit)
+  
+  if (props.partnerToEdit) {
+    // Get address data from default_address or addresses[0]
+    const addressData = props.partnerToEdit.default_address || 
+                       (props.partnerToEdit.addresses && props.partnerToEdit.addresses.length > 0 ? props.partnerToEdit.addresses[0] : null)
+    
+    form.value = {
+      prospection_date: props.partnerToEdit.prospection_date ? new Date(props.partnerToEdit.prospection_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      merchant_name: props.partnerToEdit.merchant_name || '',
+      contact_name: props.partnerToEdit.contact_name || '',
+      phone: props.partnerToEdit.phone || '',
+      activity_sector: props.partnerToEdit.activity_sector || '',
+      engagement_type: props.partnerToEdit.engagement_type || '',
+      interest_shown: props.partnerToEdit.interest_shown || '',
+      other_info: props.partnerToEdit.other_info || '',
+      status_id: props.partnerToEdit.status?.id || props.partnerToEdit.status_id || null,
+
+      // Load address data from default_address or addresses[0]
+      location: addressData?.location || props.partnerToEdit.location || '',
+      address: addressData?.address || props.partnerToEdit.address || '',
+      address_label: addressData?.label || props.partnerToEdit.address_label || '',
+    }
+    originalFormData.value = JSON.parse(JSON.stringify(form.value))
+    console.log('Form loaded with data:', form.value)
+    console.log('Address data loaded from:', addressData ? 'default_address/addresses[0]' : 'legacy fields')
+  } else {
+    console.log('No partner to edit, resetting form')
+    resetForm()
+  }
+  console.log('================================')
+}
+
+// Watch for dialog visibility
+watch(() => props.isDialogVisible, isVisible => {
+  if (isVisible) {
+    // Use nextTick to ensure partnerToEdit is set before loading
+    nextTick(() => {
+      loadPartnerData()
+    })
+  }
+})
+
+// Also watch partnerToEdit in case it changes while dialog is open
+watch(() => props.partnerToEdit, () => {
+  if (props.isDialogVisible) {
+    loadPartnerData()
+  }
+}, { deep: true })
+
 // Load statuses on mount
 onMounted(() => {
   fetchPartnerStatuses()
@@ -91,6 +166,8 @@ onMounted(() => {
 
 // Submit form
 const onSubmit = async () => {
+  if (!hasChanges.value) return
+
   isSubmitting.value = true
   try {
     const payload = {
@@ -108,18 +185,28 @@ const onSubmit = async () => {
       address_label: form.value.address_label,
     }
 
-    console.log('Creating merchant with payload:', payload)
-
-    await $api('/merchants', {
-      method: 'POST',
-      body: payload,
-    })
+    if (props.partnerToEdit) {
+      // Update existing partner
+      console.log('Updating merchant with payload:', payload)
+      await $api(`/merchants/${props.partnerToEdit.id}`, {
+        method: 'PUT',
+        body: payload,
+      })
+    } else {
+      // Create new partner
+      console.log('Creating merchant with payload:', payload)
+      await $api('/merchants', {
+        method: 'POST',
+        body: payload,
+      })
+    }
 
     emit('partnerAdded')
     resetForm()
     dialogVisible.value = false
+    emit('resetPartnerToEdit')
   } catch (error) {
-    console.error('Error creating partner:', error)
+    console.error(`Error ${props.partnerToEdit ? 'updating' : 'creating'} partner:`, error)
   } finally {
     isSubmitting.value = false
   }
@@ -127,26 +214,17 @@ const onSubmit = async () => {
 
 // Reset form
 const resetForm = () => {
-  form.value = {
-    prospection_date: new Date().toISOString().split('T')[0],
-    merchant_name: '',
-    contact_name: '',
-    phone: '',
-    activity_sector: '',
-    engagement_type: '',
-    interest_shown: '',
-    other_info: '',
-    status_id: null,
-    location: '',
-    address: '',
-    address_label: '',
-  }
+  form.value = { ...initialFormData }
+  originalFormData.value = { ...initialFormData }
 }
 
 // Close dialog
 const onClose = () => {
   resetForm()
   dialogVisible.value = false
+
+  // Reset partnerToEdit when closing (emit to parent)
+  emit('resetPartnerToEdit')
 }
 </script>
 
@@ -161,7 +239,7 @@ const onClose = () => {
     
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
-        <span>Add New Partner</span>
+        <span>{{ partnerToEdit ? $t('Edit Partner') : $t('Add New Partner') }}</span>
       </VCardTitle>
 
       <VDivider />
@@ -177,7 +255,7 @@ const onClose = () => {
               <AppTextField
                 v-model="form.prospection_date"
                 type="date"
-                label="Prospection Date"
+                :label="$t('Prospection Date')"
                 required
               />
             </VCol>
@@ -189,8 +267,8 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.merchant_name"
-                label="Merchant Name"
-                placeholder="Enter merchant name"
+                :label="$t('Merchant Name')"
+                :placeholder="$t('Enter merchant name')"
                 required
               />
             </VCol>
@@ -202,8 +280,8 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.contact_name"
-                label="Contact Name"
-                placeholder="Enter contact person name"
+                :label="$t('Contact Name')"
+                :placeholder="$t('Enter contact person name')"
               />
             </VCol>
 
@@ -214,7 +292,7 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.phone"
-                label="Phone"
+                :label="$t('Phone')"
                 placeholder="+228 90 12 34 56"
               />
             </VCol>
@@ -227,8 +305,8 @@ const onClose = () => {
               <AppSelect
                 v-model="form.activity_sector"
                 :items="activitySectorOptions"
-                label="Activity Sector"
-                placeholder="Select activity sector"
+                :label="$t('Activity Sector')"
+                :placeholder="$t('Select activity sector')"
                 clearable
               />
             </VCol>
@@ -241,8 +319,8 @@ const onClose = () => {
               <AppSelect
                 v-model="form.engagement_type"
                 :items="engagementTypeOptions"
-                label="Engagement Type"
-                placeholder="Select engagement type"
+                :label="$t('Engagement Type')"
+                :placeholder="$t('Select engagement type')"
                 clearable
               />
             </VCol>
@@ -251,8 +329,8 @@ const onClose = () => {
             <VCol cols="12">
               <VTextarea
                 v-model="form.interest_shown"
-                label="Interest Shown"
-                placeholder="Describe the interest shown by the merchant..."
+                :label="$t('Interest Shown')"
+                :placeholder="$t('Describe the interest shown by the merchant...')"
                 rows="3"
               />
             </VCol>
@@ -266,8 +344,8 @@ const onClose = () => {
                 v-model="form.status_id"
                 :items="statusOptions"
                 :loading="isLoadingStatuses"
-                label="Status"
-                placeholder="Select status"
+                :label="$t('Status')"
+                :placeholder="$t('Select status')"
                 clearable
               />
             </VCol>
@@ -279,9 +357,9 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.location"
-                label="Location (Coordinates)"
+                :label="$t('Location (Coordinates)')"
                 placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
+                :hint="locationFormatHint"
               />
             </VCol>
 
@@ -292,7 +370,7 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.address"
-                label="Address"
+                :label="$t('Address')"
                 placeholder="123 Avenue de la République, Lomé"
               />
             </VCol>
@@ -304,9 +382,9 @@ const onClose = () => {
             >
               <AppTextField
                 v-model="form.address_label"
-                label="Address Label"
+                :label="$t('Address Label')"
                 placeholder="Siège social"
-                hint="e.g., Siège social, Bureau, etc."
+                :hint="$t('e.g., Siège social, Bureau, etc.')"
               />
             </VCol>
 
@@ -314,8 +392,8 @@ const onClose = () => {
             <VCol cols="12">
               <VTextarea
                 v-model="form.other_info"
-                label="Other Information"
-                placeholder="Additional information about the merchant..."
+                :label="$t('Other Information')"
+                :placeholder="$t('Additional information about the merchant...')"
                 rows="3"
               />
             </VCol>
@@ -331,15 +409,15 @@ const onClose = () => {
           variant="tonal"
           @click="onClose"
         >
-          Cancel
+          {{ $t('Cancel') }}
         </VBtn>
         <VBtn
           color="primary"
           :loading="isSubmitting"
-          :disabled="!form.merchant_name || !form.prospection_date"
+          :disabled="partnerToEdit ? !hasChanges : (!form.merchant_name || !form.prospection_date)"
           @click="onSubmit"
         >
-          Create Partner
+          {{ partnerToEdit ? $t('Update Partner') : $t('Create Partner') }}
         </VBtn>
       </VCardActions>
     </VCard>

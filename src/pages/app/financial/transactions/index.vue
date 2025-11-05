@@ -1,6 +1,16 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
 import ExpenseAddDialog from './add.vue'
+
+definePage({
+  meta: {
+    action: 'view',
+    subject: 'financial',
+  },
+})
+
+const { t } = useI18n()
 
 const searchQuery = ref('')
 const selectedDriverId = ref()
@@ -19,15 +29,15 @@ const drivers = ref([])
 const isLoadingDrivers = ref(false)
 
 // Expense types
-const expenseTypes = [
-  { title: 'Maintenance', value: 'maintenance', icon: 'tabler-tools', color: 'warning' },
-  { title: 'Fuel', value: 'fuel', icon: 'tabler-gas-station', color: 'primary' },
-  { title: 'Oil Change', value: 'oil_change', icon: 'tabler-droplet', color: 'info' },
-  { title: 'Tires', value: 'tires', icon: 'tabler-circle', color: 'secondary' },
-  { title: 'Insurance', value: 'insurance', icon: 'tabler-shield', color: 'success' },
-  { title: 'Repair', value: 'repair', icon: 'tabler-wrench', color: 'error' },
-  { title: 'Other', value: 'other', icon: 'tabler-category', color: 'secondary' },
-]
+const expenseTypes = computed(() => [
+  { title: t('Maintenance'), value: 'maintenance', icon: 'tabler-tools', color: 'warning' },
+  { title: t('Fuel'), value: 'fuel', icon: 'tabler-gas-station', color: 'primary' },
+  { title: t('Oil Change'), value: 'oil_change', icon: 'tabler-droplet', color: 'info' },
+  { title: t('Tires'), value: 'tires', icon: 'tabler-circle', color: 'secondary' },
+  { title: t('Insurance'), value: 'insurance', icon: 'tabler-shield', color: 'success' },
+  { title: t('Repair'), value: 'repair', icon: 'tabler-wrench', color: 'error' },
+  { title: t('Other'), value: 'other', icon: 'tabler-category', color: 'secondary' },
+])
 
 // Transactions/Expenses data
 const expenses = ref([])
@@ -39,15 +49,15 @@ const totalAmount = computed(() => {
 })
 
 // Headers for expenses table
-const headers = [
+const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
-  { title: 'Date', key: 'date', sortable: true },
-  { title: 'Driver', key: 'driver', sortable: false },
-  { title: 'Type', key: 'type', sortable: false },
-  { title: 'Description', key: 'description', sortable: false },
-  { title: 'Amount', key: 'amount', sortable: true },
-  { title: 'Actions', key: 'actions', sortable: false },
-]
+  { title: t('Date'), key: 'date', sortable: true },
+  { title: t('Driver'), key: 'driver', sortable: false },
+  { title: t('Type'), key: 'type', sortable: false },
+  { title: t('Description'), key: 'description', sortable: false },
+  { title: t('Amount'), key: 'amount', sortable: true },
+  { title: t('Actions'), key: 'actions', sortable: false },
+])
 
 // Fetch drivers
 const fetchDrivers = async () => {
@@ -171,7 +181,7 @@ const formatPrice = value => {
 
 // Get expense type info
 const getExpenseTypeInfo = type => {
-  return expenseTypes.find(t => t.value === type) || expenseTypes[expenseTypes.length - 1]
+  return expenseTypes.value.find(et => et.value === type) || expenseTypes.value[expenseTypes.value.length - 1]
 }
 
 // Delete expense
@@ -208,9 +218,9 @@ onMounted(() => {
     <!-- Header Section -->
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Financial Transactions</VCardTitle>
+        <VCardTitle>{{ $t('Financial Transactions') }}</VCardTitle>
         <VCardSubtitle>
-          Track all expenses related to drivers (maintenance, fuel, repairs, etc.)
+          {{ $t('Track all expenses related to drivers (maintenance, fuel, repairs, etc.)') }}
         </VCardSubtitle>
       </VCardItem>
 
@@ -228,7 +238,7 @@ onMounted(() => {
               <VCardText class="d-flex align-center justify-space-between">
                 <div>
                   <div class="text-sm text-medium-emphasis">
-                    Total Expenses
+                    {{ $t('Total Expenses') }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
                     {{ formatPrice(totalAmount) }}
@@ -260,7 +270,7 @@ onMounted(() => {
               <VCardText class="d-flex align-center justify-space-between">
                 <div>
                   <div class="text-sm text-medium-emphasis">
-                    Total Transactions
+                    {{ $t('Total Transactions') }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
                     {{ expenses.length }}
@@ -292,7 +302,7 @@ onMounted(() => {
               size="large"
               @click="isAddExpenseDialogOpen = true"
             >
-              Add Expense
+              {{ $t('Add Expense') }}
             </VBtn>
           </VCol>
         </VRow>
@@ -306,10 +316,10 @@ onMounted(() => {
           >
             <AppSelect
               v-model="selectedDriverId"
-              :items="drivers.map(d => ({ title: d.user?.name || d.name || 'Unknown', value: d.id }))"
+              :items="drivers.map(d => ({ title: d.user?.name || d.name || $t('Unknown'), value: d.id }))"
               :loading="isLoadingDrivers"
-              placeholder="Filter by driver"
-              label="Driver"
+              :placeholder="$t('Filter by driver')"
+              :label="$t('Driver')"
               clearable
               clear-icon="tabler-x"
             />
@@ -323,8 +333,8 @@ onMounted(() => {
             <AppSelect
               v-model="selectedExpenseType"
               :items="expenseTypes"
-              placeholder="Filter by type"
-              label="Expense Type"
+              :placeholder="$t('Filter by type')"
+              :label="$t('Expense Type')"
               clearable
               clear-icon="tabler-x"
             />
@@ -337,8 +347,8 @@ onMounted(() => {
           >
             <AppDateTimePicker
               v-model="dateFrom"
-              placeholder="Date from"
-              label="Date From"
+              :placeholder="$t('Date from')"
+              :label="$t('Date From')"
               :config="{ dateFormat: 'Y-m-d' }"
               clearable
             />
@@ -351,8 +361,8 @@ onMounted(() => {
           >
             <AppDateTimePicker
               v-model="dateTo"
-              placeholder="Date to"
-              label="Date To"
+              :placeholder="$t('Date to')"
+              :label="$t('Date To')"
               :config="{ dateFormat: 'Y-m-d' }"
               clearable
             />
@@ -365,8 +375,8 @@ onMounted(() => {
           >
             <AppTextField
               v-model="searchQuery"
-              placeholder="Search by description..."
-              label="Search"
+              :placeholder="$t('Search by description...')"
+              :label="$t('Search')"
               clearable
               prepend-inner-icon="tabler-search"
             />
@@ -414,7 +424,7 @@ onMounted(() => {
               </VAvatar>
               <div>
                 <div class="text-body-1 font-weight-medium">
-                  {{ item.driver?.user?.name || item.driver?.name || item.driver_name || 'Unknown' }}
+                  {{ item.driver?.user?.name || item.driver?.name || item.driver_name || $t('Unknown') }}
                 </div>
                 <div
                   v-if="item.driver?.vehicle_type"
@@ -438,7 +448,7 @@ onMounted(() => {
                 size="14"
                 class="me-1"
               />
-              {{ getExpenseTypeInfo(item.type || item.expense_type)?.title || 'Other' }}
+              {{ getExpenseTypeInfo(item.type || item.expense_type)?.title || $t('Other') }}
             </VChip>
           </template>
 
@@ -479,10 +489,10 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                No expenses found
+                {{ $t('No expenses found') }}
               </h6>
               <p class="text-medium-emphasis">
-                No expenses were recorded for the selected filters.
+                {{ $t('No expenses were recorded for the selected filters.') }}
               </p>
             </div>
           </template>

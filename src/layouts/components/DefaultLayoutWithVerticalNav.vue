@@ -1,6 +1,13 @@
 <script setup>
-import navItems from '@/navigation/vertical'
+import { getFilteredNavigation } from '@/navigation/vertical/dashboard'
 import { themeConfig } from '@themeConfig'
+
+// Filter navigation based on user role (reactive)
+const navItems = computed(() => {
+  const filtered = getFilteredNavigation()
+  console.log('[Layout] Computed navItems:', filtered)
+  return filtered
+})
 
 // Components
 import Footer from '@/layouts/components/Footer.vue'

@@ -1,63 +1,78 @@
 <script setup>
-const customerNotifications = ref([
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const customerNotifications = computed(() => [
   {
-    type: 'New customer sign up',
+    type: t('New customer sign up'),
+    typeKey: 'New customer sign up',
     email: true,
     app: true,
   },
   {
-    type: 'Customer account password reset',
+    type: t('Customer account password reset'),
+    typeKey: 'Customer account password reset',
     email: true,
     app: true,
   },
   {
-    type: 'Customer account invite',
+    type: t('Customer account invite'),
+    typeKey: 'Customer account invite',
     email: false,
     app: false,
   },
 ])
 
-const shippingNotifications = ref([
+const shippingNotifications = computed(() => [
   {
-    type: 'Picked up',
+    type: t('Picked up'),
+    typeKey: 'Picked up',
     email: true,
     app: true,
   },
   {
-    type: 'Shipping update ',
+    type: t('Shipping update'),
+    typeKey: 'Shipping update',
     email: true,
     app: false,
   },
   {
-    type: 'Delivered',
+    type: t('Delivered'),
+    typeKey: 'Delivered',
     email: false,
     app: true,
   },
 ])
 
-const ordersNotification = ref([
+const ordersNotification = computed(() => [
   {
-    type: 'Order purchase',
+    type: t('Order purchase'),
+    typeKey: 'Order purchase',
     email: true,
     app: true,
   },
   {
-    type: 'Order cancelled',
+    type: t('Order cancelled'),
+    typeKey: 'Order cancelled',
     email: true,
     app: false,
   },
   {
-    type: 'Order refund request',
+    type: t('Order refund request'),
+    typeKey: 'Order refund request',
     email: false,
     app: true,
   },
   {
-    type: 'Order confirmation',
+    type: t('Order confirmation'),
+    typeKey: 'Order confirmation',
     email: true,
     app: false,
   },
   {
-    type: 'Payment error',
+    type: t('Payment error'),
+    typeKey: 'Payment error',
     email: true,
     app: false,
   },
@@ -68,19 +83,19 @@ const ordersNotification = ref([
   <VCard class="mb-4">
     <VCardText>
       <h5 class="text-h5 mb-2">
-        Customer
+        {{ $t('Customer') }}
       </h5>
       <VTable class="text-no-wrap mb-6 border rounded">
         <thead>
           <tr>
             <th scope="col">
-              TYPE
+              {{ $t('TYPE') }}
             </th>
             <th scope="col">
-              EMAIL
+              {{ $t('EMAIL') }}
             </th>
             <th scope="col">
-              APP
+              {{ $t('APP') }}
             </th>
           </tr>
         </thead>
@@ -88,7 +103,7 @@ const ordersNotification = ref([
         <tbody>
           <tr
             v-for="notification in customerNotifications"
-            :key="notification.type"
+            :key="notification.typeKey"
           >
             <td
               width="400px"
@@ -108,19 +123,19 @@ const ordersNotification = ref([
       </VTable>
 
       <h5 class="text-h5 mb-2">
-        Orders
+        {{ $t('Orders') }}
       </h5>
       <VTable class="text-no-wrap mb-6 border rounded">
         <thead>
           <tr>
             <th scope="col">
-              TYPE
+              {{ $t('TYPE') }}
             </th>
             <th scope="col">
-              EMAIL
+              {{ $t('EMAIL') }}
             </th>
             <th scope="col">
-              APP
+              {{ $t('APP') }}
             </th>
           </tr>
         </thead>
@@ -128,7 +143,7 @@ const ordersNotification = ref([
         <tbody>
           <tr
             v-for="notification in ordersNotification"
-            :key="notification.type"
+            :key="notification.typeKey"
           >
             <td
               width="400px"
@@ -148,19 +163,19 @@ const ordersNotification = ref([
       </VTable>
 
       <h5 class="text-h5 mb-2">
-        Shipping
+        {{ $t('Shipping') }}
       </h5>
       <VTable class="text-no-wrap mb-6 border rounded">
         <thead>
           <tr>
             <th scope="col">
-              TYPE
+              {{ $t('TYPE') }}
             </th>
             <th scope="col">
-              EMAIL
+              {{ $t('EMAIL') }}
             </th>
             <th scope="col">
-              APP
+              {{ $t('APP') }}
             </th>
           </tr>
         </thead>
@@ -168,7 +183,7 @@ const ordersNotification = ref([
         <tbody>
           <tr
             v-for="notification in shippingNotifications"
-            :key="notification.type"
+            :key="notification.typeKey"
           >
             <td
               width="400px"
@@ -194,8 +209,8 @@ const ordersNotification = ref([
       variant="tonal"
       color="secondary"
     >
-      Discard
+      {{ $t('Discard') }}
     </VBtn>
-    <VBtn>Save Changes</VBtn>
+    <VBtn>{{ $t('Save Changes') }}</VBtn>
   </div>
 </template>

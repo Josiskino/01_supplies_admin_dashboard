@@ -1,14 +1,27 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import PartnerAddDialog from '../add.vue'
 
+definePage({
+  meta: {
+    action: 'view',
+    subject: 'partners',
+  },
+})
+
+const { t } = useI18n()
+
 const searchQuery = ref('')
+
 const partnerStatuses = ref([])
+
 const statusOptions = computed(() => {
   return partnerStatuses.value.map(status => ({
     title: status.name,
     value: status.id, // On utilise l'ID comme valeur pour l'envoi
   }))
 })
+
 const selectedStatus = ref()
 const selectedBusinessSector = ref()
 const isLoadingStatuses = ref(false)
@@ -48,9 +61,24 @@ const orderBy = ref()
 const selectedRows = ref([])
 const isLoading = ref(false)
 const isAddPartnerDialogOpen = ref(false)
+const partnerToEdit = ref(null)
+const isDeleteDialogOpen = ref(false)
+const partnerToDelete = ref(null)
 
 const isSuccessSnackVisible = ref(false)
-const successSnackText = ref('Partner created successfully')
+const successSnackText = ref(t('Partner created successfully'))
+
+// Handle partner added/updated
+const onPartnerAdded = () => {
+  if (partnerToEdit.value) {
+    successSnackText.value = t('Partner updated successfully')
+  } else {
+    successSnackText.value = t('Partner created successfully')
+  }
+  isSuccessSnackVisible.value = true
+  partnerToEdit.value = null
+  fetchPartners()
+}
 
 const updateOptions = options => {
   sortBy.value = options.sortBy[0]?.key
@@ -58,53 +86,53 @@ const updateOptions = options => {
 }
 
 // Headers for partners table
-const headers = [
+const headers = computed(() => [
   {
-    title: 'Prospection Date',
+    title: t('Prospection Date'),
     key: 'prospection_date',
   },
   {
-    title: 'Merchant Name',
+    title: t('Merchant Name'),
     key: 'merchant_name',
   },
   {
-    title: 'Contact',
+    title: t('Contact'),
     key: 'contact',
   },
   {
-    title: 'Activity Sector',
+    title: t('Activity Sector'),
     key: 'activity_sector',
   },
   {
-    title: 'Engagement Type',
+    title: t('Engagement Type'),
     key: 'engagement_type',
   },
   {
-    title: 'Interest Shown',
+    title: t('Interest Shown'),
     key: 'interest_shown',
   },
   {
-    title: 'Address',
+    title: t('Address'),
     key: 'address',
   },
   {
-    title: 'Location',
+    title: t('Location'),
     key: 'location',
   },
   {
-    title: 'Status',
+    title: t('Status'),
     key: 'status',
   },
   {
-    title: 'Deliveries',
+    title: t('Deliveries'),
     key: 'deliveries_count',
   },
   {
-    title: 'Actions',
+    title: t('Actions'),
     key: 'actions',
     sortable: false,
   },
-]
+])
 
 // Partners data
 const partners = ref([])
@@ -176,8 +204,21 @@ const fetchPartners = async () => {
         // Response is directly an array
         partners.value = response
         totalPartners.value = response.length
+      } else if (response.success && response.data) {
+        // Response has { success: true, data: [...] } structure
+        if (Array.isArray(response.data)) {
+          partners.value = response.data
+          totalPartners.value = response.meta?.total || response.data.length
+        } else if (response.data.data && Array.isArray(response.data.data)) {
+          // Nested structure: { success: true, data: { data: [...], meta: {...} } }
+          partners.value = response.data.data
+          totalPartners.value = response.data.meta?.total || response.data.data.length
+        } else {
+          partners.value = []
+          totalPartners.value = 0
+        }
       } else if (response.data && Array.isArray(response.data)) {
-        // Response has { data: [...], meta: {...} } structure
+        // Response has { data: [...], meta: {...} } structure (without success)
         partners.value = response.data
         totalPartners.value = response.meta?.total || response.data.length
       } else {
@@ -188,6 +229,22 @@ const fetchPartners = async () => {
       partners.value = []
       totalPartners.value = 0
     }
+
+    // Debug: Log the final partners data structure
+    console.log('=== Final partners data structure ===')
+    console.log('Partners count:', partners.value.length)
+    if (partners.value.length > 0) {
+      console.log('First partner:', partners.value[0])
+      console.log('First partner default_address:', partners.value[0]?.default_address)
+      console.log('First partner addresses:', partners.value[0]?.addresses)
+      console.log('Has default_address?:', !!partners.value[0]?.default_address)
+      console.log('Has addresses?:', !!partners.value[0]?.addresses)
+      if (partners.value[0]?.default_address) {
+        console.log('default_address.address:', partners.value[0].default_address.address)
+        console.log('default_address.location:', partners.value[0].default_address.location)
+      }
+    }
+    console.log('====================================')
   } catch (error) {
     console.error('Error fetching partners:', error)
     partners.value = []
@@ -279,20 +336,70 @@ const addNewPartner = async () => {
   isSuccessSnackVisible.value = true
 }
 
-const deletePartner = async id => {
+// Edit partner
+const editPartner = partner => {
+  console.log('=== Editing partner ===')
+  console.log('Partner data:', partner)
+  console.log('Partner ID:', partner?.id)
+  
+  if (!partner || !partner.id) {
+    console.error('Invalid partner data:', partner)
+
+    return
+  }
+  
+  // Set partner data and open dialog immediately
+  partnerToEdit.value = { ...partner }
+  
+  // Force reactivity update
+  nextTick(() => {
+    isAddPartnerDialogOpen.value = true
+    console.log('Dialog should be open:', isAddPartnerDialogOpen.value)
+    console.log('partnerToEdit set:', partnerToEdit.value)
+  })
+  
+  console.log('========================')
+}
+
+// Confirm delete partner
+const confirmDeletePartner = partner => {
+  partnerToDelete.value = partner
+  isDeleteDialogOpen.value = true
+}
+
+// Delete partner
+const deletePartner = async () => {
+  if (!partnerToDelete.value) return
+  
   try {
-    await $api(`/merchants/${id}`, { method: 'DELETE' })
+    await $api(`/merchants/${partnerToDelete.value.id}`, {
+      method: 'DELETE',
+    })
 
     // Delete from selectedRows
-    const index = selectedRows.value.findIndex(row => row === id)
+    const index = selectedRows.value.findIndex(row => row === partnerToDelete.value.id)
     if (index !== -1)
       selectedRows.value.splice(index, 1)
 
+    successSnackText.value = t('Partner deleted successfully')
+    isSuccessSnackVisible.value = true
+    
     // Refetch partners
     fetchPartners()
+    isDeleteDialogOpen.value = false
+    partnerToDelete.value = null
   } catch (error) {
     console.error('Error deleting partner:', error)
+    successSnackText.value = t('Error deleting partner')
+    isSuccessSnackVisible.value = true
+    isDeleteDialogOpen.value = false
+    partnerToDelete.value = null
   }
+}
+
+const cancelDelete = () => {
+  isDeleteDialogOpen.value = false
+  partnerToDelete.value = null
 }
 </script>
 
@@ -300,7 +407,7 @@ const deletePartner = async id => {
   <section>
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Partners</VCardTitle>
+        <VCardTitle>{{ $t('Partners') }}</VCardTitle>
       </VCardItem>
 
       <VCardText>
@@ -312,7 +419,7 @@ const deletePartner = async id => {
           >
             <AppSelect
               v-model="selectedStatus"
-              placeholder="Filter by status"
+              :placeholder="$t('Filter by status')"
               :items="statusOptions"
               :loading="isLoadingStatuses"
               clearable
@@ -326,7 +433,7 @@ const deletePartner = async id => {
           >
             <AppSelect
               v-model="selectedBusinessSector"
-              placeholder="Filter by activity sector"
+              :placeholder="$t('Filter by activity sector')"
               :items="businessSectors"
               clearable
               clear-icon="tabler-x"
@@ -358,7 +465,7 @@ const deletePartner = async id => {
           <div style="inline-size: 15.625rem;">
             <AppTextField
               v-model="searchQuery"
-              placeholder="Search by name or phone"
+              :placeholder="$t('Search by name or phone')"
               clearable
             />
           </div>
@@ -369,7 +476,7 @@ const deletePartner = async id => {
             color="secondary"
             prepend-icon="tabler-upload"
           >
-            Export
+            {{ $t('Export') }}
           </VBtn>
 
           <!-- 👉 Add partner button -->
@@ -377,7 +484,7 @@ const deletePartner = async id => {
             prepend-icon="tabler-plus"
             @click="isAddPartnerDialogOpen = true"
           >
-            Add Partner
+            {{ $t('Add Partner') }}
           </VBtn>
         </div>
       </VCardText>
@@ -401,7 +508,7 @@ const deletePartner = async id => {
         <!-- Prospection Date -->
         <template #item.prospection_date="{ item }">
           <div class="text-body-1">
-            {{ item.prospection_date ? new Date(item.prospection_date).toLocaleDateString() : 'N/A' }}
+            {{ item.prospection_date ? new Date(item.prospection_date).toLocaleDateString() : $t('N/A') }}
           </div>
         </template>
 
@@ -417,7 +524,7 @@ const deletePartner = async id => {
             </VAvatar>
             <div class="d-flex flex-column">
               <h6 class="text-base font-weight-medium">
-                {{ item.merchant_name || 'N/A' }}
+                {{ (item.merchant_name || $t('N/A')).toUpperCase() }}
               </h6>
             </div>
           </div>
@@ -442,7 +549,7 @@ const deletePartner = async id => {
               v-if="!item.contact_name && !item.phone"
               class="text-body-1 text-disabled"
             >
-              N/A
+              {{ $t('N/A') }}
             </div>
           </div>
         </template>
@@ -456,7 +563,7 @@ const deletePartner = async id => {
               color="primary"
             />
             <div class="text-body-1">
-              {{ item.activity_sector || 'N/A' }}
+              {{ item.activity_sector || $t('N/A') }}
             </div>
           </div>
         </template>
@@ -469,32 +576,50 @@ const deletePartner = async id => {
             variant="tonal"
             class="text-capitalize"
           >
-            {{ item.engagement_type || 'N/A' }}
+            {{ item.engagement_type || $t('N/A') }}
           </VChip>
         </template>
 
         <!-- Interest Shown -->
         <template #item.interest_shown="{ item }">
-          <div class="text-body-2" style="max-width: 200px;">
-            {{ item.interest_shown || 'N/A' }}
+          <div
+            class="text-body-2"
+            style="max-inline-size: 200px;"
+          >
+            {{ item.interest_shown || $t('N/A') }}
           </div>
         </template>
 
         <!-- Address -->
         <template #item.address="{ item }">
           <div
-            v-if="item.address"
+            v-if="item.default_address"
             class="d-flex flex-column"
-            style="max-width: 200px;"
+            style="max-inline-size: 200px;"
           >
             <div
-              v-if="item.address_label"
+              v-if="item.default_address.label"
               class="text-xs text-disabled mb-1"
             >
-              {{ item.address_label }}
+              {{ item.default_address.label }}
             </div>
             <div class="text-body-2">
-              {{ item.address }}
+              {{ item.default_address.address || $t('N/A') }}
+            </div>
+          </div>
+          <div
+            v-else-if="item.addresses && item.addresses.length > 0"
+            class="d-flex flex-column"
+            style="max-inline-size: 200px;"
+          >
+            <div
+              v-if="item.addresses[0].label"
+              class="text-xs text-disabled mb-1"
+            >
+              {{ item.addresses[0].label }}
+            </div>
+            <div class="text-body-2">
+              {{ item.addresses[0].address || $t('N/A') }}
             </div>
           </div>
           <div
@@ -508,11 +633,18 @@ const deletePartner = async id => {
         <!-- Location -->
         <template #item.location="{ item }">
           <div
-            v-if="item.location"
+            v-if="item.default_address?.location"
             class="text-body-2"
-            style="max-width: 200px;"
+            style="max-inline-size: 200px; word-break: break-word;"
           >
-            {{ item.location }}
+            {{ item.default_address.location }}
+          </div>
+          <div
+            v-else-if="item.addresses?.length > 0 && item.addresses[0]?.location"
+            class="text-body-2"
+            style="max-inline-size: 200px; word-break: break-word;"
+          >
+            {{ item.addresses[0].location }}
           </div>
           <div
             v-else
@@ -530,7 +662,7 @@ const deletePartner = async id => {
             label
             class="text-capitalize"
           >
-            {{ item.status?.name || 'N/A' }}
+            {{ item.status?.name || $t('N/A') }}
           </VChip>
         </template>
 
@@ -543,45 +675,19 @@ const deletePartner = async id => {
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <IconBtn @click="deletePartner(item.id)">
+          <IconBtn @click.stop="editPartner(item)">
+            <VIcon icon="tabler-pencil" />
+            <VTooltip activator="parent">
+              {{ $t('Edit Partner') }}
+            </VTooltip>
+          </IconBtn>
+
+          <IconBtn @click.stop="confirmDeletePartner(item)">
             <VIcon icon="tabler-trash" />
+            <VTooltip activator="parent">
+              {{ $t('Delete Partner') }}
+            </VTooltip>
           </IconBtn>
-
-          <IconBtn>
-            <VIcon icon="tabler-eye" />
-          </IconBtn>
-
-          <VBtn
-            icon
-            variant="text"
-            color="medium-emphasis"
-          >
-            <VIcon icon="tabler-dots-vertical" />
-            <VMenu activator="parent">
-              <VList>
-                <VListItem>
-                  <template #prepend>
-                    <VIcon icon="tabler-eye" />
-                  </template>
-                  <VListItemTitle>View</VListItemTitle>
-                </VListItem>
-
-                <VListItem link>
-                  <template #prepend>
-                    <VIcon icon="tabler-pencil" />
-                  </template>
-                  <VListItemTitle>Edit</VListItemTitle>
-                </VListItem>
-
-                <VListItem @click="deletePartner(item.id)">
-                  <template #prepend>
-                    <VIcon icon="tabler-trash" />
-                  </template>
-                  <VListItemTitle>Delete</VListItemTitle>
-                </VListItem>
-              </VList>
-            </VMenu>
-          </VBtn>
         </template>
 
         <!-- pagination -->
@@ -598,8 +704,45 @@ const deletePartner = async id => {
 
     <PartnerAddDialog
       v-model:is-dialog-visible="isAddPartnerDialogOpen"
-      @partner-added="addNewPartner"
+      :partner-to-edit="partnerToEdit"
+      @partner-added="onPartnerAdded"
+      @reset-partner-to-edit="partnerToEdit = null"
     />
+
+    <!-- Delete Confirmation Dialog -->
+    <VDialog
+      v-model="isDeleteDialogOpen"
+      max-width="500"
+      persistent
+    >
+      <VCard>
+        <VCardTitle class="text-h5">
+          {{ $t('Confirm Deletion') }}
+        </VCardTitle>
+        <VCardText>
+          {{ $t('Are you sure you want to delete the partner') }} 
+          <strong>{{ partnerToDelete?.merchant_name?.toUpperCase() }}</strong>?
+          <br>
+          {{ $t('This action cannot be undone.') }}
+        </VCardText>
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            color="secondary"
+            variant="tonal"
+            @click="cancelDelete"
+          >
+            {{ $t('Cancel') }}
+          </VBtn>
+          <VBtn
+            color="error"
+            @click="deletePartner"
+          >
+            {{ $t('Delete') }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
     <VSnackbar
       v-model="isSuccessSnackVisible"
       location="top right"

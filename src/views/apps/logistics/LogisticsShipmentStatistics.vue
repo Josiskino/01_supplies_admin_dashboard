@@ -1,4 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const chartColors = {
   line: {
     series1: '#FFB400',
@@ -11,9 +15,9 @@ const headingColor = 'rgba(var(--v-theme-on-background), var(--v-high-emphasis-o
 const labelColor = 'rgba(var(--v-theme-on-background), var(--v-medium-emphasis-opacity))'
 const borderColor = 'rgba(var(--v-border-color), var(--v-border-opacity))'
 
-const series = [
+const series = computed(() => [
   {
-    name: 'Shipment',
+    name: t('Shipment'),
     type: 'column',
     data: [
       38,
@@ -29,7 +33,7 @@ const series = [
     ],
   },
   {
-    name: 'Delivery',
+    name: t('Delivery'),
     type: 'line',
     data: [
       23,
@@ -44,9 +48,9 @@ const series = [
       24,
     ],
   },
-]
+])
 
-const shipmentConfig = {
+const shipmentConfig = computed(() => ({
   chart: {
     type: 'line',
     stacked: false,
@@ -180,28 +184,28 @@ const shipmentConfig = {
       options: { plotOptions: { bar: { columnWidth: '30%' } } },
     },
     {
-      breakpoint: 480,
-      options: {
-        chart: { height: 250 },
-        legend: { offsetY: 7 },
-      },
+    breakpoint: 480,
+    options: {
+      chart: { height: 250 },
+      legend: { offsetY: 7 },
     },
-  ],
-}
+  },
+],
+}))
 </script>
 
 <template>
   <VCard>
     <VCardItem
-      title="Shipment statistics"
-      subtitle="Total number of deliveries 23.8k"
+      :title="$t('Shipment statistics')"
+      :subtitle="$t('Total number of deliveries 23.8k')"
     >
       <template #append>
         <VBtn
           variant="tonal"
           append-icon="tabler-chevron-down"
         >
-          January
+          {{ $t('January') }}
         </VBtn>
       </template>
     </VCardItem>

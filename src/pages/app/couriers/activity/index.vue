@@ -1,5 +1,16 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
+
+definePage({
+  meta: {
+    action: 'view',
+    subject: 'couriers',
+  },
+})
+
+const { t } = useI18n()
+
 const selectedDriverId = ref(null)
 const selectedDate = ref(new Date().toISOString().slice(0, 10)) // Today by default
 const isLoading = ref(false)
@@ -177,17 +188,17 @@ const formatPrice = value => {
 }
 
 // Table headers
-const headers = [
+const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
-  { title: 'Client', key: 'client', sortable: false },
-  { title: 'Pickup', key: 'pickup', sortable: false },
-  { title: 'Dropoff', key: 'dropoff', sortable: false },
-  { title: 'Started At', key: 'started_at', sortable: false },
-  { title: 'Completed At', key: 'completed_at', sortable: false },
-  { title: 'Duration', key: 'duration', sortable: false },
-  { title: 'Price', key: 'price', sortable: false },
-  { title: 'Status', key: 'status', sortable: false },
-]
+  { title: t('Client'), key: 'client', sortable: false },
+  { title: t('Pickup'), key: 'pickup', sortable: false },
+  { title: t('Dropoff'), key: 'dropoff', sortable: false },
+  { title: t('Started At'), key: 'started_at', sortable: false },
+  { title: t('Completed At'), key: 'completed_at', sortable: false },
+  { title: t('Duration'), key: 'duration', sortable: false },
+  { title: t('Price'), key: 'price', sortable: false },
+  { title: t('Status'), key: 'status', sortable: false },
+])
 
 // Watch for changes
 watch([selectedDriverId, selectedDate], () => {
@@ -207,9 +218,9 @@ onMounted(() => {
     <!-- Header Section -->
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>Driver Activity</VCardTitle>
+        <VCardTitle>{{ $t('Driver Activity') }}</VCardTitle>
         <VCardSubtitle>
-          Track daily activity, deliveries, and earnings for each driver
+          {{ $t('Track daily activity, deliveries, and earnings for each driver') }}
         </VCardSubtitle>
       </VCardItem>
 
@@ -222,10 +233,10 @@ onMounted(() => {
           >
             <AppSelect
               v-model="selectedDriverId"
-              :items="drivers.map(d => ({ title: d.user?.name || d.name || 'Unknown', value: d.id }))"
+              :items="drivers.map(d => ({ title: d.user?.name || d.name || $t('Unknown'), value: d.id }))"
               :loading="isLoadingDrivers"
-              label="Select Driver"
-              placeholder="Choose a driver"
+              :label="$t('Select Driver')"
+              :placeholder="$t('Choose a driver')"
               prepend-inner-icon="tabler-user"
             />
           </VCol>
@@ -237,8 +248,8 @@ onMounted(() => {
           >
             <AppDateTimePicker
               v-model="selectedDate"
-              label="Select Date"
-              placeholder="Select date"
+              :label="$t('Select Date')"
+              :placeholder="$t('Select date')"
               :config="{ dateFormat: 'Y-m-d' }"
               prepend-inner-icon="tabler-calendar"
             />
@@ -261,7 +272,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Total Deliveries
+                {{ $t('Total Deliveries') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1">
                 {{ statistics.totalDeliveries }}
@@ -290,7 +301,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Total Revenue
+                {{ $t('Total Revenue') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1">
                 {{ formatPrice(statistics.totalRevenue) }}
@@ -319,7 +330,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Total Time
+                {{ $t('Total Time') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1">
                 {{ formatDuration(statistics.totalTime) }}
@@ -348,7 +359,7 @@ onMounted(() => {
           <VCardText class="d-flex align-center justify-space-between">
             <div>
               <div class="text-sm text-medium-emphasis">
-                Avg. Time per Delivery
+                {{ $t('Avg. Time per Delivery') }}
               </div>
               <div class="text-h4 font-weight-medium mt-1">
                 {{ formatDuration(statistics.averageTime) }}
@@ -372,9 +383,9 @@ onMounted(() => {
     <!-- Deliveries List -->
     <VCard v-if="selectedDriverId">
       <VCardItem class="pb-4">
-        <VCardTitle>Delivery History</VCardTitle>
+        <VCardTitle>{{ $t('Delivery History') }}</VCardTitle>
         <VCardSubtitle>
-          Detailed list of all deliveries for the selected date
+          {{ $t('Detailed list of all deliveries for the selected date') }}
         </VCardSubtitle>
       </VCardItem>
 
@@ -427,7 +438,7 @@ onMounted(() => {
                 size="16"
                 class="me-1"
               />
-              View on map
+              {{ $t('View on map') }}
             </a>
             <span v-else>—</span>
           </template>
@@ -446,7 +457,7 @@ onMounted(() => {
                 size="16"
                 class="me-1"
               />
-              View on map
+              {{ $t('View on map') }}
             </a>
             <span v-else>—</span>
           </template>
@@ -519,10 +530,10 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                No deliveries found
+                {{ $t('No deliveries found') }}
               </h6>
               <p class="text-medium-emphasis">
-                No deliveries were completed by this driver on the selected date.
+                {{ $t('No deliveries were completed by this driver on the selected date.') }}
               </p>
             </div>
           </template>
@@ -540,10 +551,10 @@ onMounted(() => {
           class="mb-4"
         />
         <h6 class="text-h6 mb-2">
-          Select a Driver
+          {{ $t('Select a Driver') }}
         </h6>
         <p class="text-medium-emphasis">
-          Choose a driver from the dropdown above to view their activity and delivery statistics.
+          {{ $t('Choose a driver from the dropdown above to view their activity and delivery statistics.') }}
         </p>
       </VCardText>
     </VCard>

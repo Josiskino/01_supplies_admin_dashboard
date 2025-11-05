@@ -1,5 +1,9 @@
 <script setup>
 /* eslint-disable camelcase */
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const props = defineProps({
   isDialogVisible: {
     type: Boolean,
@@ -19,15 +23,15 @@ const dialogVisible = computed({
 })
 
 // Expense types
-const expenseTypes = [
-  { title: 'Maintenance', value: 'maintenance', icon: 'tabler-tools' },
-  { title: 'Fuel', value: 'fuel', icon: 'tabler-gas-station' },
-  { title: 'Oil Change', value: 'oil_change', icon: 'tabler-droplet' },
-  { title: 'Tires', value: 'tires', icon: 'tabler-circle' },
-  { title: 'Insurance', value: 'insurance', icon: 'tabler-shield' },
-  { title: 'Repair', value: 'repair', icon: 'tabler-wrench' },
-  { title: 'Other', value: 'other', icon: 'tabler-category' },
-]
+const expenseTypes = computed(() => [
+  { title: t('Maintenance'), value: 'maintenance', icon: 'tabler-tools' },
+  { title: t('Fuel'), value: 'fuel', icon: 'tabler-gas-station' },
+  { title: t('Oil Change'), value: 'oil_change', icon: 'tabler-droplet' },
+  { title: t('Tires'), value: 'tires', icon: 'tabler-circle' },
+  { title: t('Insurance'), value: 'insurance', icon: 'tabler-shield' },
+  { title: t('Repair'), value: 'repair', icon: 'tabler-wrench' },
+  { title: t('Other'), value: 'other', icon: 'tabler-category' },
+])
 
 // Form data
 const form = ref({
@@ -46,7 +50,7 @@ const errors = ref({})
 // Driver options
 const driverOptions = computed(() => {
   return props.drivers.map(driver => ({
-    title: `${driver.user?.name || driver.name || 'Unknown'} - ${driver.vehicle_type || 'N/A'}`,
+    title: `${driver.user?.name || driver.name || t('Unknown')} - ${driver.vehicle_type || t('N/A')}`,
     value: driver.id,
   }))
 })
@@ -57,19 +61,19 @@ const onSubmit = async () => {
   errors.value = {}
 
   if (!form.value.driver_id) {
-    errors.value.driver_id = 'Driver is required'
+    errors.value.driver_id = t('Driver is required')
   }
 
   if (!form.value.type) {
-    errors.value.type = 'Expense type is required'
+    errors.value.type = t('Expense type is required')
   }
 
   if (!form.value.amount || parseFloat(form.value.amount) <= 0) {
-    errors.value.amount = 'Valid amount is required'
+    errors.value.amount = t('Valid amount is required')
   }
 
   if (!form.value.date) {
-    errors.value.date = 'Date is required'
+    errors.value.date = t('Date is required')
   }
 
   if (Object.keys(errors.value).length > 0) {
@@ -98,7 +102,7 @@ const onSubmit = async () => {
     dialogVisible.value = false
   } catch (error) {
     console.error('Error creating expense:', error)
-    errors.value.submit = 'Failed to create expense. Please try again.'
+    errors.value.submit = t('Failed to create expense. Please try again.')
   } finally {
     isSubmitting.value = false
   }
@@ -143,7 +147,7 @@ watch(dialogVisible, newVal => {
 
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
-        <span>Add New Expense</span>
+        <span>{{ $t('Add New Expense') }}</span>
       </VCardTitle>
 
       <VDivider />
@@ -159,8 +163,8 @@ watch(dialogVisible, newVal => {
               <AppSelect
                 v-model="form.driver_id"
                 :items="driverOptions"
-                label="Driver"
-                placeholder="Select driver"
+                :label="$t('Driver')"
+                :placeholder="$t('Select driver')"
                 required
                 :error-messages="errors.driver_id"
               >
@@ -178,13 +182,13 @@ watch(dialogVisible, newVal => {
               <AppSelect
                 v-model="form.type"
                 :items="expenseTypes"
-                label="Expense Type"
-                placeholder="Select expense type"
+                :label="$t('Expense Type')"
+                :placeholder="$t('Select expense type')"
                 required
                 :error-messages="errors.type"
               >
                 <template #prepend-inner>
-                  <VIcon :icon="expenseTypes.find(t => t.value === form.type)?.icon || 'tabler-category'" />
+                  <VIcon :icon="expenseTypes.find(et => et.value === form.type)?.icon || 'tabler-category'" />
                 </template>
               </AppSelect>
             </VCol>
@@ -196,7 +200,7 @@ watch(dialogVisible, newVal => {
             >
               <AppTextField
                 v-model="form.amount"
-                label="Amount (XOF)"
+                :label="$t('Amount (XOF)')"
                 type="number"
                 placeholder="0"
                 required
@@ -216,8 +220,8 @@ watch(dialogVisible, newVal => {
             >
               <AppDateTimePicker
                 v-model="form.date"
-                label="Date"
-                placeholder="Select date"
+                :label="$t('Date')"
+                :placeholder="$t('Select date')"
                 :config="{ dateFormat: 'Y-m-d' }"
                 required
                 :error-messages="errors.date"
@@ -232,8 +236,8 @@ watch(dialogVisible, newVal => {
             <VCol cols="12">
               <AppTextField
                 v-model="form.description"
-                label="Description"
-                placeholder="e.g., Vehicle oil change at service center"
+                :label="$t('Description')"
+                :placeholder="$t('e.g., Vehicle oil change at service center')"
               />
             </VCol>
 
@@ -244,8 +248,8 @@ watch(dialogVisible, newVal => {
             >
               <AppTextField
                 v-model="form.receipt_number"
-                label="Receipt Number"
-                placeholder="Optional receipt/invoice number"
+                :label="$t('Receipt Number')"
+                :placeholder="$t('Optional receipt/invoice number')"
               />
             </VCol>
 
@@ -253,8 +257,8 @@ watch(dialogVisible, newVal => {
             <VCol cols="12">
               <AppTextarea
                 v-model="form.notes"
-                label="Additional Notes"
-                placeholder="Any additional information..."
+                :label="$t('Additional Notes')"
+                :placeholder="$t('Any additional information...')"
                 rows="3"
               />
             </VCol>
@@ -283,7 +287,7 @@ watch(dialogVisible, newVal => {
           variant="tonal"
           @click="onClose"
         >
-          Cancel
+          {{ $t('Cancel') }}
         </VBtn>
         <VBtn
           color="primary"
@@ -291,7 +295,7 @@ watch(dialogVisible, newVal => {
           :disabled="isSubmitting"
           @click="onSubmit"
         >
-          Create Expense
+          {{ $t('Create Expense') }}
         </VBtn>
       </VCardActions>
     </VCard>

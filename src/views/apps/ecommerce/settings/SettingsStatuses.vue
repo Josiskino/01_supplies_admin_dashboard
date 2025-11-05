@@ -1,5 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import { useStatusManagement } from '@/composables/useStatusManagement'
+
+const { t } = useI18n()
 
 const { 
   statusCategories, 
@@ -27,39 +30,39 @@ const newStatus = ref({
   category: 'deliveries',
 })
 
-const colorOptions = [
-  { title: 'Primary', value: 'primary' },
-  { title: 'Success', value: 'success' },
-  { title: 'Info', value: 'info' },
-  { title: 'Warning', value: 'warning' },
-  { title: 'Error', value: 'error' },
-  { title: 'Secondary', value: 'secondary' },
-]
+const colorOptions = computed(() => [
+  { title: t('Primary'), value: 'primary' },
+  { title: t('Success'), value: 'success' },
+  { title: t('Info'), value: 'info' },
+  { title: t('Warning'), value: 'warning' },
+  { title: t('Error'), value: 'error' },
+  { title: t('Secondary'), value: 'secondary' },
+])
 
-const iconOptions = [
-  { title: 'Circle', value: 'tabler-circle' },
-  { title: 'Clock', value: 'tabler-clock' },
-  { title: 'User Check', value: 'tabler-user-check' },
-  { title: 'Truck', value: 'tabler-truck' },
-  { title: 'Check', value: 'tabler-check' },
-  { title: 'X', value: 'tabler-x' },
-  { title: 'Alert', value: 'tabler-alert-circle' },
-  { title: 'Pause', value: 'tabler-player-pause' },
-  { title: 'Play', value: 'tabler-player-play' },
-  { title: 'User', value: 'tabler-user' },
-  { title: 'Users', value: 'tabler-users' },
-  { title: 'Building', value: 'tabler-building' },
-  { title: 'Handshake', value: 'tabler-handshake' },
-  { title: 'Star', value: 'tabler-star' },
-  { title: 'Heart', value: 'tabler-heart' },
-]
+const iconOptions = computed(() => [
+  { title: t('Circle'), value: 'tabler-circle' },
+  { title: t('Clock'), value: 'tabler-clock' },
+  { title: t('User Check'), value: 'tabler-user-check' },
+  { title: t('Truck'), value: 'tabler-truck' },
+  { title: t('Check'), value: 'tabler-check' },
+  { title: t('X'), value: 'tabler-x' },
+  { title: t('Alert'), value: 'tabler-alert-circle' },
+  { title: t('Pause'), value: 'tabler-player-pause' },
+  { title: t('Play'), value: 'tabler-player-play' },
+  { title: t('User'), value: 'tabler-user' },
+  { title: t('Users'), value: 'tabler-users' },
+  { title: t('Building'), value: 'tabler-building' },
+  { title: t('Handshake'), value: 'tabler-handshake' },
+  { title: t('Star'), value: 'tabler-star' },
+  { title: t('Heart'), value: 'tabler-heart' },
+])
 
-const categoryOptions = [
-  { title: 'Deliveries', value: 'deliveries', icon: 'tabler-truck', description: 'Status for delivery requests' },
-  { title: 'Drivers', value: 'drivers', icon: 'tabler-user', description: 'Status for drivers/couriers' },
-  { title: 'Partners', value: 'partners', icon: 'tabler-building-store', description: 'Status for business partners' },
-  { title: 'Clients', value: 'clients', icon: 'tabler-users', description: 'Status for clients' },
-]
+const categoryOptions = computed(() => [
+  { title: t('Deliveries'), value: 'deliveries', icon: 'tabler-truck', description: t('Status for delivery requests') },
+  { title: t('Drivers'), value: 'drivers', icon: 'tabler-user', description: t('Status for drivers/couriers') },
+  { title: t('Partners'), value: 'partners', icon: 'tabler-building-store', description: t('Status for business partners') },
+  { title: t('Clients'), value: 'clients', icon: 'tabler-users', description: t('Status for clients') },
+])
 
 const currentStatuses = computed(() => getStatusesByCategory(selectedCategory.value))
 
@@ -140,7 +143,7 @@ onMounted(() => {
 <template>
   <div>
     <VCard
-      title="Status Management"
+      :title="$t('Status Management')"
       class="mb-6"
     >
       <VCardText>
@@ -150,17 +153,17 @@ onMounted(() => {
           class="mb-6"
         >
           <VAlertTitle class="mb-2">
-            Application Status Configuration
+            {{ $t('Application Status Configuration') }}
           </VAlertTitle>
           <p class="mb-0">
-            Manage all status types used throughout the application. Configure statuses for deliveries, drivers, partners, and clients with custom colors, icons, and descriptions.
+            {{ $t('Manage all status types used throughout the application. Configure statuses for deliveries, drivers, partners, and clients with custom colors, icons, and descriptions.') }}
           </p>
         </VAlert>
 
         <!-- Category Selection -->
         <div class="mb-6">
           <h6 class="text-h6 mb-3">
-            Select Category
+            {{ $t('Select Category') }}
           </h6>
           <VRow>
             <VCol
@@ -204,14 +207,14 @@ onMounted(() => {
         <!-- Add New Status Button -->
         <div class="d-flex justify-space-between align-center mb-4">
           <h6 class="text-h6">
-            {{ categoryOptions.find(c => c.value === selectedCategory)?.title }} Statuses
+            {{ categoryOptions.find(c => c.value === selectedCategory)?.title }} {{ $t('Statuses') }}
           </h6>
           <VBtn
             color="primary"
             prepend-icon="tabler-plus"
             @click="isAddStatusDialogOpen = true"
           >
-            Add New Status
+            {{ $t('Add New Status') }}
           </VBtn>
         </div>
 
@@ -251,7 +254,7 @@ onMounted(() => {
                       color="success"
                       variant="tonal"
                     >
-                      Custom
+                      {{ $t('Custom') }}
                     </VChip>
                   </div>
                   
@@ -267,13 +270,13 @@ onMounted(() => {
                         <VList>
                           <VListItem
                             prepend-icon="tabler-edit"
-                            title="Edit Status"
+                            :title="$t('Edit Status')"
                             value="edit"
                             @click="editStatus(status)"
                           />
                           <VListItem
                             prepend-icon="tabler-trash"
-                            :title="status.canEdit ? 'Delete Status' : 'Cannot Delete (Default)'"
+                            :title="status.canEdit ? $t('Delete Status') : $t('Cannot Delete (Default)')"
                             :value="status.canEdit ? 'delete' : 'disabled'"
                             :disabled="!status.canEdit"
                             @click="status.canEdit && confirmDeleteStatus(status)"
@@ -302,7 +305,7 @@ onMounted(() => {
                     color="secondary"
                     variant="tonal"
                   >
-                    Default Status
+                    {{ $t('Default Status') }}
                   </VChip>
                 </div>
               </VCardText>
@@ -325,17 +328,17 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                No statuses configured
+                {{ $t('No statuses configured') }}
               </h6>
               <p class="text-medium-emphasis mb-4">
-                Add your first status for {{ categoryOptions.find(c => c.value === selectedCategory)?.title.toLowerCase() }}
+                {{ $t('Add your first status for') }} {{ categoryOptions.find(c => c.value === selectedCategory)?.title.toLowerCase() }}
               </p>
               <VBtn
                 color="primary"
                 prepend-icon="tabler-plus"
                 @click="isAddStatusDialogOpen = true"
               >
-                Add First Status
+                {{ $t('Add First Status') }}
               </VBtn>
             </VCard>
           </VCol>
@@ -353,7 +356,7 @@ onMounted(() => {
               icon="tabler-device-floppy"
               class="me-2"
             />
-            Save All Configurations
+            {{ $t('Save All Configurations') }}
           </VBtn>
         </div>
       </VCardText>
@@ -366,7 +369,7 @@ onMounted(() => {
     >
       <VCard>
         <VCardTitle>
-          Add New {{ categoryOptions.find(c => c.value === selectedCategory)?.title.slice(0, -1) }} Status
+          {{ $t('Add New') }} {{ categoryOptions.find(c => c.value === selectedCategory)?.title.slice(0, -1) }} {{ $t('Status') }}
         </VCardTitle>
         <VDivider />
         <VCardText>
@@ -378,8 +381,8 @@ onMounted(() => {
               >
                 <AppTextField
                   v-model="newStatus.name"
-                  label="Status Name"
-                  placeholder="e.g., On Hold"
+                  :label="$t('Status Name')"
+                  :placeholder="$t('e.g., On Hold')"
                   required
                 />
               </VCol>
@@ -389,8 +392,8 @@ onMounted(() => {
               >
                 <AppTextField
                   v-model="newStatus.label"
-                  label="Display Label"
-                  placeholder="e.g., En attente"
+                  :label="$t('Display Label')"
+                  :placeholder="$t('e.g., En attente')"
                   required
                 />
               </VCol>
@@ -400,7 +403,7 @@ onMounted(() => {
               >
                 <AppSelect
                   v-model="newStatus.color"
-                  label="Color"
+                  :label="$t('Color')"
                   :items="colorOptions"
                   required
                 />
@@ -411,7 +414,7 @@ onMounted(() => {
               >
                 <AppSelect
                   v-model="newStatus.icon"
-                  label="Icon"
+                  :label="$t('Icon')"
                   :items="iconOptions"
                   required
                 />
@@ -419,8 +422,8 @@ onMounted(() => {
               <VCol cols="12">
                 <AppTextarea
                   v-model="newStatus.description"
-                  label="Description"
-                  placeholder="Describe when this status should be used"
+                  :label="$t('Description')"
+                  :placeholder="$t('Describe when this status should be used')"
                   rows="3"
                 />
               </VCol>
@@ -434,14 +437,14 @@ onMounted(() => {
             variant="tonal"
             @click="isAddStatusDialogOpen = false; resetNewStatus()"
           >
-            Cancel
+            {{ $t('Cancel') }}
           </VBtn>
           <VBtn
             color="primary"
             :disabled="!newStatus.name || !newStatus.label"
             @click="addNewStatus"
           >
-            Add Status
+            {{ $t('Add Status') }}
           </VBtn>
         </VCardActions>
       </VCard>
@@ -453,7 +456,7 @@ onMounted(() => {
       max-width="600"
     >
       <VCard v-if="editingStatus">
-        <VCardTitle>Edit Status</VCardTitle>
+        <VCardTitle>{{ $t('Edit Status') }}</VCardTitle>
         <VDivider />
         <VCardText>
           <VForm @submit.prevent="updateExistingStatus">
@@ -464,7 +467,7 @@ onMounted(() => {
               >
                 <AppTextField
                   v-model="editingStatus.name"
-                  label="Status Name"
+                  :label="$t('Status Name')"
                   required
                 />
               </VCol>
@@ -474,7 +477,7 @@ onMounted(() => {
               >
                 <AppTextField
                   v-model="editingStatus.label"
-                  label="Display Label"
+                  :label="$t('Display Label')"
                   required
                 />
               </VCol>
@@ -484,7 +487,7 @@ onMounted(() => {
               >
                 <AppSelect
                   v-model="editingStatus.color"
-                  label="Color"
+                  :label="$t('Color')"
                   :items="colorOptions"
                   required
                 />
@@ -495,7 +498,7 @@ onMounted(() => {
               >
                 <AppSelect
                   v-model="editingStatus.icon"
-                  label="Icon"
+                  :label="$t('Icon')"
                   :items="iconOptions"
                   required
                 />
@@ -503,7 +506,7 @@ onMounted(() => {
               <VCol cols="12">
                 <AppTextarea
                   v-model="editingStatus.description"
-                  label="Description"
+                  :label="$t('Description')"
                   rows="3"
                 />
               </VCol>
@@ -517,13 +520,13 @@ onMounted(() => {
             variant="tonal"
             @click="isEditStatusDialogOpen = false; editingStatus = null"
           >
-            Cancel
+            {{ $t('Cancel') }}
           </VBtn>
           <VBtn
             color="primary"
             @click="updateExistingStatus"
           >
-            Update Status
+            {{ $t('Update Status') }}
           </VBtn>
         </VCardActions>
       </VCard>
@@ -541,12 +544,12 @@ onMounted(() => {
             color="error"
             size="24"
           />
-          Confirm Deletion
+          {{ $t('Confirm Deletion') }}
         </VCardTitle>
         <VDivider />
         <VCardText class="pt-4">
           <p class="text-body-1 mb-2">
-            Are you sure you want to delete this status?
+            {{ $t('Are you sure you want to delete this status?') }}
           </p>
           <VCard
             variant="tonal"
@@ -582,9 +585,9 @@ onMounted(() => {
             class="mt-4"
           >
             <VAlertTitle class="mb-1">
-              Warning
+              {{ $t('Warning') }}
             </VAlertTitle>
-            This action cannot be undone. Any items using this status may be affected.
+            {{ $t('This action cannot be undone. Any items using this status may be affected.') }}
           </VAlert>
         </VCardText>
         <VDivider />
@@ -594,7 +597,7 @@ onMounted(() => {
             variant="tonal"
             @click="cancelDelete"
           >
-            Cancel
+            {{ $t('Cancel') }}
           </VBtn>
           <VBtn
             color="error"
@@ -604,7 +607,7 @@ onMounted(() => {
               icon="tabler-trash"
               class="me-2"
             />
-            Delete Status
+            {{ $t('Delete Status') }}
           </VBtn>
         </VCardActions>
       </VCard>

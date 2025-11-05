@@ -1,35 +1,39 @@
 <script setup>
-const vehicleData = [
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
+const vehicleData = computed(() => [
   {
     icon: 'tabler-car',
-    title: 'On the way',
+    title: t('On the way'),
     time: '2hr 10min',
     percentage: 39.7,
   },
   {
     icon: 'tabler-circle-arrow-down',
-    title: 'Unloading',
+    title: t('Unloading'),
     time: '3hr 15min',
     percentage: 28.3,
   },
   {
     icon: 'tabler-circle-arrow-up',
-    title: 'Loading',
+    title: t('Loading'),
     time: '1hr 24min',
     percentage: 17.4,
   },
   {
     icon: 'tabler-clock',
-    title: 'Waiting',
+    title: t('Waiting'),
     time: '5hr 19min',
     percentage: 14.6,
   },
-]
+])
 </script>
 
 <template>
   <VCard>
-    <VCardItem title="Vehicles Overview">
+    <VCardItem :title="$t('Vehicles Overview')">
       <template #append>
         <MoreBtn />
       </template>
@@ -38,7 +42,7 @@ const vehicleData = [
       <div class="d-flex mb-6">
         <div style="inline-size: 39.7%;">
           <div class="vehicle-progress-label position-relative mb-6 text-body-1 d-none d-sm-block">
-            On the way
+            {{ $t('On the way') }}
           </div>
           <VProgressLinear
             color="rgba(var(--v-theme-on-surface), var(--v-hover-opacity))"
@@ -53,7 +57,7 @@ const vehicleData = [
         </div>
         <div style="inline-size: 28.3%;">
           <div class="vehicle-progress-label position-relative mb-6 text-body-1 d-none d-sm-block">
-            Unloading
+            {{ $t('Unloading') }}
           </div>
           <VProgressLinear
             color="rgb(var(--v-theme-primary))"
@@ -68,7 +72,7 @@ const vehicleData = [
         </div>
         <div style="inline-size: 17.4%;">
           <div class="vehicle-progress-label position-relative mb-6 text-body-1 d-none d-sm-block">
-            Loading
+            {{ $t('Loading') }}
           </div>
           <VProgressLinear
             color="rgb(var(--v-theme-info))"
@@ -83,7 +87,7 @@ const vehicleData = [
         </div>
         <div style="inline-size: 14.6%;">
           <div class="vehicle-progress-label position-relative mb-6 text-body-1 d-none d-sm-block">
-            Waiting
+            {{ $t('Waiting') }}
           </div>
           <VProgressLinear
             color="rgb(var(--v-tooltip-background))"

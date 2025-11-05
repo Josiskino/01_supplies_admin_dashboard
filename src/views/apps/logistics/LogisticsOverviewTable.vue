@@ -1,4 +1,8 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
+
 const itemsPerPage = ref(5)
 const page = ref(1)
 const sortBy = ref()
@@ -18,33 +22,34 @@ const { data: vehiclesData } = await useApi(createUrl('/apps/logistics/vehicles'
   },
 }))
 
-const vehicles = computed(() => vehiclesData.value.vehicles)
-const totalVehicles = computed(() => vehiclesData.value.totalVehicles)
+const vehicles = computed(() => vehiclesData.value?.vehicles || [])
+const totalVehicles = computed(() => vehiclesData.value?.totalVehicles || 0)
 
-const headers = [
+const headers = computed(() => [
   {
-    title: 'LOCATION',
+    title: t('LOCATION'),
     key: 'location',
   },
   {
-    title: 'STARTING ROUTE',
+    title: t('STARTING ROUTE'),
     key: 'startRoute',
   },
   {
-    title: 'ENDING ROUTE',
+    title: t('ENDING ROUTE'),
     key: 'endRoute',
   },
   {
-    title: 'WARNINGS',
+    title: t('WARNINGS'),
     key: 'warnings',
   },
   {
-    title: 'PROGRESS',
+    title: t('PROGRESS'),
     key: 'progress',
   },
-]
+])
 
 const resolveChipColor = warning => {
+  // Compare with original English values from API, not translated values
   if (warning === 'No Warnings')
     return 'success'
   if (warning === 'fuel problems')
@@ -55,12 +60,30 @@ const resolveChipColor = warning => {
     return 'error'
   if (warning === 'Oil Leakage')
     return 'info'
+  
+  // Default color if no match
+  return 'secondary'
+}
+
+const getTranslatedWarning = warning => {
+  // Map English warning values to translation keys
+  const warningMap = {
+    'No Warnings': 'No Warnings',
+    'fuel problems': 'fuel problems',
+    'Temperature Not Optimal': 'Temperature Not Optimal',
+    'Ecu Not Responding': 'Ecu Not Responding',
+    'Oil Leakage': 'Oil Leakage',
+  }
+  
+  const translationKey = warningMap[warning]
+  
+  return translationKey ? t(translationKey) : warning
 }
 </script>
 
 <template>
   <VCard>
-    <VCardItem title="On Route vehicles">
+    <VCardItem :title="$t('On Route vehicles')">
       <template #append>
         <MoreBtn />
       </template>
@@ -117,7 +140,7 @@ const resolveChipColor = warning => {
           label
           size="small"
         >
-          {{ item.warnings }}
+          {{ getTranslatedWarning(item.warnings) }}
         </VChip>
       </template>
 

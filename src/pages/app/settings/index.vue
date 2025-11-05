@@ -1,22 +1,32 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import SettingsLocations from '@/views/apps/ecommerce/settings/SettingsLocations.vue'
 import SettingsNotifications from '@/views/apps/ecommerce/settings/SettingsNotifications.vue'
 import SettingsStatuses from '@/views/apps/ecommerce/settings/SettingsStatuses.vue'
 
-const tabsData = [
+definePage({
+  meta: {
+    action: 'manage',
+    subject: 'settings',
+  },
+})
+
+const { t } = useI18n()
+
+const tabsData = computed(() => [
   {
     icon: 'tabler-map-pin',
-    title: 'Pricing & Distance',
+    title: t('Pricing & Distance'),
   },
   {
     icon: 'tabler-bell-ringing',
-    title: 'Notifications',
+    title: t('Notifications'),
   },
   {
     icon: 'tabler-tags',
-    title: 'Status Management',
+    title: t('Status Management'),
   },
-]
+])
 
 const activeTab = ref(null)
 </script>
@@ -28,7 +38,7 @@ const activeTab = ref(null)
       md="4"
     >
       <h5 class="text-h5 mb-4">
-        Getting Started
+        {{ $t('Getting Started') }}
       </h5>
 
       <VTabs

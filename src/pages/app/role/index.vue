@@ -1,16 +1,26 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import RoleCards from '@/views/apps/roles/RoleCards.vue';
 import UserList from '@/views/apps/roles/UserList.vue';
+
+definePage({
+  meta: {
+    action: 'manage',
+    subject: 'roles',
+  },
+})
+
+const { t } = useI18n()
 </script>
 
 <template>
   <VRow>
     <VCol cols="12">
       <h4 class="text-h4 mb-1">
-        Roles List
+        {{ $t('Roles List') }}
       </h4>
       <p class="text-body-1 mb-0">
-        A role provided access to predefined menus and features so that depending on assigned role an administrator can have access to what he need
+        {{ $t('A role provided access to predefined menus and features so that depending on assigned role an administrator can have access to what he need') }}
       </p>
     </VCol>
 
@@ -21,10 +31,10 @@ import UserList from '@/views/apps/roles/UserList.vue';
 
     <VCol cols="12">
       <h4 class="text-h4 mb-1 mt-6">
-        Total users with their roles
+        {{ $t('Total users with their roles') }}
       </h4>
       <p class="text-body-1 mb-0">
-        Find all of your company’s administrator accounts and their associate roles.
+        {{ $t("Find all of your company's administrator accounts and their associate roles.") }}
       </p>
     </VCol>
 

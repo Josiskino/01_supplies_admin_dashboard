@@ -1,4 +1,5 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
 import avatar1 from '@images/avatars/avatar-1.png'
 import avatar10 from '@images/avatars/avatar-10.png'
 import avatar2 from '@images/avatars/avatar-2.png'
@@ -10,6 +11,8 @@ import avatar7 from '@images/avatars/avatar-7.png'
 import avatar8 from '@images/avatars/avatar-8.png'
 import avatar9 from '@images/avatars/avatar-9.png'
 import girlUsingMobile from '@images/pages/girl-using-mobile.png'
+
+const { t } = useI18n()
 
 const roles = ref([
   {
@@ -104,7 +107,7 @@ const editPermission = value => {
       <VCard class="h-100">
         <VCardText class="d-flex align-center pb-4">
           <div class="text-body-1">
-            Total {{ item.users.length }} users
+            {{ $t('Total') }} {{ item.users.length }} {{ $t('users') }}
           </div>
         </VCardText>
 
@@ -156,10 +159,10 @@ const editPermission = value => {
                 size="small"
                 @click="isAddRoleDialogVisible = true"
               >
-                Add New Role
+                {{ $t('Add New Role') }}
               </VBtn>
               <div class="text-end">
-                Add new role,<br> if it doesn't exist.
+                {{ $t("Add new role, if it doesn't exist.") }}
               </div>
             </VCardText>
           </VCol>
