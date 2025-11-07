@@ -154,19 +154,30 @@ export const calculateDistance = async (origin, destination) => {
       },
     }
     
+    // Determine the correct endpoint path
+    // Check if baseURL already contains /v1
+    const baseURL = import.meta.env.VITE_API_BASE_URL || 'https://adapi.01supplies.com/api'
+    const hasV1 = baseURL.includes('/v1')
+    const endpoint = hasV1 ? '/distance-matrix' : '/v1/distance-matrix'
+    
     console.log('=== Sending request to backend ===')
-    console.log('URL: /distance-matrix')
+    console.log('Base URL:', baseURL)
+    console.log('Has /v1:', hasV1)
+    console.log('Endpoint:', endpoint)
+    console.log('Full URL:', `${baseURL}${endpoint}`)
     console.log('Method: POST')
     console.log('Body:', JSON.stringify(requestBody, null, 2))
     console.log('================================')
     
-    const response = await $api('/distance-matrix', {
+    const response = await $api(endpoint, {
       method: 'POST',
       body: requestBody,
     })
     
     console.log('=== Backend response ===')
     console.log('Response:', response)
+    console.log('Response success:', response?.success)
+    console.log('Response data:', response?.data)
     console.log('========================')
 
     if (response && response.success && response.data) {
@@ -177,10 +188,31 @@ export const calculateDistance = async (origin, destination) => {
         duration: data.duration || 'Unknown',
         distanceText: data.distance_text || `${data.distance.toFixed(1)} km`,
       }
+    } else {
+      // Response exists but not in expected format
+      console.warn('Backend response format unexpected:', response)
+      throw new Error(response?.message || 'Invalid response format from backend')
     }
   } catch (backendError) {
-    console.warn('Backend distance calculation failed, using fallback:', backendError.message)
-    console.log('Full error details:', backendError)
+    console.error('=== Backend distance calculation failed ===')
+    console.error('Error message:', backendError.message)
+    console.error('Error object:', backendError)
+    
+    // Check if it's an HTTP error response
+    if (backendError.response) {
+      console.error('Response status:', backendError.response.status)
+      console.error('Response data:', backendError.response._data)
+      
+      const errorData = backendError.response._data
+      if (errorData) {
+        console.error('Error details:', {
+          success: errorData.success,
+          message: errorData.message,
+          error: errorData.error,
+          details: errorData.details,
+        })
+      }
+    }
     
     // Log the request data for debugging
     console.log('Request sent to backend:', {
@@ -193,9 +225,13 @@ export const calculateDistance = async (origin, destination) => {
         lng: destination.lng,
       },
     })
+    console.log('============================================')
+    
+    // Don't re-throw, let it fall through to fallback
   }
 
   // Fallback to straight-line distance calculation
+  // This will run if the backend call failed or was not successful
   try {
     const straightLineDistance = calculateStraightLineDistance(origin, destination)
 

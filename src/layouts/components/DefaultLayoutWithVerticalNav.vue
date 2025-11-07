@@ -2,8 +2,20 @@
 import { getFilteredNavigation } from '@/navigation/vertical/dashboard'
 import { themeConfig } from '@themeConfig'
 
+// Watch for userData changes to update navigation
+const userDataCookie = useCookie('userData')
+const navItemsKey = ref(0)
+
+// Force navigation update when userData changes
+watch(userDataCookie, () => {
+  console.log('[Layout] UserData changed, updating navigation')
+  navItemsKey.value++
+}, { deep: true })
+
 // Filter navigation based on user role (reactive)
 const navItems = computed(() => {
+  // Use navItemsKey to force reactivity
+  navItemsKey.value
   const filtered = getFilteredNavigation()
   console.log('[Layout] Computed navItems:', filtered)
   return filtered

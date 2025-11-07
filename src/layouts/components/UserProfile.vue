@@ -1,4 +1,5 @@
 <script setup>
+import { ofetch } from 'ofetch'
 import { PerfectScrollbar } from 'vue3-perfect-scrollbar'
 
 const router = useRouter()
@@ -9,42 +10,55 @@ const userData = useCookie('userData')
 
 const logout = async () => {
   try {
-    // Call logout endpoint first to invalidate the token on the server
-    try {
-      await $api('/auth/logout', {
-        method: 'POST',
-      })
-    } catch (apiError) {
-      // Continue with logout even if API call fails (e.g., network error, already logged out)
-      console.warn('Logout API call failed, continuing with client-side logout:', apiError)
-    }
-
     // Reset ability first to avoid reactive issues
     ability.update([])
     
-    // Remove "userAbilities" from cookie
-    useCookie('userAbilityRules').value = null
+    // Clear all cookies immediately
+    const accessTokenCookie = useCookie('accessToken')
+    const userDataCookie = useCookie('userData')
+    const userAbilityRulesCookie = useCookie('userAbilityRules')
+    
+    // Store token before clearing (for logout API call)
+    const token = accessTokenCookie.value
+    
+    // Clear cookies immediately
+    accessTokenCookie.value = null
+    userDataCookie.value = null
+    userAbilityRulesCookie.value = null
+    
+    // Call logout endpoint to invalidate the token on the server (optional)
+    if (token) {
+      try {
+        // Use ofetch directly to avoid the automatic token injection
+        await ofetch(`${import.meta.env.VITE_API_BASE_URL || '/api'}/auth/logout`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+      } catch (apiError) {
+        // Ignore errors - token might already be invalid
+        console.warn('Logout API call failed (this is OK):', apiError)
+      }
+    }
 
-    // Remove "accessToken" from cookie
-    useCookie('accessToken').value = null
-
-    // Use nextTick to ensure reactive updates complete before navigation
+    // Use nextTick to ensure reactive updates complete
     await nextTick()
     
-    // Remove "userData" from cookie
-    userData.value = null
-
-    // Redirect to login page using replace to avoid history entry
-    await nextTick()
+    // Force redirect to login page
     await router.replace({ name: 'auth-login' })
   } catch (error) {
     console.error('Logout error:', error)
 
-    // Force redirect even if there's an error using route name
+    // Force clear cookies even if there's an error
+    useCookie('accessToken').value = null
+    useCookie('userData').value = null
+    useCookie('userAbilityRules').value = null
+
+    // Force redirect
     try {
       await router.replace({ name: 'auth-login' })
     } catch {
-      // If router fails, use window location as last resort
       window.location.href = '/app/auth/login'
     }
   }
