@@ -23,6 +23,13 @@ const dialogVisible = computed({
 const partnerMode = ref('select') // 'select' or 'create'
 const customerMode = ref('select') // 'select' or 'create'
 
+// Billing mode for price calculation
+const billingMode = ref('express') // 'express' or 'standard'
+
+// Expansion panel states
+const partnerExpanded = ref([0]) // Partner section expanded by default
+const customerExpanded = ref([0]) // Customer section expanded by default
+
 // Form data - covers all possible cases
 const form = ref({
   // Partner (if selecting existing)
@@ -391,8 +398,8 @@ const calculatePrice = async () => {
     // Calculate distance using Google Maps API
     const result = await calculateDistanceFromUrls(pickup, dropoff)
     
-    // Calculate price based on distance
-    const price = calculateDeliveryPrice(result.distance)
+    // Calculate price based on distance and billing mode
+    const price = calculateDeliveryPrice(result.distance, billingMode.value)
     
     form.value.price = price
     form.value.distance_km = Number(result.distance.toFixed(2))
@@ -422,13 +429,14 @@ const calculatePrice = async () => {
   }
 }
 
-// Watch for location changes to recalculate price (with debounce)
+// Watch for location changes and billing mode to recalculate price (with debounce)
 let priceCalculationTimeout = null
 watch([
   () => form.value.pickup_location,
   () => form.value.dropoff_location,
   () => form.value.partner_location,
   () => form.value.customer_location,
+  () => billingMode.value,
 ], () => {
   // Clear previous timeout
   if (priceCalculationTimeout) {
@@ -560,6 +568,7 @@ const onSubmit = async () => {
 const resetForm = () => {
   partnerMode.value = 'select'
   customerMode.value = 'select'
+  billingMode.value = 'express'
   form.value = {
     partner_id: null,
     partner_merchant_name: '',
@@ -621,43 +630,77 @@ watch(dialogVisible, newVal => {
 
       <VCardText class="dialog-content">
         <VForm @submit.prevent="onSubmit">
-          <!-- Partner Section -->
+          <!-- Billing Mode Selection - Always visible at top -->
           <VCard
             variant="outlined"
-            class="mb-6"
+            class="mb-4"
           >
-            <VCardItem class="pb-2">
-              <div class="d-flex align-center justify-space-between">
-                <VCardTitle class="text-h6">
-                  {{ $t('Partner (Pickup Location)') }}
-                </VCardTitle>
-                <VBtnToggle
-                  v-model="partnerMode"
-                  mandatory
-                  density="compact"
-                  variant="outlined"
-                  color="primary"
-                  class="partner-mode-toggle"
-                >
-                  <VBtn
-                    value="select"
-                    class="px-6"
-                  >
-                    {{ $t('Existing') }}
-                  </VBtn>
-                  <VBtn
-                    value="create"
-                    class="px-6"
-                  >
-                    {{ $t('New') }}
-                  </VBtn>
-                </VBtnToggle>
-              </div>
+            <VCardItem>
+              <VCardTitle class="text-h6">
+                {{ $t('Billing Mode') }}
+              </VCardTitle>
             </VCardItem>
-
             <VDivider />
-
             <VCardText>
+              <AppSelect
+                v-model="billingMode"
+                :label="$t('Billing Mode')"
+                :items="[
+                  { title: $t('Express Mode'), value: 'express' },
+                  { title: $t('Standard Mode'), value: 'standard' },
+                ]"
+                class="mb-2"
+              >
+                <template #prepend-inner>
+                  <VIcon icon="tabler-settings" />
+                </template>
+              </AppSelect>
+              <p class="text-sm text-medium-emphasis">
+                {{ billingMode === 'express' 
+                  ? $t('Express mode: Detailed pricing with multiple distance ranges')
+                  : $t('Standard mode: Simplified pricing with three distance ranges') }}
+              </p>
+            </VCardText>
+          </VCard>
+
+          <!-- Partner Section -->
+          <VExpansionPanels
+            v-model="partnerExpanded"
+            class="mb-4"
+          >
+            <VExpansionPanel>
+              <VExpansionPanelTitle>
+                <div class="d-flex align-center justify-space-between w-100">
+                  <span class="text-h6">{{ $t('Partner (Pickup Location)') }}</span>
+                  <VBtnToggle
+                    v-model="partnerMode"
+                    mandatory
+                    density="compact"
+                    variant="outlined"
+                    color="primary"
+                    class="partner-mode-toggle"
+                    @click.stop
+                  >
+                    <VBtn
+                      value="select"
+                      class="px-6"
+                    >
+                      {{ $t('Existing') }}
+                    </VBtn>
+                    <VBtn
+                      value="create"
+                      class="px-6"
+                    >
+                      {{ $t('New') }}
+                    </VBtn>
+                  </VBtnToggle>
+                </div>
+              </VExpansionPanelTitle>
+              <VExpansionPanelText>
+                <VCard
+                  variant="outlined"
+                >
+                  <VCardText>
               <!-- Select Existing Partner -->
               <VRow v-if="partnerMode === 'select'">
                 <VCol cols="12">
@@ -747,46 +790,50 @@ watch(dialogVisible, newVal => {
                   />
                 </VCol>
               </VRow>
-            </VCardText>
-          </VCard>
+                  </VCardText>
+                </VCard>
+              </VExpansionPanelText>
+            </VExpansionPanel>
+          </VExpansionPanels>
 
           <!-- Customer Section -->
-          <VCard
-            variant="outlined"
-            class="mb-6"
+          <VExpansionPanels
+            v-model="customerExpanded"
+            class="mb-4"
           >
-            <VCardItem class="pb-2">
-              <div class="d-flex align-center justify-space-between">
-                <VCardTitle class="text-h6">
-                  {{ $t('Customer (Dropoff Location)') }}
-                </VCardTitle>
-                <VBtnToggle
-                  v-model="customerMode"
-                  mandatory
-                  density="compact"
+            <VExpansionPanel>
+              <VExpansionPanelTitle>
+                <div class="d-flex align-center justify-space-between w-100">
+                  <span class="text-h6">{{ $t('Customer (Dropoff Location)') }}</span>
+                  <VBtnToggle
+                    v-model="customerMode"
+                    mandatory
+                    density="compact"
+                    variant="outlined"
+                    color="primary"
+                    class="customer-mode-toggle"
+                    @click.stop
+                  >
+                    <VBtn
+                      value="select"
+                      class="px-6"
+                    >
+                      {{ $t('Existing') }}
+                    </VBtn>
+                    <VBtn
+                      value="create"
+                      class="px-6"
+                    >
+                      {{ $t('New') }}
+                    </VBtn>
+                  </VBtnToggle>
+                </div>
+              </VExpansionPanelTitle>
+              <VExpansionPanelText>
+                <VCard
                   variant="outlined"
-                  color="primary"
-                  class="customer-mode-toggle"
                 >
-                  <VBtn
-                    value="select"
-                    class="px-6"
-                  >
-                    {{ $t('Existing') }}
-                  </VBtn>
-                  <VBtn
-                    value="create"
-                    class="px-6"
-                  >
-                    {{ $t('New') }}
-                  </VBtn>
-                </VBtnToggle>
-              </div>
-            </VCardItem>
-
-            <VDivider />
-
-            <VCardText>
+                  <VCardText>
               <!-- Select Existing Customer -->
               <VRow v-if="customerMode === 'select'">
                 <VCol cols="12">
@@ -865,10 +912,13 @@ watch(dialogVisible, newVal => {
                   />
                 </VCol>
               </VRow>
-            </VCardText>
-          </VCard>
+                  </VCardText>
+                </VCard>
+              </VExpansionPanelText>
+            </VExpansionPanel>
+          </VExpansionPanels>
 
-          <!-- Delivery Details -->
+          <!-- Delivery Details - Always visible -->
           <VCard
             variant="outlined"
             class="mb-4"
@@ -1028,8 +1078,9 @@ watch(dialogVisible, newVal => {
 }
 
 .dialog-content {
-  max-height: 70vh;
+  max-height: 80vh;
   overflow-y: auto;
+  padding: 1rem;
 }
 
 .partner-mode-toggle,

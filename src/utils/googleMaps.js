@@ -131,16 +131,58 @@ const calculateStraightLineDistance = (origin, destination) => {
 }
 
 /**
+ * Get distance service setting from API or use default
+ * @returns {Promise<string>} - Service name: 'google_maps', 'openstreetmap', or 'haversine'
+ */
+const getDistanceService = async () => {
+  try {
+    const response = await $api('/settings/distance-service', {
+      method: 'GET',
+    })
+    return response?.distance_service || 'google_maps'
+  } catch (error) {
+    // Default to google_maps if API call fails
+    return 'google_maps'
+  }
+}
+
+/**
  * Calculate distance between two coordinates using backend proxy with fallback
  * @param {Object} origin - {lat, lng}
  * @param {Object} destination - {lat, lng}
+ * @param {string} service - Optional: 'google_maps', 'openstreetmap', or 'haversine'. If not provided, will fetch from settings.
  * @returns {Promise<Object>} - {distance: number (in km), duration: string}
  */
-export const calculateDistance = async (origin, destination) => {
+export const calculateDistance = async (origin, destination, service = null) => {
   if (!origin || !destination) {
     throw new Error('Origin and destination coordinates are required')
   }
 
+  // Get service from settings if not provided
+  if (!service) {
+    service = await getDistanceService()
+  }
+
+  // If Haversine is selected, use it directly
+  if (service === 'haversine') {
+    try {
+      const straightLineDistance = calculateStraightLineDistance(origin, destination)
+      // Add ~30% to account for roads not being straight lines
+      const adjustedDistance = straightLineDistance * 1.3
+
+      return {
+        distance: adjustedDistance,
+        duration: 'Estimated',
+        distanceText: `~${adjustedDistance.toFixed(1)} km (estimated)`,
+        isEstimated: true,
+      }
+    } catch (error) {
+      console.error('Error calculating Haversine distance:', error)
+      throw new Error('Unable to calculate distance. Please check your coordinates.')
+    }
+  }
+
+  // For Google Maps and OpenStreetMap, use backend API
   try {
     // Try backend proxy first
     const requestBody = {
@@ -152,6 +194,7 @@ export const calculateDistance = async (origin, destination) => {
         lat: destination.lat,
         lng: destination.lng,
       },
+      service: service || 'google_maps', // Pass service to backend
     }
     
     // Determine the correct endpoint path
@@ -230,7 +273,7 @@ export const calculateDistance = async (origin, destination) => {
     // Don't re-throw, let it fall through to fallback
   }
 
-  // Fallback to straight-line distance calculation
+  // Fallback to straight-line distance calculation (Haversine)
   // This will run if the backend call failed or was not successful
   try {
     const straightLineDistance = calculateStraightLineDistance(origin, destination)
@@ -238,7 +281,7 @@ export const calculateDistance = async (origin, destination) => {
     // Add ~30% to account for roads not being straight lines
     const adjustedDistance = straightLineDistance * 1.3
 
-    console.log('Using fallback distance calculation:', {
+    console.log('Using fallback distance calculation (Haversine):', {
       straightLine: straightLineDistance.toFixed(2) + ' km',
       adjusted: adjustedDistance.toFixed(2) + ' km',
     })
@@ -279,31 +322,71 @@ export const calculateDistanceFromUrls = async (pickupInput, dropoffInput) => {
 /**
  * Calculate delivery price based on distance and pricing settings
  * @param {number} distance - Distance in kilometers
- * @param {Object} pricingSettings - Pricing configuration
+ * @param {Object|string} pricingSettings - Pricing configuration object with mode and pricing, or mode string ('express' or 'standard')
  * @returns {number} - Price in FCFA
  */
 export const calculateDeliveryPrice = (distance, pricingSettings = null) => {
-  // Default pricing if not provided
+  // Default to express mode if not provided
+  let mode = 'express'
+  let pricing = null
+
+  // Handle different input formats
+  if (pricingSettings) {
+    if (typeof pricingSettings === 'string') {
+      // If it's just a string, use it as mode
+      mode = pricingSettings
+    } else if (pricingSettings.mode) {
+      // If it's an object with mode property
+      mode = pricingSettings.mode
+      pricing = pricingSettings.pricing || pricingSettings
+    } else {
+      // Legacy format: assume express mode with pricing object
+      mode = 'express'
+      pricing = pricingSettings
+    }
+  }
+
+  // Default pricing for express mode
   /* eslint-disable camelcase */
-  const pricing = pricingSettings || {
+  const expressPricing = pricing && mode === 'express' ? pricing : {
     range_0_1km: 375,
     range_1_5km: 500,
     range_5_6km: 600,
     additional_per_km: 100,
   }
+
+  // Default pricing for standard mode
+  const standardPricing = pricing && mode === 'standard' ? pricing : {
+    range_1_10km: 500,
+    range_10_1_15km: 700,
+    range_over_15km: 1000,
+  }
   /* eslint-enable camelcase */
 
-  if (distance <= 1) {
-    return pricing.range_0_1km
-  } else if (distance <= 5) {
-    return pricing.range_1_5km
-  } else if (distance <= 6) {
-    return pricing.range_5_6km
+  // Calculate price based on mode
+  if (mode === 'standard') {
+    // Standard mode: 1-10km = 500, 10.1-15km = 700, >15km = 1000
+    if (distance <= 10) {
+      return standardPricing.range_1_10km
+    } else if (distance <= 15) {
+      return standardPricing.range_10_1_15km
+    } else {
+      return standardPricing.range_over_15km
+    }
   } else {
-    // For distances > 6km: base price (5.1-6km) + additional per km
-    const additionalKm = Math.ceil(distance - 6)
+    // Express mode (default): existing logic
+    if (distance <= 1) {
+      return expressPricing.range_0_1km
+    } else if (distance <= 5) {
+      return expressPricing.range_1_5km
+    } else if (distance <= 6) {
+      return expressPricing.range_5_6km
+    } else {
+      // For distances > 6km: base price (5.1-6km) + additional per km
+      const additionalKm = Math.ceil(distance - 6)
 
-    return pricing.range_5_6km + (additionalKm * pricing.additional_per_km)
+      return expressPricing.range_5_6km + (additionalKm * expressPricing.additional_per_km)
+    }
   }
 }
 
