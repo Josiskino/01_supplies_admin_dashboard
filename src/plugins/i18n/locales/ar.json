@@ -523,6 +523,7 @@
   "Uses Google Maps Distance Matrix API for accurate road distances": "يستخدم واجهة برمجة تطبيقات Google Maps Distance Matrix للمسافات الدقيقة على الطرق",
   "OpenStreetMap": "OpenStreetMap",
   "Uses OpenStreetMap routing service (free alternative)": "يستخدم خدمة التوجيه OpenStreetMap (بديل مجاني)",
+  "Haversine": "هافرساين",
   "Haversine Formula": "صيغة هافرساين",
   "Calculates straight-line distance using Haversine formula (fastest, less accurate)": "يحسب المسافة في خط مستقيم باستخدام صيغة هافرساين (الأسرع، أقل دقة)",
   "Google Maps provides the most accurate road distances and travel times. Requires API key and may have usage limits.": "توفر خرائط Google المسافات على الطرق وأوقات السفر الأكثر دقة. يتطلب مفتاح API وقد يكون له حدود استخدام.",

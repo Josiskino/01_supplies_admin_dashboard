@@ -525,6 +525,7 @@
   "Uses Google Maps Distance Matrix API for accurate road distances": "Utilise l'API Google Maps Distance Matrix pour des distances routières précises",
   "OpenStreetMap": "OpenStreetMap",
   "Uses OpenStreetMap routing service (free alternative)": "Utilise le service de routage OpenStreetMap (alternative gratuite)",
+  "Haversine": "Haversine",
   "Haversine Formula": "Formule de Haversine",
   "Calculates straight-line distance using Haversine formula (fastest, less accurate)": "Calcule la distance en ligne droite en utilisant la formule de Haversine (plus rapide, moins précis)",
   "Google Maps provides the most accurate road distances and travel times. Requires API key and may have usage limits.": "Google Maps fournit les distances routières et les temps de trajet les plus précis. Nécessite une clé API et peut avoir des limites d'utilisation.",

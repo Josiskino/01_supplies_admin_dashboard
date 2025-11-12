@@ -530,6 +530,7 @@
   "Uses Google Maps Distance Matrix API for accurate road distances": "Uses Google Maps Distance Matrix API for accurate road distances",
   "OpenStreetMap": "OpenStreetMap",
   "Uses OpenStreetMap routing service (free alternative)": "Uses OpenStreetMap routing service (free alternative)",
+  "Haversine": "Haversine",
   "Haversine Formula": "Haversine Formula",
   "Calculates straight-line distance using Haversine formula (fastest, less accurate)": "Calculates straight-line distance using Haversine formula (fastest, less accurate)",
   "Google Maps provides the most accurate road distances and travel times. Requires API key and may have usage limits.": "Google Maps provides the most accurate road distances and travel times. Requires API key and may have usage limits.",

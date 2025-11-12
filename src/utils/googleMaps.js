@@ -130,19 +130,217 @@ const calculateStraightLineDistance = (origin, destination) => {
   return R * c
 }
 
+// Cache for distance service (shared across all calls)
+let cachedService = null
+let cacheTimestamp = null
+const CACHE_DURATION_MS = 30 * 1000 // 30 seconds
+const STORAGE_KEY = 'distance_service_setting'
+
 /**
- * Get distance service setting from API or use default
+ * Get distance service from localStorage
+ * @returns {string|null} - Service name or null if not found
+ */
+const getDistanceServiceFromStorage = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      return localStorage.getItem(STORAGE_KEY)
+    }
+  } catch (error) {
+    console.warn('Error reading from localStorage:', error)
+  }
+  return null
+}
+
+/**
+ * Save distance service to localStorage
+ * @param {string} service - Service name to save
+ */
+const saveDistanceServiceToStorage = (service) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(STORAGE_KEY, service)
+      console.log('Distance service saved to localStorage:', service)
+    }
+  } catch (error) {
+    console.warn('Error saving to localStorage:', error)
+  }
+}
+
+/**
+ * Get distance service setting - TEMPORARILY FIXED TO OPENSTREETMAP
+ * TODO: Remove this hardcoding when backend table is ready
+ * @param {boolean} forceRefresh - If true, bypass cache and fetch fresh data (ignored for now)
  * @returns {Promise<string>} - Service name: 'google_maps', 'openstreetmap', or 'haversine'
  */
-const getDistanceService = async () => {
+const getDistanceService = async (forceRefresh = false) => {
+  // TEMPORARILY FIXED: Always return OpenStreetMap
+  // TODO: Uncomment below code when backend table is ready
+  const FIXED_SERVICE = 'openstreetmap'
+  console.log('Using fixed distance service:', FIXED_SERVICE)
+  return FIXED_SERVICE
+  
+  /* COMMENTED OUT - Will be re-enabled when backend table is ready
+  // Return cached value if still valid and not forcing refresh
+  if (!forceRefresh && cachedService && cacheTimestamp) {
+    const cacheAge = Date.now() - cacheTimestamp
+    if (cacheAge < CACHE_DURATION_MS) {
+      console.log('Using cached distance service from googleMaps.js:', cachedService)
+      return cachedService
+    }
+  }
+
   try {
     const response = await $api('/settings/distance-service', {
       method: 'GET',
     })
-    return response?.distance_service || 'google_maps'
+    const service = response?.distance_service || 'google_maps'
+    
+    // Update cache and localStorage
+    cachedService = service
+    cacheTimestamp = Date.now()
+    saveDistanceServiceToStorage(service)
+    
+    console.log('=== Distance Service Retrieved (googleMaps.js) ===')
+    console.log('Service from API:', service)
+    console.log('Full response:', response)
+    console.log('=================================================')
+    
+    return service
   } catch (error) {
-    // Default to google_maps if API call fails
-    return 'google_maps'
+    // Silently ignore 404 errors (endpoint may not exist yet)
+    const status = error?.response?.status || error?.status
+    const is404 = status === 404 || error?.message?.includes('404')
+    
+    if (!is404) {
+      console.warn('Could not load distance service from API, trying localStorage:', error)
+    }
+    
+    // Try to get from localStorage if API fails
+    const storedService = getDistanceServiceFromStorage()
+    if (storedService && ['google_maps', 'openstreetmap', 'haversine'].includes(storedService)) {
+      console.log('Using distance service from localStorage:', storedService)
+      cachedService = storedService
+      cacheTimestamp = Date.now()
+      return storedService
+    }
+    
+    // Cache default value
+    const defaultService = 'google_maps'
+    cachedService = defaultService
+    cacheTimestamp = Date.now()
+    
+    return defaultService
+  }
+  */
+}
+
+/**
+ * Invalidate the distance service cache (call this after saving settings)
+ */
+export const invalidateDistanceServiceCache = () => {
+  cachedService = null
+  cacheTimestamp = null
+  console.log('Distance service cache invalidated - will reload from localStorage or API on next call')
+}
+
+/**
+ * Set distance service (for use after saving settings)
+ * @param {string} service - Service name to set
+ */
+export const setDistanceService = (service) => {
+  cachedService = service
+  cacheTimestamp = Date.now()
+  saveDistanceServiceToStorage(service)
+  console.log('Distance service set:', service)
+}
+
+/**
+ * Calculate distance using OpenStreetMap OSRM (Open Source Routing Machine)
+ * OSRM provides accurate road distances similar to Google Maps
+ * @param {Object} origin - {lat, lng}
+ * @param {Object} destination - {lat, lng}
+ * @returns {Promise<Object>} - {distance: number (in km), duration: string, distanceText: string}
+ */
+const calculateDistanceWithOSRM = async (origin, destination) => {
+  try {
+    // OSRM API format: lng,lat (longitude first!)
+    const coordinates = `${origin.lng},${origin.lat};${destination.lng},${destination.lat}`
+    
+    // Using public OSRM demo server (free, no API key required)
+    // Parameters:
+    // - overview=full: Get full route geometry for better accuracy
+    // - alternatives=true: Consider alternative routes (may give longer but more accurate distance)
+    // - steps=false: Don't need step-by-step instructions
+    // - geometries=geojson: Get full geometry (better for accuracy)
+    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&alternatives=true&steps=false&geometries=geojson`
+    
+    console.log('=== OSRM Request ===')
+    console.log('URL:', osrmUrl)
+    console.log('Origin:', origin)
+    console.log('Destination:', destination)
+    console.log('==================')
+    
+    const response = await fetch(osrmUrl)
+    
+    if (!response.ok) {
+      throw new Error(`OSRM API error: ${response.status} ${response.statusText}`)
+    }
+    
+    const data = await response.json()
+    
+    console.log('=== OSRM Response ===')
+    console.log('Response:', data)
+    console.log('Number of routes:', data.routes?.length || 0)
+    console.log('=====================')
+    
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+      throw new Error(`OSRM routing failed: ${data.code || 'Unknown error'}`)
+    }
+    
+    // Use the first route (usually the fastest/shortest)
+    // If you want the longest (potentially more accurate), use the last route
+    // For now, we'll use the first route which is typically the recommended one
+    const route = data.routes[0]
+    const distanceInMeters = route.distance
+    const distanceInKm = distanceInMeters / 1000
+    const durationInSeconds = route.duration
+    
+    // Log all available routes for comparison
+    if (data.routes.length > 1) {
+      console.log('=== Multiple Routes Available ===')
+      data.routes.forEach((r, index) => {
+        console.log(`Route ${index + 1}: ${(r.distance / 1000).toFixed(2)} km, ${Math.floor(r.duration / 60)} min`)
+      })
+      console.log('Using route 1 (shortest/fastest)')
+    }
+    
+    // Convert duration to readable format
+    const hours = Math.floor(durationInSeconds / 3600)
+    const minutes = Math.floor((durationInSeconds % 3600) / 60)
+    let durationText = ''
+    
+    if (hours > 0) {
+      durationText = `${hours}h ${minutes}min`
+    } else {
+      durationText = `${minutes} min`
+    }
+    
+    const result = {
+      distance: Number(distanceInKm.toFixed(2)),
+      duration: durationText,
+      distanceText: `${distanceInKm.toFixed(1)} km`,
+      isEstimated: false,
+    }
+    
+    console.log('=== OSRM Result ===')
+    console.log('Distance:', result.distance, 'km')
+    console.log('Duration:', result.duration)
+    console.log('===================')
+    
+    return result
+  } catch (error) {
+    console.error('Error calculating distance with OSRM:', error)
+    throw error
   }
 }
 
@@ -163,8 +361,19 @@ export const calculateDistance = async (origin, destination, service = null) => 
     service = await getDistanceService()
   }
 
+  console.log('=== calculateDistance called ===')
+  console.log('Service to use:', service)
+  console.log('Service type:', typeof service)
+  console.log('Is openstreetmap?', service === 'openstreetmap')
+  console.log('Is haversine?', service === 'haversine')
+  console.log('Is google_maps?', service === 'google_maps')
+  console.log('Origin:', origin)
+  console.log('Destination:', destination)
+  console.log('================================')
+
   // If Haversine is selected, use it directly
   if (service === 'haversine') {
+    console.log('→ Using Haversine formula')
     try {
       const straightLineDistance = calculateStraightLineDistance(origin, destination)
       // Add ~30% to account for roads not being straight lines
@@ -182,7 +391,30 @@ export const calculateDistance = async (origin, destination, service = null) => 
     }
   }
 
-  // For Google Maps and OpenStreetMap, use backend API
+  // If OpenStreetMap is selected, use OSRM directly
+  if (service === 'openstreetmap') {
+    console.log('→ Using OpenStreetMap (OSRM) for distance calculation')
+    try {
+      const result = await calculateDistanceWithOSRM(origin, destination)
+      console.log('→ OSRM calculation successful:', result)
+      return result
+    } catch (error) {
+      console.error('OSRM calculation failed, falling back to Haversine:', error)
+      // Fallback to Haversine if OSRM fails
+      const straightLineDistance = calculateStraightLineDistance(origin, destination)
+      const adjustedDistance = straightLineDistance * 1.3
+
+      return {
+        distance: adjustedDistance,
+        duration: 'Estimated',
+        distanceText: `~${adjustedDistance.toFixed(1)} km (estimated)`,
+        isEstimated: true,
+      }
+    }
+  }
+
+  // For Google Maps (or any other service), use backend API
+  console.log('→ Using backend API (Google Maps or other)')
   try {
     // Try backend proxy first
     const requestBody = {
@@ -302,9 +534,10 @@ export const calculateDistance = async (origin, destination, service = null) => 
  * Calculate distance from coordinate inputs (URLs, DMS format, or decimal coordinates)
  * @param {string} pickupInput - Pickup location (URL, DMS like "6°11'37.0\"N 1°11'02.5\"E", or decimal coordinates)
  * @param {string} dropoffInput - Dropoff location (URL, DMS like "6°11'37.0\"N 1°11'02.5\"E", or decimal coordinates)
+ * @param {string} service - Optional: 'google_maps', 'openstreetmap', or 'haversine'. If not provided, will fetch from settings.
  * @returns {Promise<Object>} - {distance: number (in km), duration: string}
  */
-export const calculateDistanceFromUrls = async (pickupInput, dropoffInput) => {
+export const calculateDistanceFromUrls = async (pickupInput, dropoffInput, service = null) => {
   const pickupCoords = parseCoordinates(pickupInput)
   const dropoffCoords = parseCoordinates(dropoffInput)
 
@@ -316,7 +549,7 @@ export const calculateDistanceFromUrls = async (pickupInput, dropoffInput) => {
     throw new Error('Could not extract coordinates from dropoff location. Supported formats:\n- Google Maps URL\n- DMS format: 6°11\'37.0"N 1°11\'02.5"E\n- Decimal: 6.193611, 1.184028')
   }
 
-  return await calculateDistance(pickupCoords, dropoffCoords)
+  return await calculateDistance(pickupCoords, dropoffCoords, service)
 }
 
 /**

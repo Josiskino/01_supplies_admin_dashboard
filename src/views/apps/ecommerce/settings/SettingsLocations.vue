@@ -1,5 +1,6 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
+import { invalidateDistanceServiceCache, setDistanceService } from '@/utils/googleMaps'
 
 const { t } = useI18n()
 
@@ -25,43 +26,86 @@ const standardPricing = ref({
   range_over_15km: 1000,
 })
 
-// Load pricing settings from API
+// Load pricing settings from API or localStorage
 const loadPricingSettings = async () => {
   isLoading.value = true
   try {
-    const response = await $api('/settings/pricing', {
-      method: 'GET',
-    })
+    // Try to load from API first
+    try {
+      const response = await $api('/settings/pricing', {
+        method: 'GET',
+      })
 
-    if (response && response.mode) {
-      billingMode.value = response.mode
+      if (response && response.mode) {
+        billingMode.value = response.mode
 
-      if (response.mode === 'express' && response.pricing) {
-        Object.assign(expressPricing.value, response.pricing)
-      } else if (response.mode === 'standard' && response.pricing) {
-        Object.assign(standardPricing.value, response.pricing)
+        if (response.mode === 'express' && response.pricing) {
+          Object.assign(expressPricing.value, response.pricing)
+        } else if (response.mode === 'standard' && response.pricing) {
+          Object.assign(standardPricing.value, response.pricing)
+        }
+        
+        // Also save to localStorage for backup
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('pricing_settings', JSON.stringify({
+              mode: response.mode,
+              pricing: response.mode === 'express' ? expressPricing.value : standardPricing.value,
+            }))
+          }
+        } catch (e) {
+          // Ignore localStorage errors
+        }
+        
+        // Load distance service setting from API response if available
+        if (response && response.distance_service) {
+          distanceService.value = response.distance_service
+        }
+        
+        return // Successfully loaded from API
+      }
+    } catch (apiError) {
+      // Silently ignore 404 errors (endpoint may not exist yet)
+      const status = apiError?.response?.status || apiError?.status
+      const is404 = status === 404 || apiError?.message?.includes('404')
+      
+      if (!is404) {
+        console.warn('Could not load pricing settings from API, trying localStorage:', apiError)
       }
     }
-
-    // Load distance service setting
-    if (response && response.distance_service) {
-      distanceService.value = response.distance_service
-    }
-  } catch (error) {
-    // Silently ignore 404 errors (endpoint may not exist yet)
-    // Only log other errors
-    const status = error?.response?.status || error?.status
-    const is404 = status === 404 || error?.message?.includes('404')
     
-    if (!is404) {
-      console.warn('Could not load pricing settings from API, using defaults:', error)
+    // Try to load from localStorage if API fails
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem('pricing_settings')
+        if (stored) {
+          const pricingData = JSON.parse(stored)
+          if (pricingData.mode) {
+            billingMode.value = pricingData.mode
+            if (pricingData.mode === 'express' && pricingData.pricing) {
+              Object.assign(expressPricing.value, pricingData.pricing)
+            } else if (pricingData.mode === 'standard' && pricingData.pricing) {
+              Object.assign(standardPricing.value, pricingData.pricing)
+            }
+            console.log('Pricing settings loaded from localStorage')
+            return
+          }
+        }
+      }
+    } catch (storageError) {
+      console.warn('Error reading from localStorage:', storageError)
     }
+    
+    // Use defaults if nothing found
+    console.log('Using default pricing settings')
+  } catch (error) {
+    console.warn('Error loading pricing settings:', error)
   } finally {
     isLoading.value = false
   }
 }
 
-// Load distance service settings from API
+// Load distance service settings from API or localStorage
 const loadDistanceServiceSettings = async () => {
   try {
     const response = await $api('/settings/distance-service', {
@@ -70,6 +114,9 @@ const loadDistanceServiceSettings = async () => {
 
     if (response && response.distance_service) {
       distanceService.value = response.distance_service
+      // Also save to localStorage
+      setDistanceService(response.distance_service)
+      return
     }
   } catch (error) {
     // Silently ignore 404 errors (endpoint may not exist yet)
@@ -77,9 +124,26 @@ const loadDistanceServiceSettings = async () => {
     const is404 = status === 404 || error?.message?.includes('404')
     
     if (!is404) {
-      console.warn('Could not load distance service settings from API, using defaults:', error)
+      console.warn('Could not load distance service settings from API, trying localStorage:', error)
     }
   }
+  
+  // Try to load from localStorage if API fails or returns no data
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const storedService = localStorage.getItem('distance_service_setting')
+      if (storedService && ['google_maps', 'openstreetmap', 'haversine'].includes(storedService)) {
+        distanceService.value = storedService
+        console.log('Loaded distance service from localStorage:', storedService)
+        return
+      }
+    }
+  } catch (error) {
+    console.warn('Error reading from localStorage:', error)
+  }
+  
+  // Use default if nothing found
+  distanceService.value = 'google_maps'
 }
 
 // Load settings on component mount
@@ -91,18 +155,47 @@ onMounted(() => {
 const savePricingSettings = async () => {
   isLoading.value = true
   try {
-    const payload = {
-      mode: billingMode.value,
-      pricing: billingMode.value === 'express' ? expressPricing.value : standardPricing.value,
+    // Save to localStorage immediately (primary storage for now)
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const pricingData = {
+          mode: billingMode.value,
+          pricing: billingMode.value === 'express' ? expressPricing.value : standardPricing.value,
+        }
+        localStorage.setItem('pricing_settings', JSON.stringify(pricingData))
+        console.log('Pricing settings saved to localStorage')
+      }
+    } catch (storageError) {
+      console.warn('Error saving to localStorage:', storageError)
+    }
+    
+    // Try to save to API if endpoint exists (optional)
+    try {
+      const payload = {
+        mode: billingMode.value,
+        pricing: billingMode.value === 'express' ? expressPricing.value : standardPricing.value,
+      }
+
+      await $api('/settings/pricing', {
+        method: 'POST',
+        body: payload,
+      })
+
+      console.log('Pricing settings saved to API successfully')
+    } catch (apiError) {
+      // Silently ignore 404 errors (endpoint may not exist yet)
+      const status = apiError?.response?.status || apiError?.status
+      const is404 = status === 404 || apiError?.message?.includes('404')
+      
+      if (!is404) {
+        console.warn('Could not save pricing settings to API (using localStorage only):', apiError)
+      } else {
+        console.log('API endpoint not available, using localStorage only')
+      }
     }
 
-    await $api('/settings/pricing', {
-      method: 'POST',
-      body: payload,
-    })
-
     // Show success message
-    console.log('Pricing settings saved successfully')
+    console.log('Pricing settings saved successfully (stored in localStorage)')
   } catch (error) {
     console.error('Error saving pricing settings:', error)
   } finally {
@@ -113,17 +206,44 @@ const savePricingSettings = async () => {
 const saveDistanceServiceSettings = async () => {
   isLoading.value = true
   try {
-    const payload = {
-      distance_service: distanceService.value,
-    }
+    // Save to localStorage immediately (primary storage for now)
+    setDistanceService(distanceService.value)
+    
+    // Try to save to API if endpoint exists (optional)
+    try {
+      const payload = {
+        distance_service: distanceService.value,
+      }
 
-    await $api('/settings/distance-service', {
-      method: 'POST',
-      body: payload,
-    })
+      const response = await $api('/settings/distance-service', {
+        method: 'POST',
+        body: payload,
+      })
+
+      console.log('=== Distance Service Saved to API ===')
+      console.log('Requested service:', distanceService.value)
+      console.log('Response:', response)
+      console.log('====================================')
+    } catch (apiError) {
+      // Silently ignore 404 errors (endpoint may not exist yet)
+      const status = apiError?.response?.status || apiError?.status
+      const is404 = status === 404 || apiError?.message?.includes('404')
+      
+      if (!is404) {
+        console.warn('Could not save distance service to API (using localStorage only):', apiError)
+      } else {
+        console.log('API endpoint not available, using localStorage only')
+      }
+    }
+    
+    // Reload to verify it was saved correctly
+    await loadDistanceServiceSettings()
+
+    // Invalidate cache in googleMaps.js to force refresh
+    invalidateDistanceServiceCache()
 
     // Show success message
-    console.log('Distance service settings saved successfully')
+    console.log('Distance service settings saved successfully (stored in localStorage)')
   } catch (error) {
     console.error('Error saving distance service settings:', error)
   } finally {
@@ -534,3 +654,4 @@ const calculateExamplePrice = (distance) => {
     </VCard>
   </div>
 </template>
+

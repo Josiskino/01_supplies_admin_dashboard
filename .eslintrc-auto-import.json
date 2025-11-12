@@ -366,6 +366,8 @@
     "testDistanceCalculation": true,
     "useDeliveryStatuses": true,
     "useStatusManagement": true,
-    "useFinancialReports": true
+    "useFinancialReports": true,
+    "invalidateDistanceServiceCache": true,
+    "setDistanceService": true
   }
 }
