@@ -1,139 +1,103 @@
 <script setup>
 /* eslint-disable camelcase */
 import { useI18n } from 'vue-i18n'
-import ExpenseAddDialog from './add.vue'
+import SettlementAddDialog from './settlement-add.vue'
 
 const { t } = useI18n()
 
-const searchQuery = ref('')
-const selectedDriverId = ref()
-const selectedExpenseType = ref()
-const dateFrom = ref(null)
-const dateTo = ref(null)
+const selectedDate = ref(new Date().toISOString().slice(0, 10))
 
 // Data table options
-const itemsPerPage = ref(15)
-const page = ref(1)
 const isLoading = ref(false)
-const isAddExpenseDialogOpen = ref(false)
+const isSettlementDialogOpen = ref(false)
+const selectedDriverForSettlement = ref(null)
 
-// Drivers list
-const drivers = ref([])
-const isLoadingDrivers = ref(false)
+// Drivers to settle data
+const driversToSettle = ref([])
+const totalDrivers = ref(0)
+const totalAmount = ref(0)
 
-// Expense types
-const expenseTypes = computed(() => [
-  { title: t('Maintenance'), value: 'maintenance', icon: 'tabler-tools', color: 'warning' },
-  { title: t('Fuel'), value: 'fuel', icon: 'tabler-gas-station', color: 'primary' },
-  { title: t('Oil Change'), value: 'oil_change', icon: 'tabler-droplet', color: 'info' },
-  { title: t('Tires'), value: 'tires', icon: 'tabler-circle', color: 'secondary' },
-  { title: t('Insurance'), value: 'insurance', icon: 'tabler-shield', color: 'success' },
-  { title: t('Repair'), value: 'repair', icon: 'tabler-wrench', color: 'error' },
-  { title: t('Other'), value: 'other', icon: 'tabler-category', color: 'secondary' },
-])
-
-// Transactions/Expenses data
-const expenses = ref([])
-const totalExpenses = ref(0)
-
-// Statistics
-const totalAmount = computed(() => {
-  return expenses.value.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0)
-})
-
-// Headers for expenses table
+// Headers for drivers table
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
-  { title: t('Date'), key: 'date', sortable: true },
-  { title: t('Driver'), key: 'driver', sortable: false },
-  { title: t('Type'), key: 'type', sortable: false },
-  { title: t('Description'), key: 'description', sortable: false },
-  { title: t('Amount'), key: 'amount', sortable: true },
-  { title: t('Actions'), key: 'actions', sortable: false },
+  { title: t('Driver') || 'Livreur', key: 'driver', sortable: false, width: '250px' },
+  { title: t('Vehicle') || 'Véhicule', key: 'vehicle', sortable: false, width: '150px' },
+  { title: t('Deliveries Count') || 'Nombre de livraisons', key: 'count', sortable: true, width: '180px' },
+  { title: t('Total Amount') || 'Montant total', key: 'total_amount', sortable: true, width: '150px' },
+  { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '250px' },
 ])
 
-// Fetch drivers
-const fetchDrivers = async () => {
-  isLoadingDrivers.value = true
-  try {
-    const response = await $api('/drivers', {
-      method: 'GET',
-    })
+// Statistics
+const totalAmountFormatted = computed(() => {
+  return formatPrice(totalAmount.value)
+})
 
-    if (Array.isArray(response)) {
-      drivers.value = response
-    } else if (response?.data && Array.isArray(response.data)) {
-      drivers.value = response.data
-    } else {
-      drivers.value = []
-    }
-  } catch (error) {
-    console.error('Error fetching drivers:', error)
-    drivers.value = []
-  } finally {
-    isLoadingDrivers.value = false
+// Fetch drivers to settle
+const fetchDriversToSettle = async () => {
+  if (!selectedDate.value) {
+    return
   }
-}
 
-// Fetch expenses
-const fetchExpenses = async () => {
   isLoading.value = true
   try {
-    const queryParams = {
-      per_page: itemsPerPage.value,
-      page: page.value,
-    }
+    console.log('🔍 Fetching drivers to settle for date:', selectedDate.value)
 
-    if (searchQuery.value) {
-      queryParams.search = searchQuery.value
-    }
-
-    if (selectedDriverId.value) {
-      queryParams.driver_id = selectedDriverId.value
-    }
-
-    if (selectedExpenseType.value) {
-      queryParams.type = selectedExpenseType.value
-    }
-
-    if (dateFrom.value) {
-      queryParams.date_from = dateFrom.value
-    }
-
-    if (dateTo.value) {
-      queryParams.date_to = dateTo.value
-    }
-
-    const queryString = new URLSearchParams(queryParams).toString()
-    const url = `/financial/transactions${queryString ? `?${queryString}` : ''}`
-
-    const response = await $api(url, {
+    const response = await $api(`/driver-payments/drivers-to-settle?date=${selectedDate.value}`, {
       method: 'GET',
     })
 
+    console.log('📦 API Response:', response)
+
     // Handle response structure
-    if (response) {
-      if (Array.isArray(response)) {
-        expenses.value = response
-        totalExpenses.value = response.length
-      } else if (response.data && Array.isArray(response.data)) {
-        expenses.value = response.data
-        totalExpenses.value = response.meta?.total || response.data.length
-      } else {
-        expenses.value = []
-        totalExpenses.value = 0
-      }
+    if (response?.success && response?.data) {
+      driversToSettle.value = response.data.drivers || []
+      totalDrivers.value = response.data.total_drivers || 0
+      totalAmount.value = response.data.total_amount || 0
+      console.log('✅ Data loaded:', {
+        drivers: driversToSettle.value.length,
+        totalDrivers: totalDrivers.value,
+        totalAmount: totalAmount.value,
+      })
+    } else if (response?.data) {
+      // Fallback if response structure is different
+      driversToSettle.value = response.data.drivers || response.data || []
+      totalDrivers.value = driversToSettle.value.length
+      totalAmount.value = driversToSettle.value.reduce((sum, driver) => sum + (parseFloat(driver.total_amount) || 0), 0)
+      console.log('✅ Data loaded (fallback):', {
+        drivers: driversToSettle.value.length,
+        totalDrivers: totalDrivers.value,
+        totalAmount: totalAmount.value,
+      })
+    } else if (Array.isArray(response)) {
+      // Direct array response
+      driversToSettle.value = response
+      totalDrivers.value = response.length
+      totalAmount.value = response.reduce((sum, driver) => sum + (parseFloat(driver.total_amount) || 0), 0)
+      console.log('✅ Data loaded (array):', {
+        drivers: driversToSettle.value.length,
+        totalDrivers: totalDrivers.value,
+        totalAmount: totalAmount.value,
+      })
     } else {
-      expenses.value = []
-      totalExpenses.value = 0
+      driversToSettle.value = []
+      totalDrivers.value = 0
+      totalAmount.value = 0
+      console.warn('⚠️ No data found in response')
     }
   } catch (error) {
-    console.error('Error fetching expenses:', error)
-    expenses.value = []
-    totalExpenses.value = 0
+    console.error('❌ Error fetching drivers to settle:', error)
+    driversToSettle.value = []
+    totalDrivers.value = 0
+    totalAmount.value = 0
   } finally {
     isLoading.value = false
   }
+}
+
+// Open settlement dialog for a driver
+const openSettlementDialog = driverData => {
+  selectedDriverForSettlement.value = driverData
+  isSettlementDialogOpen.value = true
 }
 
 // Format date
@@ -172,37 +136,25 @@ const formatPrice = value => {
   }
 }
 
-// Get expense type info
-const getExpenseTypeInfo = type => {
-  return expenseTypes.value.find(et => et.value === type) || expenseTypes.value[expenseTypes.value.length - 1]
-}
 
-// Delete expense
-const deleteExpense = async expenseId => {
-  try {
-    await $api(`/financial/transactions/${expenseId}`, {
-      method: 'DELETE',
-    })
-    fetchExpenses()
-  } catch (error) {
-    console.error('Error deleting expense:', error)
-  }
-}
-
-// Watch for changes and refetch
-watch([searchQuery, selectedDriverId, selectedExpenseType, dateFrom, dateTo, itemsPerPage], () => {
-  page.value = 1
-  fetchExpenses()
+// Watch for date changes and refetch
+watch([selectedDate], () => {
+  fetchDriversToSettle()
 })
 
-watch(page, () => {
-  fetchExpenses()
+// Watch for settlement dialog close
+watch(isSettlementDialogOpen, newVal => {
+  if (!newVal) {
+    selectedDriverForSettlement.value = null
+
+    // Refetch data after settlement is created
+    fetchDriversToSettle()
+  }
 })
 
 // Load on mount
 onMounted(() => {
-  fetchDrivers()
-  fetchExpenses()
+  fetchDriversToSettle()
 })
 </script>
 
@@ -211,47 +163,32 @@ onMounted(() => {
     <!-- Header Section -->
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>{{ $t('Financial Transactions') }}</VCardTitle>
+        <VCardTitle>{{ $t('Driver Payments - Settlements') }}</VCardTitle>
         <VCardSubtitle>
-          {{ $t('Track all expenses related to drivers (maintenance, fuel, repairs, etc.)') }}
+          {{ $t('View drivers who need to settle their deliveries for a specific date') }}
         </VCardSubtitle>
       </VCardItem>
 
       <VCardText>
         <VRow class="mb-4">
-          <!-- Total Expenses Summary -->
+          <!-- Date Selection -->
           <VCol
             cols="12"
             md="4"
           >
-            <VCard
-              color="error"
-              variant="tonal"
+            <AppDateTimePicker
+              v-model="selectedDate"
+              :label="$t('Select Date')"
+              :placeholder="$t('Select date')"
+              :config="{ dateFormat: 'Y-m-d' }"
             >
-              <VCardText class="d-flex align-center justify-space-between">
-                <div>
-                  <div class="text-sm text-medium-emphasis">
-                    {{ $t('Total Expenses') }}
-                  </div>
-                  <div class="text-h4 font-weight-medium mt-1">
-                    {{ formatPrice(totalAmount) }}
-                  </div>
-                </div>
-                <VAvatar
-                  color="error"
-                  variant="tonal"
-                  size="56"
-                >
-                  <VIcon
-                    icon="tabler-currency-dollar"
-                    size="28"
-                  />
-                </VAvatar>
-              </VCardText>
-            </VCard>
+              <template #prepend-inner>
+                <VIcon icon="tabler-calendar" />
+              </template>
+            </AppDateTimePicker>
           </VCol>
 
-          <!-- Total Transactions -->
+          <!-- Total Drivers Summary -->
           <VCol
             cols="12"
             md="4"
@@ -263,10 +200,10 @@ onMounted(() => {
               <VCardText class="d-flex align-center justify-space-between">
                 <div>
                   <div class="text-sm text-medium-emphasis">
-                    {{ $t('Total Transactions') }}
+                    {{ $t('Total Drivers') }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
-                    {{ expenses.length }}
+                    {{ totalDrivers }}
                   </div>
                 </div>
                 <VAvatar
@@ -275,7 +212,7 @@ onMounted(() => {
                   size="56"
                 >
                   <VIcon
-                    icon="tabler-receipt"
+                    icon="tabler-users"
                     size="28"
                   />
                 </VAvatar>
@@ -283,125 +220,73 @@ onMounted(() => {
             </VCard>
           </VCol>
 
-          <!-- Add Expense Button -->
+          <!-- Total Amount Summary -->
           <VCol
             cols="12"
             md="4"
-            class="d-flex align-center justify-end"
           >
-            <VBtn
-              color="primary"
-              prepend-icon="tabler-plus"
-              size="large"
-              @click="isAddExpenseDialogOpen = true"
+            <VCard
+              color="success"
+              variant="tonal"
             >
-              {{ $t('Add Expense') }}
-            </VBtn>
-          </VCol>
-        </VRow>
-
-        <!-- Filters -->
-        <VRow>
-          <VCol
-            cols="12"
-            sm="6"
-            md="3"
-          >
-            <AppSelect
-              v-model="selectedDriverId"
-              :items="drivers.map(d => ({ title: d.user?.name || d.name || $t('Unknown'), value: d.id }))"
-              :loading="isLoadingDrivers"
-              :placeholder="$t('Filter by driver')"
-              :label="$t('Driver')"
-              clearable
-              clear-icon="tabler-x"
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="6"
-            md="3"
-          >
-            <AppSelect
-              v-model="selectedExpenseType"
-              :items="expenseTypes"
-              :placeholder="$t('Filter by type')"
-              :label="$t('Expense Type')"
-              clearable
-              clear-icon="tabler-x"
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="6"
-            md="2"
-          >
-            <AppDateTimePicker
-              v-model="dateFrom"
-              :placeholder="$t('Date from')"
-              :label="$t('Date From')"
-              :config="{ dateFormat: 'Y-m-d' }"
-              clearable
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="6"
-            md="2"
-          >
-            <AppDateTimePicker
-              v-model="dateTo"
-              :placeholder="$t('Date to')"
-              :label="$t('Date To')"
-              :config="{ dateFormat: 'Y-m-d' }"
-              clearable
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="12"
-            md="2"
-          >
-            <AppTextField
-              v-model="searchQuery"
-              :placeholder="$t('Search by description...')"
-              :label="$t('Search')"
-              clearable
-              prepend-inner-icon="tabler-search"
-            />
+              <VCardText class="d-flex align-center justify-space-between">
+                <div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Total Amount to Settle') }}
+                  </div>
+                  <div class="text-h4 font-weight-medium mt-1">
+                    {{ totalAmountFormatted }}
+                  </div>
+                </div>
+                <VAvatar
+                  color="success"
+                  variant="tonal"
+                  size="56"
+                >
+                  <VIcon
+                    icon="tabler-currency-dollar"
+                    size="28"
+                  />
+                </VAvatar>
+              </VCardText>
+            </VCard>
           </VCol>
         </VRow>
       </VCardText>
     </VCard>
 
-    <!-- Expenses Table -->
+    <!-- Drivers to Settle Table -->
     <VCard>
       <VCardText>
-        <VDataTableServer
-          v-model:items-per-page="itemsPerPage"
-          v-model:page="page"
+        <!-- Debug info (remove in production) -->
+        <VAlert
+          v-if="driversToSettle.length === 0 && !isLoading"
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          <div>
+            <strong>Debug Info:</strong>
+            <div>Date sélectionnée: {{ selectedDate }}</div>
+            <div>Nombre de livreurs: {{ driversToSettle.length }}</div>
+            <div>Total drivers: {{ totalDrivers }}</div>
+            <div>Total amount: {{ totalAmount }}</div>
+          </div>
+        </VAlert>
+
+        <VDataTable
           :headers="headers"
-          :items="expenses"
-          :items-length="totalExpenses"
+          :items="driversToSettle"
           :loading="isLoading"
-          item-value="id"
+          item-value="driver.id"
           class="text-no-wrap"
+          :items-per-page="10"
+          :items-per-page-options="[10, 25, 50, 100]"
         >
           <!-- Index -->
           <template #item.index="{ index }">
             <span class="text-high-emphasis font-weight-medium">
-              {{ (page - 1) * itemsPerPage + index + 1 }}
-            </span>
-          </template>
-
-          <!-- Date -->
-          <template #item.date="{ item }">
-            <span class="text-high-emphasis">
-              {{ formatDate(item.date || item.created_at) }}
+              {{ index + 1 }}
             </span>
           </template>
 
@@ -409,67 +294,127 @@ onMounted(() => {
           <template #item.driver="{ item }">
             <div class="d-flex align-center gap-2">
               <VAvatar
-                size="32"
+                size="40"
                 variant="tonal"
                 color="primary"
               >
                 <VIcon icon="tabler-user" />
               </VAvatar>
               <div>
-                <div class="text-body-1 font-weight-medium">
-                  {{ item.driver?.user?.name || item.driver?.name || item.driver_name || $t('Unknown') }}
+                <div class="text-body-1 font-weight-medium text-high-emphasis">
+                  {{ item.driver?.user?.name || item.driver?.name || $t('Unknown') || 'Inconnu' }}
                 </div>
                 <div
-                  v-if="item.driver?.vehicle_type"
-                  class="text-sm text-medium-emphasis"
+                  v-if="item.driver?.user?.phone"
+                  class="text-sm text-medium-emphasis mt-1"
                 >
-                  {{ item.driver.vehicle_type }}
+                  <VIcon
+                    icon="tabler-phone"
+                    size="14"
+                    class="me-1"
+                  />
+                  {{ item.driver.user.phone }}
                 </div>
               </div>
             </div>
           </template>
 
-          <!-- Type -->
-          <template #item.type="{ item }">
-            <VChip
-              size="small"
-              :color="getExpenseTypeInfo(item.type || item.expense_type)?.color || 'secondary'"
-              variant="tonal"
+          <!-- Vehicle -->
+          <template #item.vehicle="{ item }">
+            <div v-if="item.driver?.vehicle_type || item.driver?.plate_number">
+              <VChip
+                size="small"
+                color="secondary"
+                variant="tonal"
+                class="mb-1"
+              >
+                <VIcon
+                  icon="tabler-motorbike"
+                  size="14"
+                  class="me-1"
+                />
+                {{ item.driver.vehicle_type || 'N/A' }}
+              </VChip>
+              <div
+                v-if="item.driver?.plate_number"
+                class="text-sm text-medium-emphasis mt-1"
+              >
+                <VIcon
+                  icon="tabler-barcode"
+                  size="14"
+                  class="me-1"
+                />
+                {{ item.driver.plate_number }}
+              </div>
+            </div>
+            <span
+              v-else
+              class="text-medium-emphasis"
             >
-              <VIcon
-                :icon="getExpenseTypeInfo(item.type || item.expense_type)?.icon || 'tabler-category'"
-                size="14"
-                class="me-1"
-              />
-              {{ getExpenseTypeInfo(item.type || item.expense_type)?.title || $t('Other') }}
-            </VChip>
+              {{ $t('N/A') || 'N/A' }}
+            </span>
           </template>
 
-          <!-- Description -->
-          <template #item.description="{ item }">
-            <div class="text-body-1">
-              {{ item.description || item.notes || '—' }}
+          <!-- Deliveries Count -->
+          <template #item.count="{ item }">
+            <div class="d-flex flex-column gap-1">
+              <VChip
+                size="small"
+                color="info"
+                variant="tonal"
+              >
+                <VIcon
+                  icon="tabler-package"
+                  size="14"
+                  class="me-1"
+                />
+                {{ item.count || item.deliveries?.length || 0 }} {{ $t('deliveries') || 'livraisons' }}
+              </VChip>
+              <div
+                v-if="item.deliveries && item.deliveries.length > 0"
+                class="text-xs text-medium-emphasis"
+              >
+                {{ $t('Click to view details') || 'Cliquez pour voir les détails' }}
+              </div>
             </div>
           </template>
 
-          <!-- Amount -->
-          <template #item.amount="{ item }">
-            <span class="text-body-1 font-weight-medium text-error">
-              - {{ formatPrice(item.amount) }}
-            </span>
+          <!-- Total Amount -->
+          <template #item.total_amount="{ item }">
+            <div class="d-flex flex-column">
+              <span class="text-body-1 font-weight-bold text-success">
+                {{ formatPrice(item.total_amount) }}
+              </span>
+              <span
+                v-if="item.deliveries && item.deliveries.length > 0"
+                class="text-xs text-medium-emphasis"
+              >
+                {{ $t('Expected') || 'Attendu' }}
+              </span>
+            </div>
           </template>
 
           <!-- Actions -->
           <template #item.actions="{ item }">
-            <VBtn
-              icon
-              size="small"
-              variant="text"
-              color="error"
-              @click="deleteExpense(item.id)"
-            >
-              <VIcon icon="tabler-trash" />
-            </VBtn>
+            <div class="d-flex gap-2">
+              <VBtn
+                size="small"
+                color="primary"
+                variant="tonal"
+                prepend-icon="tabler-eye"
+                @click="openSettlementDialog(item)"
+              >
+                {{ $t('View Details') }}
+              </VBtn>
+              <VBtn
+                size="small"
+                color="success"
+                prepend-icon="tabler-cash"
+                @click="openSettlementDialog(item)"
+              >
+                {{ $t('Create Settlement') }}
+              </VBtn>
+            </div>
           </template>
 
           <!-- Empty State -->
@@ -482,22 +427,23 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                {{ $t('No expenses found') }}
+                {{ $t('No drivers to settle') }}
               </h6>
               <p class="text-medium-emphasis">
-                {{ $t('No expenses were recorded for the selected filters.') }}
+                {{ $t('No drivers have deliveries to settle for the selected date.') }}
               </p>
             </div>
           </template>
-        </VDataTableServer>
+        </VDataTable>
       </VCardText>
     </VCard>
 
-    <!-- Add Expense Dialog -->
-    <ExpenseAddDialog
-      v-model:is-dialog-visible="isAddExpenseDialogOpen"
-      :drivers="drivers"
-      @expense-added="fetchExpenses"
+    <!-- Settlement Dialog -->
+    <SettlementAddDialog
+      v-model:is-dialog-visible="isSettlementDialogOpen"
+      :driver-data="selectedDriverForSettlement"
+      :payment-date="selectedDate"
+      @settlement-created="fetchDriversToSettle"
     />
   </section>
 </template>

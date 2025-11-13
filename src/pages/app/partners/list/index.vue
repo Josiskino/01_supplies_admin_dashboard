@@ -49,14 +49,47 @@ const fetchPartnerStatuses = async () => {
 // Data table options
 const itemsPerPage = ref(15)
 const page = ref(1)
-const sortBy = ref()
-const orderBy = ref()
+const sortBy = ref('merchant_name') // Default sort by merchant_name
+const sortOrder = ref('asc') // Default order: asc
 const selectedRows = ref([])
 const isLoading = ref(false)
 const isAddPartnerDialogOpen = ref(false)
 const partnerToEdit = ref(null)
 const isDeleteDialogOpen = ref(false)
 const partnerToDelete = ref(null)
+
+// Pagination metadata from API
+const paginationMeta = ref({
+  total: 0,
+  per_page: 15,
+  current_page: 1,
+  last_page: 1,
+  from: 0,
+  to: 0,
+})
+
+// Pagination links from API
+const paginationLinks = ref({
+  first: null,
+  last: null,
+  prev: null,
+  next: null,
+})
+
+// Sort options
+const sortOptions = [
+  { title: t('Merchant Name'), value: 'merchant_name' },
+  { title: t('Created At'), value: 'created_at' },
+  { title: t('Prospection Date'), value: 'prospection_date' },
+  { title: t('Phone'), value: 'phone' },
+  { title: t('Activity Sector'), value: 'activity_sector' },
+]
+
+// Sort order options
+const sortOrderOptions = [
+  { title: t('Ascending (A-Z)'), value: 'asc' },
+  { title: t('Descending (Z-A)'), value: 'desc' },
+]
 
 const isSuccessSnackVisible = ref(false)
 const successSnackText = ref(t('Partner created successfully'))
@@ -74,8 +107,25 @@ const onPartnerAdded = () => {
 }
 
 const updateOptions = options => {
-  sortBy.value = options.sortBy[0]?.key
-  orderBy.value = options.sortBy[0]?.order
+  // Update sort from table options if available
+  if (options.sortBy && options.sortBy.length > 0) {
+    const tableSortKey = options.sortBy[0]?.key
+    const tableSortOrder = options.sortBy[0]?.order
+    
+    // Map table sort keys to API sort keys
+    const sortKeyMap = {
+      'merchant_name': 'merchant_name',
+      'prospection_date': 'prospection_date',
+      'phone': 'phone',
+      'activity_sector': 'activity_sector',
+      'created_at': 'created_at',
+    }
+    
+    if (tableSortKey && sortKeyMap[tableSortKey]) {
+      sortBy.value = sortKeyMap[tableSortKey]
+      sortOrder.value = tableSortOrder === 'desc' ? 'desc' : 'asc'
+    }
+  }
 }
 
 // Headers for partners table
@@ -136,11 +186,18 @@ const fetchPartners = async () => {
   isLoading.value = true
   try {
     // Build query parameters
-    // eslint-disable-next-line camelcase
     const queryParams = {
-      // eslint-disable-next-line camelcase
       per_page: itemsPerPage.value,
       page: page.value,
+    }
+
+    // Add sort parameters if available
+    if (sortBy.value) {
+      queryParams.sort_by = sortBy.value
+    }
+
+    if (sortOrder.value) {
+      queryParams.sort_order = sortOrder.value
     }
 
     if (searchQuery.value) {
@@ -152,7 +209,6 @@ const fetchPartners = async () => {
     }
 
     if (selectedBusinessSector.value) {
-      // eslint-disable-next-line camelcase
       queryParams.activity_sector = selectedBusinessSector.value
     }
 
@@ -161,9 +217,7 @@ const fetchPartners = async () => {
     const url = `/merchants${queryString ? `?${queryString}` : ''}`
 
     console.log('=== Calling /merchants API ===')
-    console.log('Base URL:', import.meta.env.VITE_API_BASE_URL || '/api')
     console.log('Endpoint URL:', url)
-    console.log('Full URL will be:', `${import.meta.env.VITE_API_BASE_URL || '/api'}${url}`)
     console.log('Query params:', queryParams)
     console.log('===============================')
 
@@ -173,88 +227,148 @@ const fetchPartners = async () => {
 
     console.log('=== Response from /merchants API ===')
     console.log('Full response:', response)
-    console.log('Response type:', typeof response)
-    console.log('Is Array:', Array.isArray(response))
-    console.log('Response length:', Array.isArray(response) ? response.length : 'N/A')
-    
-    // Check if response is wrapped or direct array
-    if (response && typeof response === 'object' && !Array.isArray(response)) {
       console.log('Response data:', response?.data)
       console.log('Response meta:', response?.meta)
       console.log('Response links:', response?.links)
-      console.log('Response keys:', Object.keys(response))
-    } else if (Array.isArray(response)) {
-      console.log('Response is directly an array with', response.length, 'items')
-      console.log('First item:', response[0])
-    } else {
-      console.log('Unexpected response format')
-    }
     console.log('===============================')
 
-    // Handle different response structures
+    // Handle API response with pagination structure: { data: [...], meta: {...}, links: {...} }
     if (response) {
-      if (Array.isArray(response)) {
-        // Response is directly an array
+      if (response.data && Array.isArray(response.data)) {
+        // Standard pagination structure
+        partners.value = response.data
+        
+        // Update pagination metadata
+        if (response.meta) {
+          const total = response.meta.total || 0
+          const perPage = response.meta.per_page || itemsPerPage.value
+          const calculatedLastPage = total > 0 ? Math.ceil(total / perPage) : 1
+          
+          paginationMeta.value = {
+            total: total,
+            per_page: perPage,
+            current_page: response.meta.current_page || page.value,
+            last_page: response.meta.last_page || calculatedLastPage,
+            from: response.meta.from || 0,
+            to: response.meta.to || 0,
+          }
+          
+          // Update totalPartners for VDataTableServer
+          totalPartners.value = total
+          
+          console.log('=== Pagination Meta Updated ===')
+          console.log('Total:', total)
+          console.log('Per page:', perPage)
+          console.log('Last page from API:', response.meta.last_page)
+          console.log('Calculated last page:', calculatedLastPage)
+          console.log('Using last page:', paginationMeta.value.last_page)
+          console.log('Current page:', paginationMeta.value.current_page)
+          console.log('================================')
+          
+          // Sync page with API response (but don't trigger watch if same value)
+          const apiPage = response.meta.current_page || page.value
+          if (apiPage !== page.value) {
+            console.log('Syncing page from API:', apiPage, 'current:', page.value)
+            // Directly update without triggering watch (we're already in fetchPartners)
+            page.value = apiPage
+          }
+        } else {
+          // Fallback if no meta
+          totalPartners.value = response.data.length
+          const calculatedLastPage = response.data.length > 0 ? Math.ceil(response.data.length / itemsPerPage.value) : 1
+          paginationMeta.value = {
+            total: response.data.length,
+            per_page: itemsPerPage.value,
+            current_page: 1,
+            last_page: calculatedLastPage,
+            from: 1,
+            to: response.data.length,
+          }
+        }
+        
+        // Update pagination links
+        if (response.links) {
+          paginationLinks.value = {
+            first: response.links.first || null,
+            last: response.links.last || null,
+            prev: response.links.prev || null,
+            next: response.links.next || null,
+          }
+        }
+      } else if (Array.isArray(response)) {
+        // Response is directly an array (fallback for old API format)
         partners.value = response
         totalPartners.value = response.length
-      } else if (response.success && response.data) {
-        // Response has { success: true, data: [...] } structure
-        if (Array.isArray(response.data)) {
-          partners.value = response.data
-          totalPartners.value = response.meta?.total || response.data.length
-        } else if (response.data.data && Array.isArray(response.data.data)) {
-          // Nested structure: { success: true, data: { data: [...], meta: {...} } }
-          partners.value = response.data.data
-          totalPartners.value = response.data.meta?.total || response.data.data.length
-        } else {
-          partners.value = []
-          totalPartners.value = 0
+        paginationMeta.value = {
+          total: response.length,
+          per_page: itemsPerPage.value,
+          current_page: 1,
+          last_page: 1,
+          from: 1,
+          to: response.length,
         }
-      } else if (response.data && Array.isArray(response.data)) {
-        // Response has { data: [...], meta: {...} } structure (without success)
-        partners.value = response.data
-        totalPartners.value = response.meta?.total || response.data.length
       } else {
         partners.value = []
         totalPartners.value = 0
+        paginationMeta.value = {
+          total: 0,
+          per_page: itemsPerPage.value,
+          current_page: 1,
+          last_page: 1,
+          from: 0,
+          to: 0,
+        }
       }
     } else {
       partners.value = []
       totalPartners.value = 0
     }
 
-    // Debug: Log the final partners data structure
-    console.log('=== Final partners data structure ===')
+    console.log('=== Final partners data ===')
     console.log('Partners count:', partners.value.length)
-    if (partners.value.length > 0) {
-      console.log('First partner:', partners.value[0])
-      console.log('First partner default_address:', partners.value[0]?.default_address)
-      console.log('First partner addresses:', partners.value[0]?.addresses)
-      console.log('Has default_address?:', !!partners.value[0]?.default_address)
-      console.log('Has addresses?:', !!partners.value[0]?.addresses)
-      if (partners.value[0]?.default_address) {
-        console.log('default_address.address:', partners.value[0].default_address.address)
-        console.log('default_address.location:', partners.value[0].default_address.location)
-      }
-    }
-    console.log('====================================')
+    console.log('Total partners:', totalPartners.value)
+    console.log('Pagination meta:', paginationMeta.value)
+    console.log('Last page:', paginationMeta.value.last_page)
+    console.log('Current page:', page.value)
+    console.log('Items per page:', itemsPerPage.value)
+    console.log('Calculated pages:', Math.ceil(totalPartners.value / itemsPerPage.value))
+    console.log('===========================')
   } catch (error) {
     console.error('Error fetching partners:', error)
     partners.value = []
     totalPartners.value = 0
+    paginationMeta.value = {
+      total: 0,
+      per_page: itemsPerPage.value,
+      current_page: 1,
+      last_page: 1,
+      from: 0,
+      to: 0,
+    }
   } finally {
     isLoading.value = false
   }
 }
 
 // Watch for changes and refetch
-watch([searchQuery, selectedStatus, selectedBusinessSector, itemsPerPage], () => {
-  page.value = 1
+watch([searchQuery, selectedStatus, selectedBusinessSector, itemsPerPage, sortBy, sortOrder], () => {
+  page.value = 1 // Reset to first page when filters change
   fetchPartners()
 })
 
-watch(page, () => {
-  fetchPartners()
+watch(page, (newPage, oldPage) => {
+  // Only fetch if page actually changed (avoid infinite loops)
+  console.log('=== Page changed ===')
+  console.log('New page:', newPage)
+  console.log('Old page:', oldPage)
+  console.log('====================')
+  
+  if (newPage !== oldPage && oldPage !== undefined) {
+    console.log('Fetching partners for page:', newPage)
+    fetchPartners()
+  } else {
+    console.log('Skipping fetch (no real change)')
+  }
 })
 
 // Call on mount
@@ -439,6 +553,7 @@ const cancelDelete = () => {
 
       <VCardText class="d-flex flex-wrap gap-4">
         <div class="me-3 d-flex gap-3">
+          <!-- Items per page -->
           <AppSelect
             :model-value="itemsPerPage"
             :items="[
@@ -449,6 +564,22 @@ const cancelDelete = () => {
             ]"
             style="inline-size: 6.25rem;"
             @update:model-value="itemsPerPage = parseInt($event, 10)"
+          />
+          
+          <!-- Sort by field -->
+          <AppSelect
+            v-model="sortBy"
+            :items="sortOptions"
+            :placeholder="$t('Sort by')"
+            style="inline-size: 12rem;"
+          />
+          
+          <!-- Sort order -->
+          <AppSelect
+            v-model="sortOrder"
+            :items="sortOrderOptions"
+            :placeholder="$t('Order')"
+            style="inline-size: 10rem;"
           />
         </div>
         <VSpacer />
@@ -685,11 +816,35 @@ const cancelDelete = () => {
 
         <!-- pagination -->
         <template #bottom>
-          <TablePagination
-            v-model:page="page"
-            :items-per-page="itemsPerPage"
-            :total-items="totalPartners"
-          />
+          <div class="d-flex align-center justify-space-between flex-wrap gap-4 pa-4">
+            <div class="text-body-2 text-medium-emphasis">
+              {{ $t('Showing') }} {{ paginationMeta.from || 0 }} {{ $t('to') }} {{ paginationMeta.to || 0 }} 
+              {{ $t('of') }} {{ paginationMeta.total || 0 }} {{ $t('entries') }}
+            </div>
+            <div class="d-flex align-center gap-3">
+              <VPagination
+                :model-value="page"
+                :length="Math.max(paginationMeta.last_page || Math.ceil(totalPartners / itemsPerPage) || 1, 1)"
+                :total-visible="$vuetify.display.xs ? 3 : 7"
+                active-color="primary"
+                @update:model-value="(val) => { 
+                  console.log('=== VPagination clicked ===')
+                  console.log('New page value:', val)
+                  console.log('Current page:', page)
+                  console.log('Total pages:', paginationMeta.last_page || Math.ceil(totalPartners / itemsPerPage))
+                  console.log('Total partners:', totalPartners)
+                  console.log('Items per page:', itemsPerPage)
+                  console.log('Pagination meta:', paginationMeta)
+                  console.log('==========================')
+                  
+                  // Update page value
+                  if (val !== page) {
+                    page = val
+                  }
+                }"
+              />
+            </div>
+          </div>
         </template>
       </VDataTableServer>
       <!-- SECTION -->

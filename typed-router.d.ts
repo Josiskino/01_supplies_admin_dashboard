@@ -33,6 +33,7 @@ declare module 'vue-router/auto-routes' {
     'financial-report': RouteRecordInfo<'financial-report', '/financial/report', Record<never, never>, Record<never, never>>,
     'financial-transactions': RouteRecordInfo<'financial-transactions', '/financial/transactions', Record<never, never>, Record<never, never>>,
     'financial-transactions-add': RouteRecordInfo<'financial-transactions-add', '/financial/transactions/add', Record<never, never>, Record<never, never>>,
+    'financial-transactions-settlement-add': RouteRecordInfo<'financial-transactions-settlement-add', '/financial/transactions/settlement-add', Record<never, never>, Record<never, never>>,
     'partners-add': RouteRecordInfo<'partners-add', '/partners/add', Record<never, never>, Record<never, never>>,
     'partners-list': RouteRecordInfo<'partners-list', '/partners/list', Record<never, never>, Record<never, never>>,
     'role': RouteRecordInfo<'role', '/role', Record<never, never>, Record<never, never>>,
