@@ -83,34 +83,60 @@ const formatPrice = value => {
   }
 }
 
+// Get driver ID from driverData (handles different structures)
+const getDriverId = () => {
+  if (!props.driverData) {
+    return null
+  }
+  
+  // Handle structure from drivers-to-settle: { driver_id, driver_name, ... }
+  if (props.driverData.driver_id) {
+    return props.driverData.driver_id
+  }
+  
+  // Handle structure with driver object: { driver: { id, ... } }
+  if (props.driverData.driver?.id) {
+    return props.driverData.driver.id
+  }
+  
+  // Handle direct driver object
+  if (props.driverData.id) {
+    return props.driverData.id
+  }
+  
+  return null
+}
+
 // Fetch unpaid deliveries
 const fetchUnpaidDeliveries = async () => {
-  if (!props.driverData?.driver?.id || !props.paymentDate) {
+  const driverId = getDriverId()
+  
+  if (!driverId || !props.paymentDate) {
     return
   }
 
   isLoadingDeliveries.value = true
   try {
-    const response = await $api(`/driver-payments/unpaid-deliveries?driver_id=${props.driverData.driver.id}&date=${props.paymentDate}`, {
+    const response = await $api(`/driver-payments/unpaid-deliveries?driver_id=${driverId}&date=${props.paymentDate}`, {
       method: 'GET',
     })
 
     if (response?.success && response?.data) {
-      unpaidDeliveries.value = response.data.deliveries || []
+      unpaidDeliveries.value = response.data.unpaid_deliveries || response.data.deliveries || []
       expectedAmount.value = response.data.total_amount || 0
       
       // Pre-fill form
-      form.value.driver_id = props.driverData.driver.id
+      form.value.driver_id = driverId
       form.value.payment_date = props.paymentDate
     } else if (response?.data) {
-      unpaidDeliveries.value = response.data.deliveries || []
+      unpaidDeliveries.value = response.data.unpaid_deliveries || response.data.deliveries || []
       expectedAmount.value = response.data.total_amount || 0
-      form.value.driver_id = props.driverData.driver.id
+      form.value.driver_id = driverId
       form.value.payment_date = props.paymentDate
     }
   } catch (error) {
     console.error('Error fetching unpaid deliveries:', error)
-    errors.value.fetch = t('Failed to fetch unpaid deliveries')
+    errors.value.fetch = t('Failed to fetch unpaid deliveries') || 'Échec de la récupération des livraisons non payées'
   } finally {
     isLoadingDeliveries.value = false
   }
@@ -280,13 +306,15 @@ watch(() => props.driverData, () => {
               <div class="d-flex align-center justify-space-between">
                 <div>
                   <div class="font-weight-medium">
-                    {{ driverData.driver?.user?.name || driverData.driver?.name || $t('Unknown Driver') }}
+                    {{ driverData.driver_name || driverData.driver?.user?.name || driverData.driver?.name || driverData.driver?.first_name && driverData.driver?.last_name 
+                      ? `${driverData.driver.first_name} ${driverData.driver.last_name}`.trim()
+                      : $t('Unknown Driver') || 'Livreur inconnu' }}
                   </div>
                   <div class="text-sm">
-                    {{ $t('Expected Amount') }}: <strong>{{ formatPrice(expectedAmount) }}</strong>
+                    {{ $t('Expected Amount') || 'Montant attendu' }}: <strong>{{ formatPrice(expectedAmount) }}</strong>
                   </div>
                   <div class="text-sm">
-                    {{ $t('Deliveries Count') }}: <strong>{{ unpaidDeliveries.length }}</strong>
+                    {{ $t('Deliveries Count') || 'Nombre de livraisons' }}: <strong>{{ unpaidDeliveries.length }}</strong>
                   </div>
                 </div>
               </div>

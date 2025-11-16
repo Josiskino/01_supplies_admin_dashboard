@@ -1,103 +1,306 @@
 <script setup>
 /* eslint-disable camelcase */
 import { useI18n } from 'vue-i18n'
+import DriversToSettleDialog from './drivers-to-settle-dialog.vue'
 import SettlementAddDialog from './settlement-add.vue'
+import SettlementDetailsDialog from './settlement-details.vue'
+import SettlementEditDialog from './settlement-edit.vue'
 
 const { t } = useI18n()
 
-const selectedDate = ref(new Date().toISOString().slice(0, 10))
+// View mode: 'settlements' (list of settlements) or 'drivers-to-settle' (dashboard)
+const viewMode = ref('settlements')
+
+// Filters for settlements list
+const selectedDriverId = ref(null)
+const selectedStatus = ref(null)
+const dateFrom = ref(null)
+const dateTo = ref(null)
+const settlementDate = ref(null)
+const searchQuery = ref('')
 
 // Data table options
+const itemsPerPage = ref(15)
+const page = ref(1)
 const isLoading = ref(false)
+
+// Settlements data
+const settlements = ref([])
+const totalSettlements = ref(0)
+
+// Drivers list for filter
+const drivers = ref([])
+const isLoadingDrivers = ref(false)
+
+// Dialog states
 const isSettlementDialogOpen = ref(false)
+const isSettlementDetailsDialogOpen = ref(false)
+const isSettlementEditDialogOpen = ref(false)
+const isDriversToSettleDialogOpen = ref(false)
+const selectedSettlement = ref(null)
 const selectedDriverForSettlement = ref(null)
 
-// Drivers to settle data
-const driversToSettle = ref([])
-const totalDrivers = ref(0)
-const totalAmount = ref(0)
+// Status options
+const statusOptions = computed(() => [
+  { title: t('Pending') || 'En attente', value: 'En attente', color: 'warning' },
+  { title: t('Validated') || 'Validée', value: 'Validée', color: 'success' },
+])
 
-// Headers for drivers table
+// Headers for settlements table
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
-  { title: t('Driver') || 'Livreur', key: 'driver', sortable: false, width: '250px' },
-  { title: t('Vehicle') || 'Véhicule', key: 'vehicle', sortable: false, width: '150px' },
-  { title: t('Deliveries Count') || 'Nombre de livraisons', key: 'count', sortable: true, width: '180px' },
-  { title: t('Total Amount') || 'Montant total', key: 'total_amount', sortable: true, width: '150px' },
-  { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '250px' },
+  { title: t('Driver') || 'Livreur', key: 'driver', sortable: false, width: '200px' },
+  { title: t('Settlement Date') || 'Date de règlement', key: 'settlement_date', sortable: true, width: '130px' },
+  { title: t('Deliveries Amount') || 'Montant livraisons', key: 'total_deliveries_amount', sortable: true, width: '150px' },
+  { title: t('Expenses Amount') || 'Montant dépenses', key: 'total_expenses_amount', sortable: true, width: '150px' },
+  { title: t('Amount Paid') || 'Montant payé', key: 'amount_paid', sortable: true, width: '130px' },
+  { title: t('Difference') || 'Différence', key: 'difference', sortable: true, width: '130px' },
+  { title: t('Status') || 'Statut', key: 'status', sortable: true, width: '120px' },
+  { title: t('Created At') || 'Créé le', key: 'created_at', sortable: true, width: '130px' },
+  { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '200px' },
 ])
 
 // Statistics
-const totalAmountFormatted = computed(() => {
-  return formatPrice(totalAmount.value)
+const totalDeliveriesAmount = computed(() => {
+  return settlements.value.reduce((sum, s) => sum + getDeliveriesAmount(s), 0)
 })
 
-// Fetch drivers to settle
-const fetchDriversToSettle = async () => {
-  if (!selectedDate.value) {
-    return
-  }
+const totalExpensesAmount = computed(() => {
+  return settlements.value.reduce((sum, s) => {
+    // Use driver_expenses (can be string or number) or total_expenses_amount
+    const amount = parseFloat(s.driver_expenses) || parseFloat(s.total_expenses_amount) || 0
 
-  isLoading.value = true
+    return sum + amount
+  }, 0)
+})
+
+const totalDifference = computed(() => {
+  return settlements.value.reduce((sum, s) => sum + (parseFloat(s.difference) || 0), 0)
+})
+
+// Fetch drivers for filter
+const fetchDrivers = async () => {
+  isLoadingDrivers.value = true
   try {
-    console.log('🔍 Fetching drivers to settle for date:', selectedDate.value)
+    const url = '/drivers'
+    
+    // Log de la requête
+    console.log('🔵 [TRANSACTIONS] Requête API (Drivers):', {
+      method: 'GET',
+      endpoint: url,
+      fullUrl: `${import.meta.env.VITE_API_BASE_URL || ''}${url}`,
+      timestamp: new Date().toISOString(),
+    })
 
-    const response = await $api(`/driver-payments/drivers-to-settle?date=${selectedDate.value}`, {
+    const response = await $api(url, {
       method: 'GET',
     })
 
-    console.log('📦 API Response:', response)
+    // Log de la réponse
+    console.log('✅ [TRANSACTIONS] Réponse API (Drivers):', {
+      driversCount: Array.isArray(response) ? response.length : (response?.data?.length || 0),
+      response: response,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (Array.isArray(response)) {
+      drivers.value = response
+    } else if (response?.data && Array.isArray(response.data)) {
+      drivers.value = response.data
+    } else {
+      drivers.value = []
+    }
+  } catch (error) {
+    console.error('❌ [TRANSACTIONS] Erreur lors de la récupération des drivers:', error)
+    drivers.value = []
+  } finally {
+    isLoadingDrivers.value = false
+  }
+}
+
+// Fetch settlements
+const fetchSettlements = async () => {
+  isLoading.value = true
+  try {
+    const queryParams = {
+      per_page: itemsPerPage.value,
+      page: page.value,
+    }
+
+    if (selectedDriverId.value) {
+      queryParams.driver_id = selectedDriverId.value
+    }
+
+    if (selectedStatus.value) {
+      queryParams.status = selectedStatus.value
+    }
+
+    if (dateFrom.value) {
+      queryParams.date_from = dateFrom.value
+    }
+
+    if (dateTo.value) {
+      queryParams.date_to = dateTo.value
+    }
+
+    if (settlementDate.value) {
+      queryParams.settlement_date = settlementDate.value
+    }
+
+    if (searchQuery.value) {
+      queryParams.search = searchQuery.value
+    }
+
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/driver-payments${queryString ? `?${queryString}` : ''}`
+
+    // Log de la requête
+    console.log('🔵 [TRANSACTIONS] Requête API:', {
+      method: 'GET',
+      endpoint: url,
+      fullUrl: `${import.meta.env.VITE_API_BASE_URL || ''}${url}`,
+      queryParams,
+      timestamp: new Date().toISOString(),
+    })
+
+    const response = await $api(url, {
+      method: 'GET',
+    })
+
+    // Log de la réponse
+    console.log('✅ [TRANSACTIONS] Réponse API:', {
+      success: response?.success,
+      dataLength: Array.isArray(response?.data) ? response?.data.length : (response?.data ? 1 : 0),
+      total: response?.meta?.total || 'N/A',
+      currentPage: response?.meta?.current_page || page.value,
+      lastPage: response?.meta?.last_page || 'N/A',
+      response: response,
+      timestamp: new Date().toISOString(),
+    })
 
     // Handle response structure
     if (response?.success && response?.data) {
-      driversToSettle.value = response.data.drivers || []
-      totalDrivers.value = response.data.total_drivers || 0
-      totalAmount.value = response.data.total_amount || 0
-      console.log('✅ Data loaded:', {
-        drivers: driversToSettle.value.length,
-        totalDrivers: totalDrivers.value,
-        totalAmount: totalAmount.value,
-      })
-    } else if (response?.data) {
-      // Fallback if response structure is different
-      driversToSettle.value = response.data.drivers || response.data || []
-      totalDrivers.value = driversToSettle.value.length
-      totalAmount.value = driversToSettle.value.reduce((sum, driver) => sum + (parseFloat(driver.total_amount) || 0), 0)
-      console.log('✅ Data loaded (fallback):', {
-        drivers: driversToSettle.value.length,
-        totalDrivers: totalDrivers.value,
-        totalAmount: totalAmount.value,
-      })
+      settlements.value = Array.isArray(response.data) ? response.data : []
+      totalSettlements.value = response.meta?.total || (Array.isArray(response.data) ? response.data.length : 0)
+    } else if (response?.data && Array.isArray(response.data)) {
+      settlements.value = response.data
+      totalSettlements.value = response.meta?.total || response.data.length
     } else if (Array.isArray(response)) {
-      // Direct array response
-      driversToSettle.value = response
-      totalDrivers.value = response.length
-      totalAmount.value = response.reduce((sum, driver) => sum + (parseFloat(driver.total_amount) || 0), 0)
-      console.log('✅ Data loaded (array):', {
-        drivers: driversToSettle.value.length,
-        totalDrivers: totalDrivers.value,
-        totalAmount: totalAmount.value,
-      })
+      settlements.value = response
+      totalSettlements.value = response.length
     } else {
-      driversToSettle.value = []
-      totalDrivers.value = 0
-      totalAmount.value = 0
-      console.warn('⚠️ No data found in response')
+      settlements.value = []
+      totalSettlements.value = 0
     }
+
+    // Log du résultat final
+    console.log('📊 [TRANSACTIONS] Données chargées:', {
+      settlementsCount: settlements.value.length,
+      totalSettlements: totalSettlements.value,
+      filters: {
+        driver_id: selectedDriverId.value,
+        status: selectedStatus.value,
+        date_from: dateFrom.value,
+        date_to: dateTo.value,
+        settlement_date: settlementDate.value,
+        search: searchQuery.value,
+        page: page.value,
+        per_page: itemsPerPage.value,
+      },
+      timestamp: new Date().toISOString(),
+    })
   } catch (error) {
-    console.error('❌ Error fetching drivers to settle:', error)
-    driversToSettle.value = []
-    totalDrivers.value = 0
-    totalAmount.value = 0
+    console.error('❌ [TRANSACTIONS] Erreur lors de la récupération des règlements:', {
+      error,
+      url,
+      queryParams,
+      timestamp: new Date().toISOString(),
+    })
+    settlements.value = []
+    totalSettlements.value = 0
   } finally {
     isLoading.value = false
   }
 }
 
-// Open settlement dialog for a driver
+// Open settlement dialog for a driver (from drivers-to-settle)
 const openSettlementDialog = driverData => {
   selectedDriverForSettlement.value = driverData
   isSettlementDialogOpen.value = true
+}
+
+// Open drivers to settle dialog
+const openDriversToSettleDialog = () => {
+  isDriversToSettleDialogOpen.value = true
+}
+
+// View settlement details
+const viewSettlementDetails = settlement => {
+  selectedSettlement.value = settlement
+  isSettlementDetailsDialogOpen.value = true
+}
+
+// Edit settlement
+const editSettlement = settlement => {
+  selectedSettlement.value = settlement
+  isSettlementEditDialogOpen.value = true
+}
+
+// Delete settlement
+const deleteSettlement = async settlement => {
+  if (!confirm(t('Are you sure you want to delete this settlement?') || 'Êtes-vous sûr de vouloir supprimer ce règlement ?')) {
+    return
+  }
+
+  try {
+    await $api(`/driver-payments/${settlement.id}`, {
+      method: 'DELETE',
+    })
+    fetchSettlements()
+  } catch (error) {
+    console.error('Error deleting settlement:', error)
+  }
+}
+
+// Validate settlement
+const validateSettlement = async settlement => {
+  if (!confirm(t('Are you sure you want to validate this settlement?') || 'Êtes-vous sûr de vouloir valider ce règlement ?')) {
+    return
+  }
+
+  try {
+    await $api(`/driver-payments/${settlement.id}/validate`, {
+      method: 'POST',
+    })
+    fetchSettlements()
+  } catch (error) {
+    console.error('Error validating settlement:', error)
+  }
+}
+
+// Get status info
+const getStatusInfo = status => {
+  const statusName = status?.name || status
+
+  return statusOptions.value.find(s => s.value === statusName) || { color: 'secondary', title: statusName }
+}
+
+// Get deliveries amount from settlement item
+const getDeliveriesAmount = item => {
+  if (item.theoretical_amount) {
+    return parseFloat(item.theoretical_amount)
+  }
+  if (item.expected_amount) {
+    return parseFloat(item.expected_amount)
+  }
+  if (item.deliveries && Array.isArray(item.deliveries)) {
+    return item.deliveries.reduce((sum, d) => sum + (parseFloat(d.price) || 0), 0)
+  }
+  if (item.total_deliveries_amount) {
+    return parseFloat(item.total_deliveries_amount)
+  }
+
+  return 0
 }
 
 // Format date
@@ -137,24 +340,70 @@ const formatPrice = value => {
 }
 
 
-// Watch for date changes and refetch
-watch([selectedDate], () => {
-  fetchDriversToSettle()
+// Watch for filter changes and refetch
+watch([selectedDriverId, selectedStatus, dateFrom, dateTo, settlementDate, searchQuery, itemsPerPage], () => {
+  console.log('🔄 [TRANSACTIONS] Filtres modifiés, rechargement des données...', {
+    selectedDriverId: selectedDriverId.value,
+    selectedStatus: selectedStatus.value,
+    dateFrom: dateFrom.value,
+    dateTo: dateTo.value,
+    settlementDate: settlementDate.value,
+    searchQuery: searchQuery.value,
+    itemsPerPage: itemsPerPage.value,
+    timestamp: new Date().toISOString(),
+  })
+  page.value = 1
+  if (viewMode.value === 'settlements') {
+    fetchSettlements()
+  }
+})
+
+watch(page, newPage => {
+  console.log('📄 [TRANSACTIONS] Changement de page:', {
+    newPage,
+    timestamp: new Date().toISOString(),
+  })
+  if (viewMode.value === 'settlements') {
+    fetchSettlements()
+  }
 })
 
 // Watch for settlement dialog close
 watch(isSettlementDialogOpen, newVal => {
   if (!newVal) {
     selectedDriverForSettlement.value = null
+    if (viewMode.value === 'settlements') {
+      fetchSettlements()
+    }
+  }
+})
 
-    // Refetch data after settlement is created
-    fetchDriversToSettle()
+watch(isSettlementDetailsDialogOpen, newVal => {
+  if (!newVal) {
+    selectedSettlement.value = null
+  }
+})
+
+watch(isSettlementEditDialogOpen, newVal => {
+  if (!newVal) {
+    selectedSettlement.value = null
+    fetchSettlements()
+  }
+})
+
+watch(isDriversToSettleDialogOpen, newVal => {
+  if (!newVal) {
+    fetchSettlements()
   }
 })
 
 // Load on mount
 onMounted(() => {
-  fetchDriversToSettle()
+  console.log('🚀 [TRANSACTIONS] Initialisation du screen Transactions', {
+    timestamp: new Date().toISOString(),
+  })
+  fetchDrivers()
+  fetchSettlements()
 })
 </script>
 
@@ -163,32 +412,26 @@ onMounted(() => {
     <!-- Header Section -->
     <VCard class="mb-6">
       <VCardItem class="pb-4">
-        <VCardTitle>{{ $t('Driver Payments - Settlements') }}</VCardTitle>
-        <VCardSubtitle>
-          {{ $t('View drivers who need to settle their deliveries for a specific date') }}
-        </VCardSubtitle>
+        <div class="d-flex align-center justify-space-between">
+          <div>
+            <VCardTitle>{{ $t('Driver Payments - Settlements') }}</VCardTitle>
+            <VCardSubtitle>
+              {{ $t('Manage driver payment settlements') || 'Gérer les règlements des livreurs' }}
+            </VCardSubtitle>
+          </div>
+          <VBtn
+            color="primary"
+            prepend-icon="tabler-users"
+            @click="openDriversToSettleDialog"
+          >
+            {{ $t('Drivers to Settle') || 'Livreurs à régler' }}
+          </VBtn>
+        </div>
       </VCardItem>
 
       <VCardText>
         <VRow class="mb-4">
-          <!-- Date Selection -->
-          <VCol
-            cols="12"
-            md="4"
-          >
-            <AppDateTimePicker
-              v-model="selectedDate"
-              :label="$t('Select Date')"
-              :placeholder="$t('Select date')"
-              :config="{ dateFormat: 'Y-m-d' }"
-            >
-              <template #prepend-inner>
-                <VIcon icon="tabler-calendar" />
-              </template>
-            </AppDateTimePicker>
-          </VCol>
-
-          <!-- Total Drivers Summary -->
+          <!-- Total Deliveries Amount -->
           <VCol
             cols="12"
             md="4"
@@ -200,10 +443,10 @@ onMounted(() => {
               <VCardText class="d-flex align-center justify-space-between">
                 <div>
                   <div class="text-sm text-medium-emphasis">
-                    {{ $t('Total Drivers') }}
+                    {{ $t('Total Deliveries Amount') || 'Total livraisons' }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
-                    {{ totalDrivers }}
+                    {{ formatPrice(totalDeliveriesAmount) }}
                   </div>
                 </div>
                 <VAvatar
@@ -212,7 +455,7 @@ onMounted(() => {
                   size="56"
                 >
                   <VIcon
-                    icon="tabler-users"
+                    icon="tabler-package"
                     size="28"
                   />
                 </VAvatar>
@@ -220,7 +463,39 @@ onMounted(() => {
             </VCard>
           </VCol>
 
-          <!-- Total Amount Summary -->
+          <!-- Total Expenses Amount -->
+          <VCol
+            cols="12"
+            md="4"
+          >
+            <VCard
+              color="warning"
+              variant="tonal"
+            >
+              <VCardText class="d-flex align-center justify-space-between">
+                <div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Total Expenses Amount') || 'Total dépenses' }}
+                  </div>
+                  <div class="text-h4 font-weight-medium mt-1">
+                    {{ formatPrice(totalExpensesAmount) }}
+                  </div>
+                </div>
+                <VAvatar
+                  color="warning"
+                  variant="tonal"
+                  size="56"
+                >
+                  <VIcon
+                    icon="tabler-receipt"
+                    size="28"
+                  />
+                </VAvatar>
+              </VCardText>
+            </VCard>
+          </VCol>
+
+          <!-- Total Difference -->
           <VCol
             cols="12"
             md="4"
@@ -232,10 +507,10 @@ onMounted(() => {
               <VCardText class="d-flex align-center justify-space-between">
                 <div>
                   <div class="text-sm text-medium-emphasis">
-                    {{ $t('Total Amount to Settle') }}
+                    {{ $t('Total Difference') || 'Différence totale' }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
-                    {{ totalAmountFormatted }}
+                    {{ formatPrice(totalDifference) }}
                   </div>
                 </div>
                 <VAvatar
@@ -252,41 +527,116 @@ onMounted(() => {
             </VCard>
           </VCol>
         </VRow>
+
+        <!-- Filters -->
+        <VRow>
+          <VCol
+            cols="12"
+            sm="6"
+            md="2"
+          >
+            <AppSelect
+              v-model="selectedDriverId"
+              :items="drivers.map(d => ({ title: `${d.first_name || ''} ${d.last_name || ''}`.trim() || d.user?.name || $t('Unknown'), value: d.id }))"
+              :loading="isLoadingDrivers"
+              :label="$t('Driver')"
+              :placeholder="$t('Filter by driver')"
+              clearable
+              clear-icon="tabler-x"
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="6"
+            md="2"
+          >
+            <AppSelect
+              v-model="selectedStatus"
+              :items="statusOptions"
+              :label="$t('Status') || 'Statut'"
+              :placeholder="$t('Select a status') || 'Sélectionner un statut'"
+              clearable
+              clear-icon="tabler-x"
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="6"
+            md="2"
+          >
+            <AppDateTimePicker
+              v-model="settlementDate"
+              :label="$t('Settlement Date') || 'Date de règlement'"
+              :placeholder="$t('Select date')"
+              :config="{ dateFormat: 'Y-m-d' }"
+              clearable
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="6"
+            md="2"
+          >
+            <AppDateTimePicker
+              v-model="dateFrom"
+              :label="$t('Date From')"
+              :placeholder="$t('Date from')"
+              :config="{ dateFormat: 'Y-m-d' }"
+              clearable
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="6"
+            md="2"
+          >
+            <AppDateTimePicker
+              v-model="dateTo"
+              :label="$t('Date To')"
+              :placeholder="$t('Date to')"
+              :config="{ dateFormat: 'Y-m-d' }"
+              clearable
+            />
+          </VCol>
+
+          <VCol
+            cols="12"
+            sm="12"
+            md="2"
+          >
+            <AppTextField
+              v-model="searchQuery"
+              :label="$t('Search')"
+              :placeholder="($t('Search...') || 'Rechercher...')"
+              clearable
+              prepend-inner-icon="tabler-search"
+            />
+          </VCol>
+        </VRow>
       </VCardText>
     </VCard>
 
-    <!-- Drivers to Settle Table -->
+    <!-- Settlements Table -->
     <VCard>
       <VCardText>
-        <!-- Debug info (remove in production) -->
-        <VAlert
-          v-if="driversToSettle.length === 0 && !isLoading"
-          type="info"
-          variant="tonal"
-          class="mb-4"
-        >
-          <div>
-            <strong>Debug Info:</strong>
-            <div>Date sélectionnée: {{ selectedDate }}</div>
-            <div>Nombre de livreurs: {{ driversToSettle.length }}</div>
-            <div>Total drivers: {{ totalDrivers }}</div>
-            <div>Total amount: {{ totalAmount }}</div>
-          </div>
-        </VAlert>
-
-        <VDataTable
+        <VDataTableServer
+          v-model:items-per-page="itemsPerPage"
+          v-model:page="page"
           :headers="headers"
-          :items="driversToSettle"
+          :items="settlements"
+          :items-length="totalSettlements"
           :loading="isLoading"
-          item-value="driver.id"
+          item-value="id"
           class="text-no-wrap"
-          :items-per-page="10"
-          :items-per-page-options="[10, 25, 50, 100]"
         >
           <!-- Index -->
           <template #item.index="{ index }">
             <span class="text-high-emphasis font-weight-medium">
-              {{ index + 1 }}
+              {{ (page - 1) * itemsPerPage + index + 1 }}
             </span>
           </template>
 
@@ -294,126 +644,163 @@ onMounted(() => {
           <template #item.driver="{ item }">
             <div class="d-flex align-center gap-2">
               <VAvatar
-                size="40"
+                size="32"
                 variant="tonal"
                 color="primary"
               >
                 <VIcon icon="tabler-user" />
               </VAvatar>
               <div>
-                <div class="text-body-1 font-weight-medium text-high-emphasis">
-                  {{ item.driver?.user?.name || item.driver?.name || $t('Unknown') || 'Inconnu' }}
+                <div class="text-body-1 font-weight-medium">
+                  {{ item.driver?.first_name && item.driver?.last_name 
+                    ? `${item.driver.first_name} ${item.driver.last_name}`.trim()
+                    : item.driver?.user?.name || item.driver?.name || $t('Unknown') || 'Inconnu' }}
                 </div>
                 <div
-                  v-if="item.driver?.user?.phone"
-                  class="text-sm text-medium-emphasis mt-1"
+                  v-if="item.driver?.phone"
+                  class="text-sm text-medium-emphasis"
                 >
                   <VIcon
                     icon="tabler-phone"
-                    size="14"
+                    size="12"
                     class="me-1"
                   />
-                  {{ item.driver.user.phone }}
+                  {{ item.driver.phone }}
                 </div>
               </div>
             </div>
           </template>
 
-          <!-- Vehicle -->
-          <template #item.vehicle="{ item }">
-            <div v-if="item.driver?.vehicle_type || item.driver?.plate_number">
-              <VChip
-                size="small"
-                color="secondary"
-                variant="tonal"
-                class="mb-1"
-              >
-                <VIcon
-                  icon="tabler-motorbike"
-                  size="14"
-                  class="me-1"
-                />
-                {{ item.driver.vehicle_type || 'N/A' }}
-              </VChip>
-              <div
-                v-if="item.driver?.plate_number"
-                class="text-sm text-medium-emphasis mt-1"
-              >
-                <VIcon
-                  icon="tabler-barcode"
-                  size="14"
-                  class="me-1"
-                />
-                {{ item.driver.plate_number }}
-              </div>
-            </div>
-            <span
-              v-else
-              class="text-medium-emphasis"
-            >
-              {{ $t('N/A') || 'N/A' }}
+          <!-- Settlement Date -->
+          <template #item.settlement_date="{ item }">
+            <span class="text-high-emphasis">
+              {{ formatDate(item.settlement_date || item.payment_date) }}
             </span>
           </template>
 
-          <!-- Deliveries Count -->
-          <template #item.count="{ item }">
-            <div class="d-flex flex-column gap-1">
-              <VChip
-                size="small"
-                color="info"
-                variant="tonal"
-              >
-                <VIcon
-                  icon="tabler-package"
-                  size="14"
-                  class="me-1"
-                />
-                {{ item.count || item.deliveries?.length || 0 }} {{ $t('deliveries') || 'livraisons' }}
-              </VChip>
-              <div
-                v-if="item.deliveries && item.deliveries.length > 0"
+          <!-- Deliveries Amount -->
+          <template #item.total_deliveries_amount="{ item }">
+            <div class="d-flex flex-column">
+              <span class="text-body-1 font-weight-medium text-info">
+                {{ formatPrice(getDeliveriesAmount(item)) }}
+              </span>
+              <span
+                v-if="item.deliveries_count"
                 class="text-xs text-medium-emphasis"
               >
-                {{ $t('Click to view details') || 'Cliquez pour voir les détails' }}
-              </div>
+                {{ item.deliveries_count }} {{ $t('deliveries') || 'livraisons' }}
+              </span>
             </div>
           </template>
 
-          <!-- Total Amount -->
-          <template #item.total_amount="{ item }">
+          <!-- Expenses Amount -->
+          <template #item.total_expenses_amount="{ item }">
             <div class="d-flex flex-column">
-              <span class="text-body-1 font-weight-bold text-success">
-                {{ formatPrice(item.total_amount) }}
+              <span class="text-body-1 font-weight-medium text-warning">
+                {{ formatPrice(item.driver_expenses || item.total_expenses_amount || 0) }}
               </span>
               <span
-                v-if="item.deliveries && item.deliveries.length > 0"
+                v-if="item.expenses_count"
                 class="text-xs text-medium-emphasis"
               >
-                {{ $t('Expected') || 'Attendu' }}
+                {{ item.expenses_count }} {{ $t('expenses') || 'dépenses' }}
+              </span>
+            </div>
+          </template>
+
+          <!-- Amount Paid -->
+          <template #item.amount_paid="{ item }">
+            <span class="text-body-1 font-weight-medium text-success">
+              {{ formatPrice(item.amount_paid) }}
+            </span>
+          </template>
+
+          <!-- Difference -->
+          <template #item.difference="{ item }">
+            <span
+              class="text-body-1 font-weight-bold"
+              :class="parseFloat(item.difference) >= 0 ? 'text-success' : 'text-error'"
+            >
+              {{ formatPrice(item.difference) }}
+            </span>
+          </template>
+
+          <!-- Status -->
+          <template #item.status="{ item }">
+            <VChip
+              size="small"
+              :color="getStatusInfo(item.status)?.color || 'secondary'"
+              variant="tonal"
+            >
+              <VIcon
+                :icon="item.status?.name === 'Validée' ? 'tabler-check' : 'tabler-clock'"
+                size="14"
+                class="me-1"
+              />
+              {{ getStatusInfo(item.status)?.title || item.status?.name || $t('Unknown') || 'Inconnu' }}
+            </VChip>
+          </template>
+
+          <!-- Created At -->
+          <template #item.created_at="{ item }">
+            <div class="d-flex flex-column">
+              <span class="text-sm text-high-emphasis">
+                {{ formatDate(item.created_at) }}
+              </span>
+              <span
+                v-if="item.created_by"
+                class="text-xs text-medium-emphasis"
+              >
+                {{ $t('By') || 'Par' }}: {{ item.created_by.name }}
               </span>
             </div>
           </template>
 
           <!-- Actions -->
           <template #item.actions="{ item }">
-            <div class="d-flex gap-2">
-              <VBtn
-                size="small"
+            <div class="d-flex gap-1">
+              <IconBtn
                 color="primary"
-                variant="tonal"
-                prepend-icon="tabler-eye"
-                @click="openSettlementDialog(item)"
+                @click.stop="viewSettlementDetails(item)"
               >
-                {{ $t('View Details') }}
-              </VBtn>
-              <VBtn
-                size="small"
+                <VIcon icon="tabler-eye" />
+                <VTooltip activator="parent">
+                  {{ $t('View Details') }}
+                </VTooltip>
+              </IconBtn>
+
+              <IconBtn
+                v-if="item.status?.name !== 'Validée'"
+                color="warning"
+                @click.stop="editSettlement(item)"
+              >
+                <VIcon icon="tabler-pencil" />
+                <VTooltip activator="parent">
+                  {{ $t('Edit') }}
+                </VTooltip>
+              </IconBtn>
+
+              <IconBtn
+                v-if="item.status?.name !== 'Validée'"
                 color="success"
-                prepend-icon="tabler-cash"
-                @click="openSettlementDialog(item)"
+                @click.stop="validateSettlement(item)"
               >
-                {{ $t('Create Settlement') }}
-              </VBtn>
+                <VIcon icon="tabler-check" />
+                <VTooltip activator="parent">
+                  {{ $t('Validate') || 'Valider' }}
+                </VTooltip>
+              </IconBtn>
+
+              <IconBtn
+                v-if="item.status?.name !== 'Validée'"
+                color="error"
+                @click.stop="deleteSettlement(item)"
+              >
+                <VIcon icon="tabler-trash" />
+                <VTooltip activator="parent">
+                  {{ $t('Delete') }}
+                </VTooltip>
+              </IconBtn>
             </div>
           </template>
 
@@ -427,23 +814,42 @@ onMounted(() => {
                 class="mb-4"
               />
               <h6 class="text-h6 mb-2">
-                {{ $t('No drivers to settle') }}
+                {{ $t('No settlements found') || 'Aucun règlement trouvé' }}
               </h6>
               <p class="text-medium-emphasis">
-                {{ $t('No drivers have deliveries to settle for the selected date.') }}
+                {{ $t('No settlements match the selected filters.') || 'Aucun règlement ne correspond aux filtres sélectionnés.' }}
               </p>
             </div>
           </template>
-        </VDataTable>
+        </VDataTableServer>
       </VCardText>
     </VCard>
 
-    <!-- Settlement Dialog -->
+    <!-- Settlement Add Dialog -->
     <SettlementAddDialog
       v-model:is-dialog-visible="isSettlementDialogOpen"
       :driver-data="selectedDriverForSettlement"
-      :payment-date="selectedDate"
-      @settlement-created="fetchDriversToSettle"
+      :payment-date="settlementDate"
+      @settlement-created="fetchSettlements"
+    />
+
+    <!-- Settlement Details Dialog -->
+    <SettlementDetailsDialog
+      v-model:is-dialog-visible="isSettlementDetailsDialogOpen"
+      :settlement="selectedSettlement"
+    />
+
+    <!-- Settlement Edit Dialog -->
+    <SettlementEditDialog
+      v-model:is-dialog-visible="isSettlementEditDialogOpen"
+      :settlement="selectedSettlement"
+      @settlement-updated="fetchSettlements"
+    />
+
+    <!-- Drivers to Settle Dialog -->
+    <DriversToSettleDialog
+      v-model:is-dialog-visible="isDriversToSettleDialogOpen"
+      @settlement-created="fetchSettlements"
     />
   </section>
 </template>

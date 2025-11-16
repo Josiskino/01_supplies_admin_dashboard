@@ -219,17 +219,25 @@ export const useStatusManagement = () => {
    * Get status by name and category
    */
   const getStatusByName = (category, name) => {
+    if (!name || typeof name !== 'string') {
+      return null
+    }
+    
     const statuses = getStatusesByCategory(category)
     
     return statuses.find(status => 
       status.name.toLowerCase().replace(/\s+/g, '-') === name.toLowerCase(),
-    )
+    ) || null
   }
 
   /**
    * Get status color by name and category
    */
   const getStatusColor = (category, name) => {
+    if (!name) {
+      return 'secondary'
+    }
+    
     const status = getStatusByName(category, name)
     
     return status ? status.color : 'secondary'
@@ -239,6 +247,10 @@ export const useStatusManagement = () => {
    * Get status icon by name and category
    */
   const getStatusIcon = (category, name) => {
+    if (!name) {
+      return 'tabler-circle'
+    }
+    
     const status = getStatusByName(category, name)
     
     return status ? status.icon : 'tabler-circle'
@@ -248,6 +260,10 @@ export const useStatusManagement = () => {
    * Get status label by name and category
    */
   const getStatusLabel = (category, name) => {
+    if (!name) {
+      return 'Unknown'
+    }
+    
     const status = getStatusByName(category, name)
     
     return status ? status.label : name

@@ -3,6 +3,7 @@
 import { useI18n } from 'vue-i18n'
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
 import DeliveryAddDialog from './add.vue'
+import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
 
 const { t } = useI18n()
 const { getStatusOptions, getStatusColor, getStatusLabel } = useDeliveryStatuses()
@@ -37,6 +38,10 @@ const total = ref(0)
 
 // Add delivery dialog
 const isAddDeliveryDialogOpen = ref(false)
+
+// Price adjustment request dialog
+const isPriceAdjustmentDialogOpen = ref(false)
+const selectedDeliveryForPriceAdjustment = ref(null)
 
 // Success notifications
 const isSuccessSnackVisible = ref(false)
@@ -190,6 +195,19 @@ const editDelivery = delivery => {
   // TODO: Implement edit delivery dialog
   // For now, we can show an alert or open a dialog
   alert(t('Edit delivery') + ': ' + (delivery.id || 'N/A'))
+}
+
+// Request price adjustment
+const requestPriceAdjustment = delivery => {
+  selectedDeliveryForPriceAdjustment.value = delivery
+  isPriceAdjustmentDialogOpen.value = true
+}
+
+// Handle price adjustment request created
+const onPriceAdjustmentRequestCreated = () => {
+  successSnackText.value = t('Price adjustment request created successfully') || 'Demande de rabais créée avec succès'
+  isSuccessSnackVisible.value = true
+  fetchDeliveries()
 }
 </script>
 
@@ -368,11 +386,11 @@ const editDelivery = delivery => {
           <template #item.status="{ item }">
             <VChip
               size="small"
-              :color="getStatusColor(item?.status?.name || item?.status)"
+              :color="getStatusColor(item?.status?.name || item?.status || '')"
               label
               class="text-capitalize"
             >
-              {{ item?.status?.name || getStatusLabel(item?.status) || item?.status || $t('Unknown') }}
+              {{ item?.status?.name || getStatusLabel(item?.status?.name || item?.status || '') || item?.status || $t('Unknown') }}
             </VChip>
           </template>
 
@@ -439,6 +457,16 @@ const editDelivery = delivery => {
                   {{ $t('Edit Delivery') }}
                 </VTooltip>
               </IconBtn>
+
+              <IconBtn
+                color="warning"
+                @click.stop="requestPriceAdjustment(item)"
+              >
+                <VIcon icon="tabler-discount" />
+                <VTooltip activator="parent">
+                  {{ $t('Request Price Adjustment') || 'Demander un rabais' }}
+                </VTooltip>
+              </IconBtn>
             </div>
           </template>
         </VDataTableServer>
@@ -449,6 +477,13 @@ const editDelivery = delivery => {
     <DeliveryAddDialog
       v-model:is-dialog-visible="isAddDeliveryDialogOpen"
       @delivery-added="onDeliveryAdded"
+    />
+
+    <!-- Price Adjustment Request Dialog -->
+    <PriceAdjustmentRequestDialog
+      v-model:is-dialog-visible="isPriceAdjustmentDialogOpen"
+      :delivery="selectedDeliveryForPriceAdjustment"
+      @request-created="onPriceAdjustmentRequestCreated"
     />
 
     <!-- Success Notification -->

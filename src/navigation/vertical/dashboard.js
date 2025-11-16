@@ -59,6 +59,7 @@ const allNavItems = [
     roles: ['Comptable'],
     children: [
       { title: 'Transactions', to: 'financial-transactions' },
+      { title: 'Price Adjustments', to: 'financial-price-adjustments' },
       { title: 'Report', to: 'financial-report' },
     ],
   },
