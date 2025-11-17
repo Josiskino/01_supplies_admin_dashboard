@@ -1,7 +1,7 @@
 <script setup>
 /* eslint-disable camelcase */
-import { useI18n } from 'vue-i18n'
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
+import { useI18n } from 'vue-i18n'
 import DeliveryAddDialog from './add.vue'
 import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
 
@@ -38,6 +38,7 @@ const total = ref(0)
 
 // Add delivery dialog
 const isAddDeliveryDialogOpen = ref(false)
+const selectedDeliveryForEdit = ref(null)
 
 // Price adjustment request dialog
 const isPriceAdjustmentDialogOpen = ref(false)
@@ -123,9 +124,11 @@ const fetchDeliveries = async () => {
       // Response has { success: true, data: [...] } structure
       if (Array.isArray(res.data)) {
         deliveries.value = res.data
+
         // Handle pagination meta
         if (res.meta && res.meta.total) {
           const metaTotal = res.meta.total
+
           total.value = Array.isArray(metaTotal) && metaTotal.length > 0 ? metaTotal[0] : (typeof metaTotal === 'number' ? metaTotal : res.data.length)
         } else {
           total.value = res.data.length
@@ -133,7 +136,9 @@ const fetchDeliveries = async () => {
       } else if (res.data.data && Array.isArray(res.data.data)) {
         // Nested structure: { success: true, data: { data: [...], meta: {...} } }
         deliveries.value = res.data.data
+
         const metaTotal = res.data.meta?.total
+
         total.value = Array.isArray(metaTotal) && metaTotal.length > 0 ? metaTotal[0] : (typeof metaTotal === 'number' ? metaTotal : res.data.data.length)
       } else {
         deliveries.value = []
@@ -142,7 +147,9 @@ const fetchDeliveries = async () => {
     } else if (res && Array.isArray(res.data)) {
       // Response has { data: [...], meta: {...} } structure (without success)
       deliveries.value = res.data
+
       const metaTotal = res.meta?.total
+
       total.value = Array.isArray(metaTotal) && metaTotal.length > 0 ? metaTotal[0] : (typeof metaTotal === 'number' ? metaTotal : res.data.length)
     } else {
       deliveries.value = []
@@ -176,14 +183,16 @@ watch(page, fetchDeliveries)
 
 // Handle delivery added
 const onDeliveryAdded = () => {
-  successSnackText.value = t('Delivery created successfully')
+  successSnackText.value = t('Delivery created successfully') || 'Livraison créée avec succès'
   isSuccessSnackVisible.value = true
   fetchDeliveries()
+  selectedDeliveryForEdit.value = null
 }
 
 // View delivery details
 const viewDelivery = delivery => {
   console.log('View delivery:', delivery)
+
   // TODO: Implement view delivery dialog or navigate to detail page
   // For now, we can show an alert or open a dialog
   alert(t('View delivery details') + ': ' + (delivery.id || 'N/A'))
@@ -191,16 +200,131 @@ const viewDelivery = delivery => {
 
 // Edit delivery
 const editDelivery = delivery => {
-  console.log('Edit delivery:', delivery)
-  // TODO: Implement edit delivery dialog
-  // For now, we can show an alert or open a dialog
-  alert(t('Edit delivery') + ': ' + (delivery.id || 'N/A'))
+  selectedDeliveryForEdit.value = delivery
+  isAddDeliveryDialogOpen.value = true
 }
+
+// Handle delivery updated
+const onDeliveryUpdated = () => {
+  successSnackText.value = t('Delivery updated successfully') || 'Livraison mise à jour avec succès'
+  isSuccessSnackVisible.value = true
+  fetchDeliveries()
+  selectedDeliveryForEdit.value = null
+}
+
 
 // Request price adjustment
 const requestPriceAdjustment = delivery => {
   selectedDeliveryForPriceAdjustment.value = delivery
   isPriceAdjustmentDialogOpen.value = true
+}
+
+// Open WhatsApp for delivery
+
+// Helper function to format location as Google Maps link
+const formatLocationLink = location => {
+  if (!location) {
+    return null
+  }
+
+  // If it's already a URL, return it
+  if (typeof location === 'string' && (location.startsWith('http://') || location.startsWith('https://'))) {
+    return location
+  }
+
+  // If it's an object with url property
+  if (typeof location === 'object' && location?.url) {
+    return location.url
+  }
+
+  // If it's an object with lat/lng, create Google Maps link
+  if (typeof location === 'object' && location?.lat && location?.lng) {
+    return `https://www.google.com/maps?q=${encodeURIComponent(location.lat)},${encodeURIComponent(location.lng)}`
+  }
+
+  // If it's a string with coordinates, try to create a link
+  if (typeof location === 'string') {
+    // Try to extract coordinates from string (format: "lat, lng" or similar)
+    const coordMatch = location.match(/(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/)
+    if (coordMatch) {
+      return `https://www.google.com/maps?q=${encodeURIComponent(coordMatch[1])},${encodeURIComponent(coordMatch[2])}`
+    }
+
+    // If no coordinates found, return as is (might be an address)
+    return `https://www.google.com/maps/search/${encodeURIComponent(location)}`
+  }
+
+  return null
+}
+
+const openWhatsApp = delivery => {
+  try {
+    // Check if driver has a phone number
+    if (!delivery?.driver?.phone) {
+      alert(t('Driver phone number is not available') || 'Le numéro de téléphone du livreur n\'est pas disponible')
+
+      return
+    }
+
+    // Get partner name
+    const partnerName = delivery?.partner?.name || delivery?.partner?.merchant_name || t('Unknown Partner') || 'Partenaire inconnu'
+
+    // Get customer name
+    let customerName = '—'
+    if (delivery?.customer) {
+      if (delivery.customer.name) {
+        customerName = delivery.customer.name
+      } else if (delivery.customer.first_name || delivery.customer.last_name) {
+        customerName = `${delivery.customer.first_name || ''} ${delivery.customer.last_name || ''}`.trim()
+      } else {
+        customerName = t('Unknown Customer') || 'Client inconnu'
+      }
+    }
+
+    // Get locations and format as links
+    const pickupLocation = formatLocationLink(delivery?.pickup_location)
+    const dropoffLocation = formatLocationLink(delivery?.dropoff_location)
+
+    // Get price
+    const price = delivery?.price ? formatPrice(delivery.price) : t('Not specified') || 'Non spécifié'
+
+    // Build WhatsApp message with emojis
+    let message = `🚚 *Nouvelle livraison*\n\n`
+    message += `📍 *Partenaire:* ${partnerName}\n`
+    message += `👤 *Client:* ${customerName}\n\n`
+
+    if (pickupLocation) {
+      message += `📦 *Point de collecte:*\n${pickupLocation}\n\n`
+    } else {
+      message += `📦 *Point de collecte:* ${delivery?.pickup_location || t('Not specified') || 'Non spécifié'}\n\n`
+    }
+
+    if (dropoffLocation) {
+      message += `🏠 *Point de livraison:*\n${dropoffLocation}\n\n`
+    } else {
+      message += `🏠 *Point de livraison:* ${delivery?.dropoff_location || t('Not specified') || 'Non spécifié'}\n\n`
+    }
+
+    message += `💰 *Prix:* ${price}\n`
+
+    // Clean phone number (remove spaces, dashes, etc.)
+    const phoneNumber = delivery.driver.phone.replace(/[\s\-()]/g, '')
+
+    // Remove leading + if present, WhatsApp API needs number without +
+    const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber
+
+    // Encode message for URL
+    const encodedMessage = encodeURIComponent(message)
+
+    // Build WhatsApp URL
+    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
+
+    // Open WhatsApp in new tab
+    window.open(whatsappUrl, '_blank')
+  } catch (error) {
+    console.error('Error opening WhatsApp:', error)
+    alert(t('Error opening WhatsApp. Please try again.') || 'Erreur lors de l\'ouverture de WhatsApp. Veuillez réessayer.')
+  }
 }
 
 // Handle price adjustment request created
@@ -250,7 +374,7 @@ const onPriceAdjustmentRequestCreated = () => {
             <VBtn
               prepend-icon="tabler-plus"
               color="primary"
-              @click="isAddDeliveryDialogOpen = true"
+              @click="() => { selectedDeliveryForEdit = null; isAddDeliveryDialogOpen = true; }"
             >
               {{ $t('Add Delivery') }}
             </VBtn>
@@ -467,16 +591,28 @@ const onPriceAdjustmentRequestCreated = () => {
                   {{ $t('Request Price Adjustment') || 'Demander un rabais' }}
                 </VTooltip>
               </IconBtn>
+
+              <IconBtn
+                color="success"
+                @click.stop="openWhatsApp(item)"
+              >
+                <VIcon icon="tabler-brand-whatsapp" />
+                <VTooltip activator="parent">
+                  {{ $t('WhatsApp') || 'WhatsApp' }}
+                </VTooltip>
+              </IconBtn>
             </div>
           </template>
         </VDataTableServer>
       </VCardText>
     </VCard>
 
-    <!-- Add Delivery Dialog -->
+    <!-- Add/Edit Delivery Dialog -->
     <DeliveryAddDialog
       v-model:is-dialog-visible="isAddDeliveryDialogOpen"
+      :delivery="selectedDeliveryForEdit"
       @delivery-added="onDeliveryAdded"
+      @delivery-updated="onDeliveryUpdated"
     />
 
     <!-- Price Adjustment Request Dialog -->

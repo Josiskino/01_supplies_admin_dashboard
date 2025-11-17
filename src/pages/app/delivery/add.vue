@@ -10,9 +10,13 @@ const props = defineProps({
     type: Boolean,
     required: true,
   },
+  delivery: {
+    type: Object,
+    default: null,
+  },
 })
 
-const emit = defineEmits(['update:isDialogVisible', 'deliveryAdded'])
+const emit = defineEmits(['update:isDialogVisible', 'deliveryAdded', 'deliveryUpdated'])
 
 const dialogVisible = computed({
   get: () => props.isDialogVisible,
@@ -56,7 +60,6 @@ const form = ref({
   distance_km: null,
   price: 0,
   status_id: null,
-  start_at: '',
 })
 
 // Loading states
@@ -632,11 +635,6 @@ const onSubmit = async () => {
     payload.price = form.value.price ? Number(form.value.price) : undefined
     payload.status_id = form.value.status_id ? Number(form.value.status_id) : undefined
     
-    // Start date/time
-    if (form.value.start_at) {
-      payload.start_at = form.value.start_at
-    }
-    
     // Remove undefined and empty string fields (but keep distance_km even if 0)
     Object.keys(payload).forEach(key => {
       if (key !== 'distance_km' && (payload[key] === undefined || payload[key] === '' || payload[key] === null)) {
@@ -644,36 +642,63 @@ const onSubmit = async () => {
       }
     })
 
-    console.log('=== Creating delivery payload ===')
+    console.log('=== Creating/Updating delivery payload ===')
+    console.log('Mode:', isEditMode.value ? 'EDIT' : 'CREATE')
     console.log('Payload:', payload)
     console.log('Partner mode:', partnerMode.value)
     console.log('Customer mode:', customerMode.value)
     console.log('Distance (km):', payload.distance_km)
-    console.log('================================')
+    console.log('==========================================')
 
-    await $api('/deliveries', {
-      method: 'POST',
-      body: payload,
-      onResponseError({ response }) {
-        console.error('=== Delivery creation error ===')
-        console.error('Status:', response.status)
-        console.error('Error data:', response._data)
-        console.error('Errors:', response._data?.errors || response._data?.message || response._data)
-        console.error('==============================')
-        
-        // Show error message to user
-        const errorMessage = response._data?.message || t('Error creating delivery')
-        const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
-        alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
-      },
-    })
+    if (isEditMode.value) {
+      // Update existing delivery
+      await $api(`/deliveries/${props.delivery.id}`, {
+        method: 'PATCH',
+        body: payload,
+        onResponseError({ response }) {
+          console.error('=== Delivery update error ===')
+          console.error('Status:', response.status)
+          console.error('Error data:', response._data)
+          console.error('Errors:', response._data?.errors || response._data?.message || response._data)
+          console.error('============================')
+          
+          // Show error message to user
+          const errorMessage = response._data?.message || t('Error updating delivery') || 'Erreur lors de la mise à jour de la livraison'
+          const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
+          alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
+        },
+      })
 
-    emit('deliveryAdded')
+      emit('deliveryUpdated')
+    } else {
+      // Create new delivery
+      await $api('/deliveries', {
+        method: 'POST',
+        body: payload,
+        onResponseError({ response }) {
+          console.error('=== Delivery creation error ===')
+          console.error('Status:', response.status)
+          console.error('Error data:', response._data)
+          console.error('Errors:', response._data?.errors || response._data?.message || response._data)
+          console.error('==============================')
+          
+          // Show error message to user
+          const errorMessage = response._data?.message || t('Error creating delivery')
+          const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
+          alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
+        },
+      })
+
+      emit('deliveryAdded')
+    }
+
     resetForm()
     dialogVisible.value = false
   } catch (error) {
-    console.error('Error creating delivery:', error)
-    alert(t('Error creating delivery. Please try again.'))
+    console.error(`Error ${isEditMode.value ? 'updating' : 'creating'} delivery:`, error)
+    alert(isEditMode.value 
+      ? (t('Error updating delivery. Please try again.') || 'Erreur lors de la mise à jour de la livraison. Veuillez réessayer.')
+      : t('Error creating delivery. Please try again.'))
   } finally {
     isSubmitting.value = false
   }
@@ -701,10 +726,9 @@ const resetForm = () => {
     driver_id: null,
     pickup_location: '',
     dropoff_location: '',
-  distance_km: null,
-  price: 0,
-  status_id: null,
-  start_at: '',
+    distance_km: null,
+    price: 0,
+    status_id: null,
   }
   distanceInfo.value = null
   distanceServiceUsed.value = null
@@ -716,6 +740,74 @@ const onClose = () => {
   dialogVisible.value = false
 }
 
+// Check if we're in edit mode
+const isEditMode = computed(() => !!props.delivery?.id)
+
+// Load delivery data for editing
+const loadDeliveryData = () => {
+  if (!props.delivery) {
+    return
+  }
+
+  const delivery = props.delivery
+
+  // Partner data
+  if (delivery.partner?.id) {
+    partnerMode.value = 'select'
+    form.value.partner_id = delivery.partner.id
+  } else if (delivery.partner) {
+    partnerMode.value = 'create'
+    form.value.partner_merchant_name = delivery.partner.merchant_name || delivery.partner.name || ''
+    form.value.partner_phone = delivery.partner.phone || ''
+    form.value.partner_contact_name = delivery.partner.contact_name || ''
+    form.value.partner_location = normalizeUrl(delivery.partner.location || delivery.partner.default_address) || delivery.partner.location || ''
+  }
+
+  // Customer data
+  if (delivery.customer?.id) {
+    customerMode.value = 'select'
+    form.value.customer_id = delivery.customer.id
+  } else if (delivery.customer) {
+    customerMode.value = 'create'
+    form.value.customer_phone = delivery.customer.phone || ''
+    form.value.customer_first_name = delivery.customer.first_name || ''
+    form.value.customer_last_name = delivery.customer.last_name || ''
+    form.value.customer_email = delivery.customer.email || ''
+    form.value.customer_location = normalizeUrl(delivery.customer.location || delivery.customer.default_address) || delivery.customer.location || ''
+  }
+
+  // Delivery fields
+  form.value.driver_id = delivery.driver?.id || null
+  form.value.pickup_location = normalizeUrl(delivery.pickup_location) || delivery.pickup_location || ''
+  form.value.dropoff_location = normalizeUrl(delivery.dropoff_location) || delivery.dropoff_location || ''
+  form.value.distance_km = delivery.distance_km ? parseFloat(delivery.distance_km) : null
+  form.value.price = delivery.price ? parseFloat(delivery.price) : 0
+  form.value.status_id = delivery.status?.id || delivery.status_id || null
+
+  // Set distance info if available
+  if (form.value.distance_km) {
+    distanceInfo.value = {
+      distance: form.value.distance_km,
+      distanceText: `${form.value.distance_km} km`,
+      duration: 'N/A',
+    }
+  }
+}
+
+// Helper function to normalize URL from location object
+const normalizeUrl = obj => {
+  if (!obj) return null
+
+  // Prefer explicit URL if provided
+  if (obj.url) return obj.url
+
+  // Build map link from lat/lng if available
+  if (obj.lat && obj.lng)
+    return `https://www.google.com/maps?q=${encodeURIComponent(obj.lat)},${encodeURIComponent(obj.lng)}`
+
+  return null
+}
+
 // Load data when dialog opens
 watch(dialogVisible, newVal => {
   if (newVal) {
@@ -723,8 +815,22 @@ watch(dialogVisible, newVal => {
     fetchDeliveryStatuses()
     fetchPartners()
     fetchCustomers()
+    
+    // Load delivery data if in edit mode
+    if (isEditMode.value) {
+      loadDeliveryData()
+    } else {
+      resetForm()
+    }
   }
 })
+
+// Watch for delivery prop changes
+watch(() => props.delivery, () => {
+  if (dialogVisible.value && isEditMode.value) {
+    loadDeliveryData()
+  }
+}, { deep: true })
 </script>
 
 <template>
@@ -739,184 +845,194 @@ watch(dialogVisible, newVal => {
     
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
-        <span>{{ $t('Add New Delivery') }}</span>
+        <span>{{ isEditMode ? ($t('Edit Delivery') || 'Modifier la livraison') : ($t('Add New Delivery') || 'Ajouter une livraison') }}</span>
       </VCardTitle>
 
       <VDivider />
 
       <VCardText class="dialog-content">
         <VForm @submit.prevent="onSubmit">
-          <!-- Billing Mode Selection - Always visible at top -->
-          <VCard
-            variant="outlined"
-            class="mb-4"
-          >
-            <VCardItem>
-              <VCardTitle class="text-h6">
-                {{ $t('Billing Mode') }}
-              </VCardTitle>
-            </VCardItem>
-            <VDivider />
-            <VCardText>
-              <AppSelect
-                v-model="billingMode"
-                :label="$t('Billing Mode')"
-                :items="[
-                  { title: $t('Express Mode'), value: 'express' },
-                  { title: $t('Standard Mode'), value: 'standard' },
-                ]"
-                class="mb-2"
-              >
-                <template #prepend-inner>
-                  <VIcon icon="tabler-settings" />
-                </template>
-              </AppSelect>
-              <p class="text-sm text-medium-emphasis">
-                {{ billingMode === 'express' 
-                  ? $t('Express mode: Detailed pricing with multiple distance ranges')
-                  : $t('Standard mode: Simplified pricing with three distance ranges') }}
-              </p>
-            </VCardText>
-          </VCard>
-
-          <!-- Partner Section -->
-          <VExpansionPanels
-            v-model="partnerExpanded"
-            class="mb-4"
-          >
-            <VExpansionPanel>
-              <VExpansionPanelTitle>
-                <div class="d-flex align-center justify-space-between w-100">
-                  <span class="text-h6">{{ $t('Partner (Pickup Location)') }}</span>
-                  <VBtnToggle
-                    v-model="partnerMode"
-                    mandatory
-                    density="compact"
-                    variant="outlined"
-                    color="primary"
-                    class="partner-mode-toggle"
-                    @click.stop
-                  >
-                    <VBtn
-                      value="select"
-                      class="px-6"
-                    >
-                      {{ $t('Existing') }}
-                    </VBtn>
-                    <VBtn
-                      value="create"
-                      class="px-6"
-                    >
-                      {{ $t('New') }}
-                    </VBtn>
-                  </VBtnToggle>
-                </div>
-              </VExpansionPanelTitle>
-              <VExpansionPanelText>
-                <VCard
+          <!-- Billing Mode Selection - Compact container aligned left -->
+          <div class="mb-4 d-flex align-center">
+            <VMenu>
+              <template #activator="{ props: menuProps }">
+                <VBtn
+                  v-bind="menuProps"
                   variant="outlined"
+                  color="primary"
+                  class="text-capitalize"
+                  prepend-icon="tabler-settings"
                 >
-                  <VCardText>
-              <!-- Select Existing Partner -->
-              <VRow v-if="partnerMode === 'select'">
-                <VCol cols="12">
-                  <AppSelect
-                    v-model="form.partner_id"
-                    :items="partners"
-                    :loading="isLoadingPartners"
-                    :label="$t('Select Partner')"
-                    :placeholder="$t('Search and select a partner')"
-                    item-title="title"
-                    item-value="value"
-                    clearable
-                    @update:model-value="onPartnerSelect"
+                  {{ billingMode === 'express' ? $t('Express Mode') : $t('Standard Mode') }}
+                  <VIcon
+                    icon="tabler-chevron-down"
+                    class="ms-2"
                   />
-                </VCol>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="form.pickup_location"
-                    :label="$t('Pickup Location')"
-                    placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                    :hint="$t('Location coordinates (auto-filled if partner selected)')"
-                  />
-                </VCol>
-              </VRow>
+                </VBtn>
+              </template>
+              <VList>
+                <VListItem
+                  :value="'express'"
+                  :active="billingMode === 'express'"
+                  @click="billingMode = 'express'"
+                >
+                  <VListItemTitle>{{ $t('Express Mode') }}</VListItemTitle>
+                  <VListItemSubtitle class="text-xs">
+                    {{ $t('Express mode: Detailed pricing with multiple distance ranges') }}
+                  </VListItemSubtitle>
+                </VListItem>
+                <VListItem
+                  :value="'standard'"
+                  :active="billingMode === 'standard'"
+                  @click="billingMode = 'standard'"
+                >
+                  <VListItemTitle>{{ $t('Standard Mode') }}</VListItemTitle>
+                  <VListItemSubtitle class="text-xs">
+                    {{ $t('Standard mode: Simplified pricing with three distance ranges') }}
+                  </VListItemSubtitle>
+                </VListItem>
+              </VList>
+            </VMenu>
+          </div>
 
-              <!-- Create New Partner -->
-              <VRow v-else>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.partner_merchant_name"
-                    :label="$t('Merchant Name')"
-                    :placeholder="$t('Restaurant Le Gourmet')"
-                    required
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.partner_phone"
-                    :label="$t('Phone')"
-                    placeholder="+228 90 12 34 56"
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.partner_contact_name"
-                    :label="$t('Contact Name')"
-                    :placeholder="$t('Jean Dupont')"
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppSelect
-                    v-model="form.partner_activity_sector"
-                    :items="activitySectorOptions"
-                    :label="$t('Activity Sector')"
-                    :placeholder="$t('Select activity sector')"
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppSelect
-                    v-model="form.partner_engagement_type"
-                    :items="engagementTypeOptions"
-                    :label="$t('Engagement Type')"
-                    :placeholder="$t('Select engagement type')"
-                  />
-                </VCol>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="form.partner_location"
-                    :label="$t('Partner Location')"
-                    placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                    :hint="$t('Location coordinates')"
-                  />
-                </VCol>
-              </VRow>
-                  </VCardText>
-                </VCard>
-              </VExpansionPanelText>
-            </VExpansionPanel>
-          </VExpansionPanels>
+          <!-- Partner and Customer Sections - Side by side -->
+          <VRow class="mb-4">
+            <!-- Partner Section -->
+            <VCol
+              cols="12"
+              md="6"
+            >
+              <VExpansionPanels
+                v-model="partnerExpanded"
+              >
+                <VExpansionPanel>
+                  <VExpansionPanelTitle>
+                    <div class="d-flex align-center justify-space-between w-100">
+                      <span class="text-h6">{{ $t('Partner (Pickup Location)') }}</span>
+                      <VBtnToggle
+                        v-model="partnerMode"
+                        mandatory
+                        density="compact"
+                        variant="outlined"
+                        color="primary"
+                        class="partner-mode-toggle"
+                        @click.stop
+                      >
+                        <VBtn
+                          value="select"
+                          class="px-6"
+                        >
+                          {{ $t('Existing') }}
+                        </VBtn>
+                        <VBtn
+                          value="create"
+                          class="px-6"
+                        >
+                          {{ $t('New') }}
+                        </VBtn>
+                      </VBtnToggle>
+                    </div>
+                  </VExpansionPanelTitle>
+                  <VExpansionPanelText>
+                    <VCard
+                      variant="outlined"
+                    >
+                      <VCardText>
+                <!-- Select Existing Partner -->
+                <VRow v-if="partnerMode === 'select'">
+                  <VCol cols="12">
+                    <AppSelect
+                      v-model="form.partner_id"
+                      :items="partners"
+                      :loading="isLoadingPartners"
+                      :label="$t('Select Partner')"
+                      :placeholder="$t('Search and select a partner')"
+                      item-title="title"
+                      item-value="value"
+                      clearable
+                      @update:model-value="onPartnerSelect"
+                    />
+                  </VCol>
+                  <VCol cols="12">
+                    <AppTextField
+                      v-model="form.pickup_location"
+                      :label="$t('Pickup Location')"
+                      placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                      :hint="$t('Location coordinates (auto-filled if partner selected)')"
+                    />
+                  </VCol>
+                </VRow>
 
-          <!-- Customer Section -->
-          <VExpansionPanels
-            v-model="customerExpanded"
-            class="mb-4"
-          >
+                <!-- Create New Partner -->
+                <VRow v-else>
+                  <VCol cols="12">
+                    <AppTextField
+                      v-model="form.partner_merchant_name"
+                      :label="$t('Merchant Name')"
+                      :placeholder="$t('Restaurant Le Gourmet')"
+                      required
+                    />
+                  </VCol>
+                  <VCol
+                    cols="12"
+                    md="6"
+                  >
+                    <AppTextField
+                      v-model="form.partner_phone"
+                      :label="$t('Phone')"
+                      placeholder="+228 90 12 34 56"
+                    />
+                  </VCol>
+                  <VCol
+                    cols="12"
+                    md="6"
+                  >
+                    <AppTextField
+                      v-model="form.partner_contact_name"
+                      :label="$t('Contact Name')"
+                      :placeholder="$t('Jean Dupont')"
+                    />
+                  </VCol>
+                  <VCol cols="12">
+                    <AppSelect
+                      v-model="form.partner_activity_sector"
+                      :items="activitySectorOptions"
+                      :label="$t('Activity Sector')"
+                      :placeholder="$t('Select activity sector')"
+                    />
+                  </VCol>
+                  <VCol cols="12">
+                    <AppSelect
+                      v-model="form.partner_engagement_type"
+                      :items="engagementTypeOptions"
+                      :label="$t('Engagement Type')"
+                      :placeholder="$t('Select engagement type')"
+                    />
+                  </VCol>
+                  <VCol cols="12">
+                    <AppTextField
+                      v-model="form.partner_location"
+                      :label="$t('Partner Location')"
+                      placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                      :hint="$t('Location coordinates')"
+                    />
+                  </VCol>
+                </VRow>
+                      </VCardText>
+                    </VCard>
+                  </VExpansionPanelText>
+                </VExpansionPanel>
+              </VExpansionPanels>
+            </VCol>
+
+            <!-- Customer Section -->
+            <VCol
+              cols="12"
+              md="6"
+            >
+              <VExpansionPanels
+                v-model="customerExpanded"
+              >
             <VExpansionPanel>
               <VExpansionPanelTitle>
                 <div class="d-flex align-center justify-space-between w-100">
@@ -1026,13 +1142,15 @@ watch(dialogVisible, newVal => {
                     placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
                     :hint="$t('Location coordinates')"
                   />
-                </VCol>
-              </VRow>
+                  </VCol>
+                </VRow>
                   </VCardText>
                 </VCard>
               </VExpansionPanelText>
             </VExpansionPanel>
-          </VExpansionPanels>
+              </VExpansionPanels>
+            </VCol>
+          </VRow>
 
           <!-- Delivery Details - Always visible -->
           <VCard
@@ -1079,19 +1197,6 @@ watch(dialogVisible, newVal => {
                   :label="$t('Status')"
                   :placeholder="$t('Select status')"
                   clearable
-                />
-              </VCol>
-
-              <!-- Start Date/Time -->
-              <VCol
-                cols="12"
-                md="6"
-              >
-                <AppTextField
-                  v-model="form.start_at"
-                  type="datetime-local"
-                  :label="$t('Start Date/Time')"
-                  :hint="$t('Optional: When the delivery should start')"
                 />
               </VCol>
 
@@ -1187,7 +1292,7 @@ watch(dialogVisible, newVal => {
           :disabled="!form.pickup_location || !form.dropoff_location || (partnerMode === 'create' && !form.partner_merchant_name) || (customerMode === 'create' && !form.customer_phone)"
           @click="onSubmit"
         >
-          {{ $t('Create Delivery') }}
+          {{ isEditMode ? ($t('Update Delivery') || 'Mettre à jour') : ($t('Create Delivery') || 'Créer la livraison') }}
         </VBtn>
       </VCardActions>
     </VCard>
