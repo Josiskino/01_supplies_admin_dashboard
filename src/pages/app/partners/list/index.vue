@@ -58,6 +58,38 @@ const partnerToEdit = ref(null)
 const isDeleteDialogOpen = ref(false)
 const partnerToDelete = ref(null)
 
+// Helper function to normalize page value to a number
+const normalizePage = (val) => {
+  try {
+    // Handle refs - check if it's a ref object
+    let actualVal = val
+    if (val && typeof val === 'object' && 'value' in val) {
+      actualVal = val.value
+    }
+    
+    // Handle arrays
+    if (Array.isArray(actualVal)) {
+      const first = actualVal[0]
+      const num = Number(first)
+      return isNaN(num) || num < 1 ? 1 : num
+    }
+    
+    // Handle primitives
+    const num = Number(actualVal)
+    if (isNaN(num) || num < 1) {
+      return 1
+    }
+    
+    return num
+  } catch (error) {
+    console.error('Error in normalizePage:', error, 'Value:', val)
+    return 1 // Default to page 1 on error
+  }
+}
+
+// Computed property for normalized page value
+const normalizedPage = computed(() => normalizePage(page.value))
+
 // Pagination metadata from API
 const paginationMeta = ref({
   total: 0,
@@ -240,17 +272,31 @@ const fetchPartners = async () => {
         
         // Update pagination metadata
         if (response.meta) {
-          const total = response.meta.total || 0
-          const perPage = response.meta.per_page || itemsPerPage.value
+          // Helper function to extract number from array or return the value itself
+          const extractNumber = (value) => {
+            if (Array.isArray(value)) {
+              return value.length > 0 ? Number(value[0]) : 0
+            }
+            return Number(value) || 0
+          }
+          
+          const total = extractNumber(response.meta.total)
+          const perPage = extractNumber(response.meta.per_page) || itemsPerPage.value
+          const currentPage = extractNumber(response.meta.current_page) || page.value
+          const lastPage = extractNumber(response.meta.last_page)
+          const from = extractNumber(response.meta.from)
+          const to = extractNumber(response.meta.to)
+          
           const calculatedLastPage = total > 0 ? Math.ceil(total / perPage) : 1
+          const finalLastPage = lastPage || calculatedLastPage
           
           paginationMeta.value = {
             total: total,
             per_page: perPage,
-            current_page: response.meta.current_page || page.value,
-            last_page: response.meta.last_page || calculatedLastPage,
-            from: response.meta.from || 0,
-            to: response.meta.to || 0,
+            current_page: currentPage,
+            last_page: finalLastPage,
+            from: from,
+            to: to,
           }
           
           // Update totalPartners for VDataTableServer
@@ -259,18 +305,18 @@ const fetchPartners = async () => {
           console.log('=== Pagination Meta Updated ===')
           console.log('Total:', total)
           console.log('Per page:', perPage)
-          console.log('Last page from API:', response.meta.last_page)
+          console.log('Last page from API:', lastPage)
           console.log('Calculated last page:', calculatedLastPage)
-          console.log('Using last page:', paginationMeta.value.last_page)
-          console.log('Current page:', paginationMeta.value.current_page)
+          console.log('Using last page:', finalLastPage)
+          console.log('Current page:', currentPage)
           console.log('================================')
           
           // Sync page with API response (but don't trigger watch if same value)
-          const apiPage = response.meta.current_page || page.value
-          if (apiPage !== page.value) {
-            console.log('Syncing page from API:', apiPage, 'current:', page.value)
+          const normalizedCurrentPage = normalizePage(currentPage)
+          if (normalizedCurrentPage !== normalizePage(page.value)) {
+            console.log('Syncing page from API:', normalizedCurrentPage, 'current:', page.value)
             // Directly update without triggering watch (we're already in fetchPartners)
-            page.value = apiPage
+            page.value = normalizedCurrentPage
           }
         } else {
           // Fallback if no meta
@@ -356,15 +402,41 @@ watch([searchQuery, selectedStatus, selectedBusinessSector, itemsPerPage, sortBy
   fetchPartners()
 })
 
+// Function to handle page change from pagination
+const handlePageChange = (val) => {
+  console.log('=== handlePageChange called ===')
+  console.log('New page value:', val, 'Type:', typeof val)
+  console.log('Current page.value:', page.value, 'Type:', typeof page.value)
+  
+  // Normalize the incoming value
+  const pageNum = normalizePage(val)
+  console.log('Normalized page number:', pageNum)
+  
+  // Get current normalized page
+  const currentPageNum = normalizePage(page.value)
+  console.log('Current normalized page:', currentPageNum)
+  
+  // Only update if different
+  if (pageNum !== currentPageNum && !isNaN(pageNum) && pageNum > 0) {
+    console.log('Updating page from', currentPageNum, 'to', pageNum)
+    page.value = pageNum
+  } else {
+    console.log('Page unchanged or invalid, skipping update')
+  }
+}
+
 watch(page, (newPage, oldPage) => {
   // Only fetch if page actually changed (avoid infinite loops)
+  const normalizedNewPage = normalizePage(newPage)
+  const normalizedOldPage = oldPage !== undefined ? normalizePage(oldPage) : undefined
+  
   console.log('=== Page changed ===')
-  console.log('New page:', newPage)
-  console.log('Old page:', oldPage)
+  console.log('New page:', normalizedNewPage)
+  console.log('Old page:', normalizedOldPage)
   console.log('====================')
   
-  if (newPage !== oldPage && oldPage !== undefined) {
-    console.log('Fetching partners for page:', newPage)
+  if (normalizedNewPage !== normalizedOldPage && normalizedOldPage !== undefined) {
+    console.log('Fetching partners for page:', normalizedNewPage)
     fetchPartners()
   } else {
     console.log('Skipping fetch (no real change)')
@@ -558,11 +630,10 @@ const cancelDelete = () => {
             :model-value="itemsPerPage"
             :items="[
               { value: 15, title: '15' },
-              { value: 25, title: '25' },
+              { value: 30, title: '30' },
               { value: 50, title: '50' },
-              { value: 100, title: '100' },
             ]"
-            style="inline-size: 6.25rem;"
+            style="inline-size: 7rem;"
             @update:model-value="itemsPerPage = parseInt($event, 10)"
           />
           
@@ -619,12 +690,18 @@ const cancelDelete = () => {
       <VDataTableServer
         v-model:items-per-page="itemsPerPage"
         v-model:model-value="selectedRows"
-        v-model:page="page"
+        :page="normalizedPage"
+        @update:page="handlePageChange"
         :items="partners"
         :loading="isLoading"
         item-value="id"
-        :items-length="totalPartners"
+        :items-length="Number(totalPartners) || 0"
         :headers="headers"
+        :items-per-page-options="[
+          { value: 15, title: '15' },
+          { value: 30, title: '30' },
+          { value: 50, title: '50' },
+        ]"
         class="text-no-wrap"
         show-select
         @update:options="updateOptions"
@@ -823,25 +900,11 @@ const cancelDelete = () => {
             </div>
             <div class="d-flex align-center gap-3">
               <VPagination
-                :model-value="page"
-                :length="Math.max(paginationMeta.last_page || Math.ceil(totalPartners / itemsPerPage) || 1, 1)"
+                :model-value="normalizedPage"
+                :length="Math.max(Number(paginationMeta.last_page) || Math.ceil(Number(totalPartners) / Number(itemsPerPage)) || 1, 1)"
                 :total-visible="$vuetify.display.xs ? 3 : 7"
                 active-color="primary"
-                @update:model-value="(val) => { 
-                  console.log('=== VPagination clicked ===')
-                  console.log('New page value:', val)
-                  console.log('Current page:', page)
-                  console.log('Total pages:', paginationMeta.last_page || Math.ceil(totalPartners / itemsPerPage))
-                  console.log('Total partners:', totalPartners)
-                  console.log('Items per page:', itemsPerPage)
-                  console.log('Pagination meta:', paginationMeta)
-                  console.log('==========================')
-                  
-                  // Update page value
-                  if (val !== page) {
-                    page = val
-                  }
-                }"
+                @update:model-value="handlePageChange"
               />
             </div>
           </div>

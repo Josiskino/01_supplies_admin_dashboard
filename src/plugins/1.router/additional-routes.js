@@ -8,14 +8,48 @@ export const redirects = [
     path: '/',
     name: 'index',
     redirect: to => {
-      // TODO: Get type from backend
       const userData = useCookie('userData')
-      const userRole = userData.value?.role
-      if (userRole === 'admin')
-        return { name: 'template-dashboards-crm' }
-      if (userRole === 'client')
-        return { name: 'template-access-control' }
       
+      // Check if user is logged in
+      if (!userData.value) {
+        return { name: 'auth-login', query: to.query }
+      }
+      
+      // Get user role (check different possible role field names)
+      const userRole = userData.value.role?.name || userData.value.role || userData.value.roles?.[0]?.name || userData.value.roles?.[0]
+      
+      if (!userRole) {
+        return { name: 'auth-login', query: to.query }
+      }
+      
+      // Normalize role for comparison (case-insensitive)
+      const normalizedRole = userRole.toString().trim().toLowerCase()
+      
+      // Redirect based on role
+      // Admin roles - keep dashboard for now
+      if (normalizedRole === 'admin' || 
+          normalizedRole === 'super admin' || 
+          normalizedRole === 'superadmin' ||
+          normalizedRole === 'super-admin') {
+        return { name: 'template-dashboards-crm' }
+      }
+      
+      // Logisticien and Assistant Logisticien → Delivery list
+      if (normalizedRole === 'logisticien' || normalizedRole === 'assistant logisticien') {
+        return { name: 'delivery-list' }
+      }
+      
+      // Comptable → Financial transactions
+      if (normalizedRole === 'comptable') {
+        return { name: 'financial-transactions' }
+      }
+      
+      // Client role
+      if (normalizedRole === 'client') {
+        return { name: 'template-access-control' }
+      }
+      
+      // Default: redirect to login
       return { name: 'auth-login', query: to.query }
     },
   },

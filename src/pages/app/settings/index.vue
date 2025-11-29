@@ -1,6 +1,7 @@
 <script setup>
 import { useI18n } from 'vue-i18n'
 import SettingsLocations from '@/views/apps/ecommerce/settings/SettingsLocations.vue'
+import SettingsDataImport from '@/views/apps/ecommerce/settings/SettingsDataImport.vue'
 import SettingsNotifications from '@/views/apps/ecommerce/settings/SettingsNotifications.vue'
 import SettingsStatuses from '@/views/apps/ecommerce/settings/SettingsStatuses.vue'
 
@@ -10,6 +11,10 @@ const tabsData = computed(() => [
   {
     icon: 'tabler-map-pin',
     title: t('Pricing & Distance'),
+  },
+  {
+    icon: 'tabler-file-upload',
+    title: t('Data Import'),
   },
   {
     icon: 'tabler-bell-ringing',
@@ -60,6 +65,10 @@ const activeTab = ref(null)
       >
         <VWindowItem>
           <SettingsLocations />
+        </VWindowItem>
+
+        <VWindowItem>
+          <SettingsDataImport />
         </VWindowItem>
 
         <VWindowItem>

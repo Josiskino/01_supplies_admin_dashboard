@@ -180,8 +180,48 @@ const login = async () => {
     useCookie('userData').value = userData
     useCookie('accessToken').value = accessToken
     
-    // Redirect to dashboard after login
+    // Redirect based on user role after login
     await nextTick(() => {
+      // Get user role (check different possible role field names)
+      const userRole = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
+      
+      if (!userRole) {
+        router.replace({ name: 'auth-login' })
+        return
+      }
+      
+      // Normalize role for comparison (case-insensitive)
+      const normalizedRole = userRole.toString().trim().toLowerCase()
+      
+      // Redirect based on role
+      // Admin roles - keep dashboard for now
+      if (normalizedRole === 'admin' || 
+          normalizedRole === 'super admin' || 
+          normalizedRole === 'superadmin' ||
+          normalizedRole === 'super-admin') {
+        router.replace({ name: 'template-dashboards-crm' })
+        return
+      }
+      
+      // Logisticien and Assistant Logisticien → Delivery list
+      if (normalizedRole === 'logisticien' || normalizedRole === 'assistant logisticien') {
+        router.replace({ name: 'delivery-list' })
+        return
+      }
+      
+      // Comptable → Financial transactions
+      if (normalizedRole === 'comptable') {
+        router.replace({ name: 'financial-transactions' })
+        return
+      }
+      
+      // Client role
+      if (normalizedRole === 'client') {
+        router.replace({ name: 'template-access-control' })
+        return
+      }
+      
+      // Default: redirect to dashboard (fallback)
       router.replace({ name: 'dashboard' })
     })
   } catch (err) {

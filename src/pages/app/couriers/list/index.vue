@@ -11,7 +11,7 @@ const selectedStatus = ref()
 const selectedVehicleType = ref()
 
 // Data table options
-const itemsPerPage = ref(15)
+const itemsPerPage = ref(100)
 const page = ref(1)
 const sortBy = ref()
 const orderBy = ref()
@@ -258,18 +258,18 @@ const editDriver = driver => {
 
   if (!driver || !driver.id) {
     console.error('Invalid driver data:', driver)
-
     return
   }
 
-  // Set driver data and open drawer immediately
+  // Set driver data first
   driverToEdit.value = { ...driver }
-
-  // Force reactivity update
+  
+  // Open drawer after setting driver data
+  // Use nextTick to ensure driverToEdit is set before drawer opens
   nextTick(() => {
     isAddDriverDrawerOpen.value = true
-    console.log('Drawer should be open:', isAddDriverDrawerOpen.value)
-    console.log('driverToEdit set:', driverToEdit.value)
+    console.log('Drawer opened:', isAddDriverDrawerOpen.value)
+    console.log('driverToEdit:', driverToEdit.value)
   })
 
   console.log('========================')
@@ -370,12 +370,12 @@ const onDriverAdded = () => {
           <AppSelect
             :model-value="itemsPerPage"
             :items="[
-              { value: 15, title: '15' },
-              { value: 25, title: '25' },
-              { value: 50, title: '50' },
               { value: 100, title: '100' },
+              { value: 150, title: '150' },
+              { value: 200, title: '200' },
+              { value: 300, title: '300' },
             ]"
-            style="inline-size: 6.25rem;"
+            style="inline-size: 7rem;"
             @update:model-value="itemsPerPage = parseInt($event, 10)"
           />
         </div>
@@ -422,6 +422,12 @@ const onDriverAdded = () => {
         item-value="id"
         :items-length="totalDrivers"
         :headers="headers"
+        :items-per-page-options="[
+          { value: 100, title: '100' },
+          { value: 150, title: '150' },
+          { value: 200, title: '200' },
+          { value: 300, title: '300' },
+        ]"
         class="text-no-wrap"
         show-select
         @update:options="updateOptions"

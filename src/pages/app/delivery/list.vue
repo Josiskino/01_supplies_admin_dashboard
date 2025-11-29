@@ -8,30 +8,56 @@ import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
 const { t } = useI18n()
 const { getStatusOptions, getStatusColor, getStatusLabel } = useDeliveryStatuses()
 
+// Check if user is administrator
+const isAdministrator = computed(() => {
+  const userData = useCookie('userData').value
+  if (!userData) {
+    return false
+  }
+
+  // Check different possible role field names
+  const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
+
+  if (!role) {
+    return false
+  }
+
+  // Normalize role for comparison (case-insensitive)
+  const normalizedRole = role.toString().trim().toLowerCase()
+
+  // Check for administrator variations
+  return normalizedRole === 'administrator' ||
+         normalizedRole === 'admin' ||
+         normalizedRole === 'super admin' ||
+         normalizedRole === 'superadmin' ||
+         normalizedRole === 'super-admin'
+})
+
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
+  { title: t('Created At'), key: 'created_at' },
   { title: t('Customer'), key: 'customer' },
   { title: t('Partner'), key: 'partner' },
   { title: t('Driver'), key: 'driver' },
-  { title: t('Pickup Location'), key: 'pickup_location' },
-  { title: t('Dropoff Location'), key: 'dropoff_location' },
   { title: t('Distance'), key: 'distance_km' },
   { title: t('Price'), key: 'price' },
   { title: t('Status'), key: 'status' },
   { title: t('Start Time'), key: 'start_at' },
   { title: t('Delivered At'), key: 'delivered_at' },
   { title: t('Created By'), key: 'creator' },
-  { title: t('Created At'), key: 'created_at' },
   { title: t('Actions'), key: 'actions', sortable: false, width: '100px' },
 ])
 
-const itemsPerPage = ref(10)
+const itemsPerPage = ref(15)
 const page = ref(1)
 const isLoading = ref(false)
 
-// Filters
+// Global search filter
 const searchQuery = ref('')
-const selectedStatus = ref('in-progress')
+
+// Date filters
+const dateFrom = ref(null)
+const dateTo = ref(null)
 
 const deliveries = ref([])
 const total = ref(0)
@@ -43,6 +69,16 @@ const selectedDeliveryForEdit = ref(null)
 // Price adjustment request dialog
 const isPriceAdjustmentDialogOpen = ref(false)
 const selectedDeliveryForPriceAdjustment = ref(null)
+
+// Delete confirmation dialog
+const isDeleteDialogOpen = ref(false)
+const deliveryToDelete = ref(null)
+
+// Delivery details dialog
+const isDeliveryDetailsDialogOpen = ref(false)
+const selectedDeliveryForView = ref(null)
+const isLoadingDeliveryDetails = ref(false)
+const deliveryDetails = ref(null)
 
 // Success notifications
 const isSuccessSnackVisible = ref(false)
@@ -105,11 +141,34 @@ const formatDateTime = value => {
   }
 }
 
+
+
 const fetchDeliveries = async () => {
   isLoading.value = true
   try {
-    // Simple call to /deliveries endpoint without filters for testing
-    const res = await $api('/deliveries', { method: 'GET' })
+    // Build query parameters - global search + date filters
+    const queryParams = {}
+
+    if (searchQuery.value && searchQuery.value.trim()) {
+      queryParams.search = searchQuery.value.trim()
+    }
+
+    if (dateFrom.value) {
+      queryParams.date_from = dateFrom.value
+    }
+
+    if (dateTo.value) {
+      queryParams.date_to = dateTo.value
+    }
+
+    // Add pagination
+    queryParams.page = page.value
+    queryParams.per_page = itemsPerPage.value
+
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/deliveries${queryString ? `?${queryString}` : ''}`
+
+    const res = await $api(url, { method: 'GET' })
 
     console.log('=== Delivery list response ===')
     console.log('Response:', res)
@@ -172,9 +231,20 @@ const fetchDeliveries = async () => {
   }
 }
 
-onMounted(fetchDeliveries)
+// Reset filters
+const resetFilters = () => {
+  searchQuery.value = ''
+  dateFrom.value = null
+  dateTo.value = null
+  page.value = 1
+  fetchDeliveries()
+}
 
-watch([searchQuery, selectedStatus, itemsPerPage], () => {
+onMounted(() => {
+  fetchDeliveries()
+})
+
+watch([searchQuery, dateFrom, dateTo, itemsPerPage], () => {
   page.value = 1
   fetchDeliveries()
 })
@@ -190,12 +260,36 @@ const onDeliveryAdded = () => {
 }
 
 // View delivery details
-const viewDelivery = delivery => {
-  console.log('View delivery:', delivery)
+const viewDelivery = async delivery => {
+  selectedDeliveryForView.value = delivery
+  isDeliveryDetailsDialogOpen.value = true
+  isLoadingDeliveryDetails.value = true
+  deliveryDetails.value = null
 
-  // TODO: Implement view delivery dialog or navigate to detail page
-  // For now, we can show an alert or open a dialog
-  alert(t('View delivery details') + ': ' + (delivery.id || 'N/A'))
+  try {
+    // Fetch full delivery details from API
+    const response = await $api(`/deliveries/${delivery.id}`, {
+      method: 'GET',
+    })
+
+    if (response?.success && response?.data) {
+      deliveryDetails.value = response.data
+    } else if (response?.data) {
+      deliveryDetails.value = response.data
+    } else if (response) {
+      deliveryDetails.value = response
+    } else {
+      // Fallback to the delivery from the list
+      deliveryDetails.value = delivery
+    }
+  } catch (error) {
+    console.error('Error fetching delivery details:', error)
+
+    // Fallback to the delivery from the list
+    deliveryDetails.value = delivery
+  } finally {
+    isLoadingDeliveryDetails.value = false
+  }
 }
 
 // Edit delivery
@@ -333,6 +427,45 @@ const onPriceAdjustmentRequestCreated = () => {
   isSuccessSnackVisible.value = true
   fetchDeliveries()
 }
+
+// Open delete confirmation dialog
+const deleteDelivery = delivery => {
+  deliveryToDelete.value = delivery
+  isDeleteDialogOpen.value = true
+}
+
+// Confirm delete delivery
+const confirmDelete = async () => {
+  if (!deliveryToDelete.value) {
+    return
+  }
+
+  try {
+    await $api(`/deliveries/${deliveryToDelete.value.id}`, {
+      method: 'DELETE',
+    })
+
+    successSnackText.value = t('Delivery deleted successfully') || 'Livraison supprimée avec succès'
+    isSuccessSnackVisible.value = true
+
+    // Refetch deliveries
+    fetchDeliveries()
+    isDeleteDialogOpen.value = false
+    deliveryToDelete.value = null
+  } catch (error) {
+    console.error('Error deleting delivery:', error)
+    successSnackText.value = t('Error deleting delivery. Please try again.') || 'Erreur lors de la suppression de la livraison. Veuillez réessayer.'
+    isSuccessSnackVisible.value = true
+    isDeleteDialogOpen.value = false
+    deliveryToDelete.value = null
+  }
+}
+
+// Cancel delete
+const cancelDelete = () => {
+  isDeleteDialogOpen.value = false
+  deliveryToDelete.value = null
+}
 </script>
 
 <template>
@@ -343,40 +476,98 @@ const onPriceAdjustmentRequestCreated = () => {
       </VCardItem>
 
       <VCardText>
-        <VRow class="mb-4">
+        <!-- Add Delivery Button -->
+        <div class="d-flex justify-end mb-4">
+          <VBtn
+            prepend-icon="tabler-plus"
+            color="primary"
+            @click="() => { selectedDeliveryForEdit = null; isAddDeliveryDialogOpen = true; }"
+          >
+            {{ $t('Add Delivery') }}
+          </VBtn>
+        </div>
+
+        <!-- Items Per Page Selector (Top Left) -->
+        <VRow class="mb-2">
           <VCol
             cols="12"
-            sm="4"
+            md="auto"
           >
-            <AppSelect
-              v-model="selectedStatus"
-              :items="getStatusOptions()"
-              :placeholder="$t('Filter by status')"
+            <div class="d-flex align-center gap-2">
+              <span class="text-body-2 text-medium-emphasis">{{ $t('Show') }}</span>
+              <AppSelect
+                :model-value="itemsPerPage"
+                :items="[
+                  { value: 15, title: '15' },
+                  { value: 30, title: '30' },
+                  { value: 50, title: '50' },
+                ]"
+                style="inline-size: 7rem;"
+                density="compact"
+                @update:model-value="itemsPerPage = parseInt($event, 10)"
+              />
+            </div>
+          </VCol>
+        </VRow>
+
+        <!-- Filters Section -->
+        <VRow class="mb-4">
+          <!-- Date From -->
+          <VCol
+            cols="12"
+            md="2"
+          >
+            <AppDateTimePicker
+              v-model="dateFrom"
+              :label="$t('Date From')"
+              :placeholder="$t('Date from')"
+              :config="{ dateFormat: 'Y-m-d' }"
               clearable
-              clear-icon="tabler-x"
             />
           </VCol>
+
+          <!-- Date To -->
           <VCol
             cols="12"
-            sm="4"
+            md="2"
+          >
+            <AppDateTimePicker
+              v-model="dateTo"
+              :label="$t('Date To')"
+              :placeholder="$t('Date to')"
+              :config="{ dateFormat: 'Y-m-d' }"
+              clearable
+            />
+          </VCol>
+
+          <!-- Global Search -->
+          <VCol
+            cols="12"
+            md="6"
           >
             <AppTextField
               v-model="searchQuery"
-              :placeholder="$t('Search by requester name or phone')"
+              :label="$t('Search')"
+              :placeholder="$t('Search by customer, partner, driver, status, phone number, or any delivery information...')"
               clearable
+              prepend-inner-icon="tabler-search"
             />
           </VCol>
+
+          <!-- Reset Button -->
           <VCol
             cols="12"
-            sm="4"
-            class="d-flex justify-end"
+            md="2"
+            class="d-flex align-end"
           >
             <VBtn
-              prepend-icon="tabler-plus"
-              color="primary"
-              @click="() => { selectedDeliveryForEdit = null; isAddDeliveryDialogOpen = true; }"
+              variant="outlined"
+              color="secondary"
+              prepend-icon="tabler-refresh"
+              block
+              @click="resetFilters"
             >
-              {{ $t('Add Delivery') }}
+              {{ $t('Reset') }}
             </VBtn>
           </VCol>
         </VRow>
@@ -388,6 +579,13 @@ const onPriceAdjustmentRequestCreated = () => {
           :items="deliveries"
           :items-length="total"
           :loading="isLoading"
+          :items-per-page-options="[
+            { value: 50, title: '50' },
+            { value: 100, title: '100' },
+            { value: 150, title: '150' },
+            { value: 200, title: '200' },
+            { value: 300, title: '300' },
+          ]"
           item-value="id"
           class="text-no-wrap"
         >
@@ -466,30 +664,6 @@ const onPriceAdjustmentRequestCreated = () => {
               >
                 {{ item.driver.phone }}
               </a>
-            </div>
-            <span v-else>—</span>
-          </template>
-
-          <!-- Pickup Location -->
-          <template #item.pickup_location="{ item }">
-            <div
-              v-if="item?.pickup_location"
-              class="text-body-2"
-              style="max-inline-size: 200px;"
-            >
-              {{ item.pickup_location }}
-            </div>
-            <span v-else>—</span>
-          </template>
-
-          <!-- Dropoff Location -->
-          <template #item.dropoff_location="{ item }">
-            <div
-              v-if="item?.dropoff_location"
-              class="text-body-2"
-              style="max-inline-size: 200px;"
-            >
-              {{ item.dropoff_location }}
             </div>
             <span v-else>—</span>
           </template>
@@ -601,6 +775,17 @@ const onPriceAdjustmentRequestCreated = () => {
                   {{ $t('WhatsApp') || 'WhatsApp' }}
                 </VTooltip>
               </IconBtn>
+
+              <IconBtn
+                v-if="isAdministrator"
+                color="error"
+                @click.stop="deleteDelivery(item)"
+              >
+                <VIcon icon="tabler-trash" />
+                <VTooltip activator="parent">
+                  {{ $t('Delete Delivery') || 'Supprimer la livraison' }}
+                </VTooltip>
+              </IconBtn>
             </div>
           </template>
         </VDataTableServer>
@@ -621,6 +806,436 @@ const onPriceAdjustmentRequestCreated = () => {
       :delivery="selectedDeliveryForPriceAdjustment"
       @request-created="onPriceAdjustmentRequestCreated"
     />
+
+    <!-- Delete Confirmation Dialog -->
+    <VDialog
+      v-model="isDeleteDialogOpen"
+      max-width="500"
+    >
+      <VCard>
+        <VCardTitle class="d-flex align-center">
+          <VIcon
+            icon="tabler-alert-triangle"
+            color="error"
+            class="me-2"
+          />
+          {{ $t('Delete Delivery') || 'Supprimer la livraison' }}
+        </VCardTitle>
+        <VCardText>
+          <p>{{ $t('Are you sure you want to delete this delivery?') || 'Êtes-vous sûr de vouloir supprimer cette livraison ?' }}</p>
+          <p
+            v-if="deliveryToDelete"
+            class="text-sm text-medium-emphasis mt-2"
+          >
+            {{ $t('Delivery') || 'Livraison' }} #{{ deliveryToDelete.id }}
+          </p>
+        </VCardText>
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            variant="outlined"
+            color="secondary"
+            @click="cancelDelete"
+          >
+            {{ $t('Cancel') || 'Annuler' }}
+          </VBtn>
+          <VBtn
+            color="error"
+            @click="confirmDelete"
+          >
+            {{ $t('Delete') || 'Supprimer' }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
+
+    <!-- Delivery Details Dialog -->
+    <VDialog
+      v-model="isDeliveryDetailsDialogOpen"
+      max-width="900"
+      scrollable
+    >
+      <VCard>
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <div class="d-flex align-center">
+            <VIcon
+              icon="tabler-package"
+              class="me-2"
+            />
+            {{ $t('Delivery Details') || 'Détails de la livraison' }} #{{ deliveryDetails?.id || selectedDeliveryForView?.id || 'N/A' }}
+          </div>
+          <IconBtn @click="isDeliveryDetailsDialogOpen = false">
+            <VIcon icon="tabler-x" />
+          </IconBtn>
+        </VCardTitle>
+
+        <VDivider />
+
+        <VCardText>
+          <div
+            v-if="isLoadingDeliveryDetails"
+            class="text-center py-8"
+          >
+            <VProgressCircular
+              indeterminate
+              color="primary"
+            />
+            <p class="mt-4">
+              {{ $t('Loading delivery details...') || 'Chargement des détails de la livraison...' }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="deliveryDetails || selectedDeliveryForView"
+            class="delivery-details"
+          >
+            <VRow>
+              <!-- Basic Information -->
+              <VCol cols="12">
+                <h3 class="mb-4">
+                  {{ $t('Basic Information') || 'Informations de base' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Status') || 'Statut' }}:</span>
+                  <VChip
+                    :color="getStatusColor((deliveryDetails || selectedDeliveryForView)?.status?.name || (deliveryDetails || selectedDeliveryForView)?.status || '')"
+                    size="small"
+                    label
+                    class="ms-2"
+                  >
+                    {{ (deliveryDetails || selectedDeliveryForView)?.status?.name || getStatusLabel((deliveryDetails || selectedDeliveryForView)?.status?.name || (deliveryDetails || selectedDeliveryForView)?.status || '') || (deliveryDetails || selectedDeliveryForView)?.status || $t('Unknown') || 'Inconnu' }}
+                  </VChip>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Price') || 'Prix' }}:</span>
+                  <span class="ms-2 font-weight-medium">
+                    {{ formatPrice((deliveryDetails || selectedDeliveryForView)?.price) }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Distance') || 'Distance' }}:</span>
+                  <span class="ms-2">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.distance_km ? `${(deliveryDetails || selectedDeliveryForView).distance_km} km` : '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Created At') || 'Créé le' }}:</span>
+                  <span class="ms-2">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.created_at) }}
+                  </span>
+                </div>
+              </VCol>
+
+              <!-- Partner Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Partner (Pickup Location)') || 'Partenaire (Lieu de collecte)' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Partner Name') || 'Nom du partenaire' }}:</span>
+                  <span class="ms-2 font-weight-medium">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.partner?.name || (deliveryDetails || selectedDeliveryForView)?.partner?.merchant_name || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Contact Name') || 'Nom du contact' }}:</span>
+                  <span class="ms-2">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.partner?.contact_name || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Phone') || 'Téléphone' }}:</span>
+                  <a
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.partner?.phone"
+                    :href="`tel:${(deliveryDetails || selectedDeliveryForView).partner.phone}`"
+                    class="ms-2 text-primary text-decoration-none"
+                  >
+                    {{ (deliveryDetails || selectedDeliveryForView).partner.phone }}
+                  </a>
+                  <span
+                    v-else
+                    class="ms-2"
+                  >—</span>
+                </div>
+              </VCol>
+
+              <VCol cols="12">
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Pickup Location') || 'Lieu de collecte' }}:</span>
+                  <div class="mt-2">
+                    <a
+                      v-if="formatLocationLink((deliveryDetails || selectedDeliveryForView)?.pickup_location)"
+                      :href="formatLocationLink((deliveryDetails || selectedDeliveryForView).pickup_location)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-primary text-decoration-none d-inline-flex align-center"
+                    >
+                      <VIcon
+                        icon="tabler-map-pin"
+                        size="16"
+                        class="me-1"
+                      />
+                      {{ (deliveryDetails || selectedDeliveryForView)?.pickup_location || '—' }}
+                      <VIcon
+                        icon="tabler-external-link"
+                        size="14"
+                        class="ms-1"
+                      />
+                    </a>
+                    <span
+                      v-else
+                      class="text-body-2"
+                    >{{ (deliveryDetails || selectedDeliveryForView)?.pickup_location || '—' }}</span>
+                  </div>
+                </div>
+              </VCol>
+
+              <!-- Customer Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Customer (Dropoff Location)') || 'Client (Lieu de livraison)' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Customer Name') || 'Nom du client' }}:</span>
+                  <span class="ms-2 font-weight-medium">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.customer?.name || `${(deliveryDetails || selectedDeliveryForView)?.customer?.first_name || ''} ${(deliveryDetails || selectedDeliveryForView)?.customer?.last_name || ''}`.trim() || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Phone') || 'Téléphone' }}:</span>
+                  <a
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.customer?.phone"
+                    :href="`tel:${(deliveryDetails || selectedDeliveryForView).customer.phone}`"
+                    class="ms-2 text-primary text-decoration-none"
+                  >
+                    {{ (deliveryDetails || selectedDeliveryForView).customer.phone }}
+                  </a>
+                  <span
+                    v-else
+                    class="ms-2"
+                  >—</span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Email') || 'Email' }}:</span>
+                  <a
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.customer?.email"
+                    :href="`mailto:${(deliveryDetails || selectedDeliveryForView).customer.email}`"
+                    class="ms-2 text-primary text-decoration-none"
+                  >
+                    {{ (deliveryDetails || selectedDeliveryForView).customer.email }}
+                  </a>
+                  <span
+                    v-else
+                    class="ms-2"
+                  >—</span>
+                </div>
+              </VCol>
+
+              <VCol cols="12">
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Dropoff Location') || 'Lieu de livraison' }}:</span>
+                  <div class="mt-2">
+                    <a
+                      v-if="formatLocationLink((deliveryDetails || selectedDeliveryForView)?.dropoff_location)"
+                      :href="formatLocationLink((deliveryDetails || selectedDeliveryForView).dropoff_location)"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-primary text-decoration-none d-inline-flex align-center"
+                    >
+                      <VIcon
+                        icon="tabler-map-pin"
+                        size="16"
+                        class="me-1"
+                      />
+                      {{ (deliveryDetails || selectedDeliveryForView)?.dropoff_location || '—' }}
+                      <VIcon
+                        icon="tabler-external-link"
+                        size="14"
+                        class="ms-1"
+                      />
+                    </a>
+                    <span
+                      v-else
+                      class="text-body-2"
+                    >{{ (deliveryDetails || selectedDeliveryForView)?.dropoff_location || '—' }}</span>
+                  </div>
+                </div>
+              </VCol>
+
+              <!-- Driver Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Driver Information') || 'Informations du livreur' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Driver Name') || 'Nom du livreur' }}:</span>
+                  <span class="ms-2 font-weight-medium">
+                    {{ `${(deliveryDetails || selectedDeliveryForView)?.driver?.first_name || ''} ${(deliveryDetails || selectedDeliveryForView)?.driver?.last_name || ''}`.trim() || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Phone') || 'Téléphone' }}:</span>
+                  <a
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.driver?.phone"
+                    :href="`tel:${(deliveryDetails || selectedDeliveryForView).driver.phone}`"
+                    class="ms-2 text-primary text-decoration-none"
+                  >
+                    {{ (deliveryDetails || selectedDeliveryForView).driver.phone }}
+                  </a>
+                  <span
+                    v-else
+                    class="ms-2"
+                  >—</span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Plate Number') || 'Numéro de plaque' }}:</span>
+                  <span class="ms-2">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.driver?.plate_number || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <!-- Timestamps -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Timestamps') || 'Horodatage' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Start Time') || 'Heure de début' }}:</span>
+                  <span class="ms-2">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.timestamps?.start_at || (deliveryDetails || selectedDeliveryForView)?.start_at) }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Delivered At') || 'Livré le' }}:</span>
+                  <span class="ms-2">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.timestamps?.delivered_at || (deliveryDetails || selectedDeliveryForView)?.delivered_at) }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Created By') || 'Créé par' }}:</span>
+                  <span class="ms-2">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.created_by?.name || '—' }}
+                  </span>
+                </div>
+              </VCol>
+            </VRow>
+          </div>
+        </VCardText>
+
+        <VDivider />
+
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            variant="outlined"
+            @click="isDeliveryDetailsDialogOpen = false"
+          >
+            {{ $t('Close') || 'Fermer' }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
 
     <!-- Success Notification -->
     <VSnackbar

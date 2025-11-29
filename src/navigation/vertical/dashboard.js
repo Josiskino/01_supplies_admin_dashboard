@@ -1,58 +1,54 @@
 // Navigation items configuration
 const allNavItems = [
-  {
-    title: 'Dashboards',
-    icon: { icon: 'tabler-smart-home' },
-    to: 'dashboard',
-    badgeContent: '5',
-    badgeClass: 'bg-error',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
-  },
+  // Commented out - Dashboard is no longer displayed in navigation
+  // {
+  //   title: 'Dashboards',
+  //   icon: { icon: 'tabler-smart-home' },
+  //   to: 'dashboard',
+  //   badgeContent: '5',
+  //   badgeClass: 'bg-error',
+  //   roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
+  // },
   { heading: 'App' },
-  { 
-    title: 'Couriers',
-    icon: { icon: 'tabler-users' },
-    roles: ['Logisticien', 'Assistant Logisticien'],
-    children: [
-      { title: 'List', to: 'couriers-list' },
-      { title: 'Activity', to: 'couriers-activity' },
-    ],
-  },
+  // 1. Livraison (Delivery)
   {
     title: 'Delivery',
     icon: { icon: 'tabler-truck' },
+    to: 'delivery-list',
     roles: ['Logisticien', 'Assistant Logisticien'],
-    children: [
-      { title: 'Dashboard', to: 'delivery-dashboard' },
-      { title: 'List', to: 'delivery-list' },
-    ],
+    // Commented out for future use - uncomment to restore dropdown menu
+    // children: [
+    //   { title: 'Dashboard', to: 'delivery-dashboard' },
+    //   { title: 'List', to: 'delivery-list' },
+    // ],
   },
+  // 2. Partenaires (Partners)
   {
     title: 'Partners',
     icon: { icon: 'tabler-users' },
+    to: 'partners-list',
     roles: ['Logisticien', 'Assistant Logisticien', 'Service Client'],
-    children: [
-      { title: 'List', to: 'partners-list' },
-      { title: 'Add' },
-    ],
   },
+  // 3. Livreurs (Couriers)
   { 
-    title: 'Reports',
-    icon: { icon: 'tabler-chart-bar' },
-    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
+    title: 'Couriers',
+    icon: { icon: 'tabler-users' },
+    to: 'couriers-list',
+    roles: ['Logisticien', 'Assistant Logisticien'],
+    // Commented out - Activity screen is no longer displayed in navigation
+    // children: [
+    //   { title: 'List', to: 'couriers-list' },
+    //   { title: 'Activity', to: 'couriers-activity' },
+    // ],
   },
-  { 
-    title: 'Roles & Permissions',
-    icon: { icon: 'tabler-lock' },
-    to: 'role',
-    roles: [], // Only Super Admin or specific role - adjust as needed
-  },
+  // 4. Clients (Customers)
   {
     title: 'Customers',
     icon: { icon: 'tabler-users' },
     to: 'customer-list',
     roles: ['Logisticien', 'Assistant Logisticien', 'Service Client'],
   },
+  // 5. Financier (Financial)
   {
     title: 'Financial',
     icon: { icon: 'tabler-currency-dollar' },
@@ -63,12 +59,26 @@ const allNavItems = [
       { title: 'Report', to: 'financial-report' },
     ],
   },
+  // 6. Rôles et Permissions (Roles & Permissions)
+  { 
+    title: 'Roles & Permissions',
+    icon: { icon: 'tabler-lock' },
+    to: 'role',
+    roles: [], // Only Super Admin or specific role - adjust as needed
+  },
+  // 7. Paramètres (Settings)
   { 
     title: 'Settings', 
     icon: { icon: 'tabler-settings' },
     to: 'settings',
     roles: [], // Only Super Admin or specific role - adjust as needed
   }, 
+  // Commented out - Reports section is no longer displayed in navigation
+  // { 
+  //   title: 'Reports',
+  //   icon: { icon: 'tabler-chart-bar' },
+  //   roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
+  // }, 
 ]
 
 // Function to get user role from cookie
@@ -105,10 +115,10 @@ export const getFilteredNavigation = () => {
   console.log('[Navigation] Filtering navigation for role:', userRole)
 
   if (!userRole) {
-    // If no role, return only dashboard
-    console.log('[Navigation] No role found, returning dashboard only')
+    // If no role, return only headings (dashboard is commented out)
+    console.log('[Navigation] No role found, returning headings only')
 
-    return allNavItems.filter(item => item.title === 'Dashboards' || item.heading)
+    return allNavItems.filter(item => item.heading)
   }
 
   // Normalize user role for comparison (case-insensitive)

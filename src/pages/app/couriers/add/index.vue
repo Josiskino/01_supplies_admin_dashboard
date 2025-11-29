@@ -124,11 +124,18 @@ const loadDriverData = () => {
 
 // Watch for drawer visibility and driverToEdit changes
 watch([() => props.isDrawerOpen, () => props.driverToEdit], ([isOpen, driver]) => {
+  console.log('=== Drawer/watch triggered ===')
+  console.log('Drawer open:', isOpen)
+  console.log('Driver to edit:', driver)
+  
   if (isOpen) {
     // Use nextTick to ensure driverToEdit is set before loading
     nextTick(() => {
       loadDriverData()
     })
+  } else {
+    // Reset form when drawer closes
+    resetForm()
   }
 }, { immediate: false })
 

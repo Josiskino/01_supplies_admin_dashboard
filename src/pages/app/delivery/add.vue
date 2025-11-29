@@ -23,272 +23,310 @@ const dialogVisible = computed({
   set: val => emit('update:isDialogVisible', val),
 })
 
-// Form modes: 'select' or 'create'
-const partnerMode = ref('select') // 'select' or 'create'
-const customerMode = ref('select') // 'select' or 'create'
-
 // Billing mode for price calculation
 const billingMode = ref('express') // 'express' or 'standard'
 
-// Expansion panel states
-const partnerExpanded = ref([0]) // Partner section expanded by default
-const customerExpanded = ref([0]) // Customer section expanded by default
-
-// Form data - covers all possible cases
+// Form data - new unified structure
 const form = ref({
-  // Partner (if selecting existing)
-  partner_id: null,
-  // Partner (if creating new)
-  partner_merchant_name: '',
-  partner_phone: '',
-  partner_contact_name: '',
-  partner_location: '',
-  partner_activity_sector: '',
-  partner_engagement_type: '',
-  // Customer (if selecting existing)
-  customer_id: null,
-  // Customer (if creating new)
-  customer_phone: '',
-  customer_first_name: '',
-  customer_last_name: '',
-  customer_email: '',
-  customer_location: '',
+  // Unified requester and recipient (can be partner or customer)
+  requester: null, // Format: "partner_5" or "customer_12"
+  recipient: null, // Format: "partner_8" or "customer_15"
   // Delivery fields
   driver_id: null,
   pickup_location: '',
   dropoff_location: '',
   distance_km: null,
   price: 0,
-  status_id: null,
 })
 
 // Loading states
 const isSubmitting = ref(false)
-const isLoadingPartners = ref(false)
-const isLoadingCustomers = ref(false)
+const isLoadingRequester = ref(false)
+const isLoadingRecipient = ref(false)
 const isLoadingDrivers = ref(false)
-const isLoadingStatuses = ref(false)
 
-// Options
-const partners = ref([])
-const customers = ref([])
+// Unified entities (partners + customers)
+const requesterEntities = ref([])
+const recipientEntities = ref([])
 const drivers = ref([])
-const deliveryStatuses = ref([])
 
-// 👉 Fetch Delivery Statuses
-const fetchDeliveryStatuses = async () => {
-  isLoadingStatuses.value = true
-  try {
-    const response = await $api('/status/delivery-statuses', {
-      method: 'GET',
-    })
-    
-    if (response && response.success && response.data && Array.isArray(response.data)) {
-      deliveryStatuses.value = response.data
-    } else {
-      deliveryStatuses.value = []
-    }
-  } catch (error) {
-    console.error('Error fetching delivery statuses:', error)
-    deliveryStatuses.value = []
-  } finally {
-    isLoadingStatuses.value = false
+// Search terms for debounced search
+const requesterSearch = ref('')
+const recipientSearch = ref('')
+
+// Helper function to parse entity value (e.g., "partner_5" -> { type: 'partner', id: 5 })
+const parseEntity = (value) => {
+  if (!value) return { type: null, id: null }
+  const [type, id] = value.split('_')
+  return {
+    type: type, // 'partner' or 'customer'
+    id: parseInt(id),
   }
 }
 
-// Status options from API
-const statusOptions = computed(() => {
-  return deliveryStatuses.value.map(status => ({
-    title: status.name,
-    value: status.id,
-  }))
-})
+// Helper function to format entity for display
+const formatEntityForDisplay = (entity) => {
+  // Extract location from various possible structures
+  const extractLocation = (entity) => {
+    // Try direct location field
+    if (entity.location) return entity.location
+    
+    // Try default_address.location
+    if (entity.default_address?.location) return entity.default_address.location
+    
+    // Try addresses[0].location
+    if (entity.addresses && Array.isArray(entity.addresses) && entity.addresses.length > 0) {
+      if (entity.addresses[0].location) return entity.addresses[0].location
+    }
+    
+    // Try default_address (if it's a string/URL)
+    if (entity.default_address && typeof entity.default_address === 'string') {
+      return entity.default_address
+    }
+    
+    // Return empty string if no location found
+    return ''
+  }
+  
+  const location = extractLocation(entity)
+  
+  if (entity.type === 'partner' || entity.type === undefined) {
+    // Assume partner if type is not specified
+    return {
+      title: entity.display_name || entity.name || t('N/A'),
+      value: entity.value || `partner_${entity.id}`,
+      type: 'partner',
+      id: entity.id,
+      location: location,
+      phone: entity.phone || '',
+      contact_name: entity.contact_name || '',
+      subtitle: `${entity.contact_name || ''} ${entity.phone || ''}`.trim(),
+    }
+  } else {
+    return {
+      title: entity.display_name || entity.full_name || `${entity.first_name || ''} ${entity.last_name || ''}`.trim() || t('N/A'),
+      value: entity.value || `customer_${entity.id}`,
+      type: 'customer',
+      id: entity.id,
+      location: location,
+      phone: entity.phone || '',
+      email: entity.email || '',
+      first_name: entity.first_name || '',
+      last_name: entity.last_name || '',
+      subtitle: `${entity.phone || ''} ${entity.email || ''}`.trim(),
+    }
+  }
+}
 
-// 👉 Fetch Partners
-const fetchPartners = async () => {
-  isLoadingPartners.value = true
+// 👉 Fetch Delivery Entities (Partners + Customers) - Unified endpoint
+const fetchDeliveryEntities = async (searchTerm = '', target = 'requester') => {
+  const isLoading = target === 'requester' ? isLoadingRequester : isLoadingRecipient
+  const entities = target === 'requester' ? requesterEntities : recipientEntities
+  
+  isLoading.value = true
   try {
     const queryParams = {
-      per_page: 100,
-      page: 1,
+      limit: 20, // Max 20 results per type
     }
+    
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      queryParams.search = searchTerm.trim()
+    }
+    
     const queryString = new URLSearchParams(queryParams).toString()
-    const url = `/merchants${queryString ? `?${queryString}` : ''}`
+    const url = `/delivery-entities${queryString ? `?${queryString}` : ''}`
 
+    console.log('=== Fetching delivery entities ===')
+    console.log('URL:', url)
+    console.log('Search term:', searchTerm)
+    
     const response = await $api(url, { method: 'GET' })
+
+    console.log('Response:', response)
 
     let partnersList = []
-    if (response && response.data && Array.isArray(response.data)) {
-      partnersList = response.data
-    } else if (Array.isArray(response)) {
-      partnersList = response
-    }
-
-    partners.value = partnersList.map(partner => {
-      // Extract location from default_address or addresses[0], same as in partners list
-      const addressData = partner.default_address || 
-                         (partner.addresses && partner.addresses.length > 0 ? partner.addresses[0] : null)
-      
-      return {
-        title: partner.merchant_name || t('N/A'),
-        value: partner.id,
-        location: addressData?.location || partner.location || '',
-        address: addressData?.address || partner.address || '',
-      }
-    })
-  } catch (error) {
-    console.error('Error fetching partners:', error)
-    partners.value = []
-  } finally {
-    isLoadingPartners.value = false
-  }
-}
-
-// 👉 Fetch Customers
-const fetchCustomers = async () => {
-  isLoadingCustomers.value = true
-  try {
-    const queryParams = {
-      per_page: 100,
-      page: 1,
-    }
-    const queryString = new URLSearchParams(queryParams).toString()
-    const url = `/customers${queryString ? `?${queryString}` : ''}`
-
-    const response = await $api(url, { method: 'GET' })
-
     let customersList = []
-    if (response && response.data && Array.isArray(response.data)) {
-      customersList = response.data
-    } else if (Array.isArray(response)) {
-      customersList = response
+    
+    if (response && response.data) {
+      partnersList = response.data.partners || []
+      customersList = response.data.customers || []
     }
 
-    customers.value = customersList.map(customer => ({
-      title: customer.full_name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || t('N/A'),
-      value: customer.id,
-      location: customer.default_address?.location || customer.addresses?.[0]?.location || '',
-      phone: customer.phone || '',
-      email: customer.email || '',
-      first_name: customer.first_name || '',
-      last_name: customer.last_name || '',
-    }))
+    // Combine and format entities
+    const allEntities = [
+      ...partnersList.map(p => formatEntityForDisplay({ ...p, type: 'partner' })),
+      ...customersList.map(c => formatEntityForDisplay({ ...c, type: 'customer' })),
+    ]
+    
+    entities.value = allEntities
+    
+    console.log('Loaded entities:', allEntities.length)
+    console.log('Partners:', partnersList.length, 'Customers:', customersList.length)
   } catch (error) {
-    console.error('Error fetching customers:', error)
-    customers.value = []
+    console.error('Error fetching delivery entities:', error)
+    entities.value = []
   } finally {
-    isLoadingCustomers.value = false
+    isLoading.value = false
   }
 }
 
-// Handle partner selection - auto-fill location
-const onPartnerSelect = partnerId => {
-  console.log('=== Partner selected ===')
-  console.log('Partner ID:', partnerId)
-  
-  if (partnerId) {
-    const partner = partners.value.find(p => p.value === partnerId)
-    console.log('Found partner:', partner)
-    console.log('Partner location:', partner?.location)
+// Debounced search watchers
+let requesterSearchTimeout = null
+let recipientSearchTimeout = null
+
+watch(requesterSearch, (searchTerm) => {
+  if (requesterSearchTimeout) {
+    clearTimeout(requesterSearchTimeout)
+  }
+  requesterSearchTimeout = setTimeout(() => {
+    fetchDeliveryEntities(searchTerm, 'requester')
+  }, 300)
+})
+
+watch(recipientSearch, (searchTerm) => {
+  if (recipientSearchTimeout) {
+    clearTimeout(recipientSearchTimeout)
+  }
+  recipientSearchTimeout = setTimeout(() => {
+    fetchDeliveryEntities(searchTerm, 'recipient')
+  }, 300)
+})
+
+// Fetch entity details with addresses
+const fetchEntityDetails = async (type, id) => {
+  try {
+    console.log(`=== Fetching ${type} details ===`)
+    console.log('ID:', id)
     
-    if (partner && partner.location) {
-      form.value.pickup_location = partner.location
+    // Use the new delivery-entities endpoint
+    const url = `/delivery-entities/${type}/${id}`
+    const response = await $api(url, { method: 'GET' })
+    
+    console.log('Entity details response:', response)
+    
+    if (response && response.data) {
+      const entity = response.data
+      
+      // Extract location from various possible structures
+      let location = ''
+      
+      // Try default_address.location first
+      if (entity.default_address?.location) {
+        location = entity.default_address.location
+      }
+      // Try addresses[0].location
+      else if (entity.addresses && Array.isArray(entity.addresses) && entity.addresses.length > 0) {
+        if (entity.addresses[0].location) {
+          location = entity.addresses[0].location
+        }
+      }
+      // Try direct location field
+      else if (entity.location) {
+        location = entity.location
+      }
+      // Try default_address as string/URL
+      else if (entity.default_address && typeof entity.default_address === 'string') {
+        location = entity.default_address
+      }
+      
+      console.log('Extracted location:', location)
+      return location
+    }
+    
+    return ''
+  } catch (error) {
+    console.error(`Error fetching ${type} details:`, error)
+    return ''
+  }
+}
+
+// Handle requester selection - auto-fill pickup location
+const onRequesterSelect = async (value) => {
+  console.log('=== Requester selected ===')
+  console.log('Value:', value)
+  
+  if (value) {
+    const parsed = parseEntity(value)
+    
+    console.log('Parsed:', parsed)
+    
+    // Fetch entity details with addresses
+    const location = await fetchEntityDetails(parsed.type, parsed.id)
+    
+    if (location) {
+      form.value.pickup_location = location
       console.log('Auto-filled pickup_location:', form.value.pickup_location)
     } else {
-      console.warn('Partner location not found, cannot auto-fill')
+      console.log('Location not available for this entity')
     }
-    
-    // Clear new partner fields
-    form.value.partner_merchant_name = ''
-    form.value.partner_phone = ''
-    form.value.partner_contact_name = ''
-    form.value.partner_location = ''
-    form.value.partner_activity_sector = ''
-    form.value.partner_engagement_type = ''
   } else {
-    // Partner deselected - clear pickup location
+    // Requester deselected - clear pickup location
     form.value.pickup_location = ''
-    console.log('Partner deselected, cleared pickup_location')
+    console.log('Requester deselected, cleared pickup_location')
   }
   console.log('========================')
 }
 
-// Handle customer selection - auto-fill location
-const onCustomerSelect = customerId => {
-  console.log('=== Customer selected ===')
-  console.log('Customer ID:', customerId)
+// Handle recipient selection - auto-fill dropoff location
+const onRecipientSelect = async (value) => {
+  console.log('=== Recipient selected ===')
+  console.log('Value:', value)
   
-  if (customerId) {
-    const customer = customers.value.find(c => c.value === customerId)
-    console.log('Found customer:', customer)
-    console.log('Customer location:', customer?.location)
+  if (value) {
+    const parsed = parseEntity(value)
     
-    if (customer && customer.location) {
-      form.value.dropoff_location = customer.location
+    console.log('Parsed:', parsed)
+    
+    // Fetch entity details with addresses
+    const location = await fetchEntityDetails(parsed.type, parsed.id)
+    
+    if (location) {
+      form.value.dropoff_location = location
       console.log('Auto-filled dropoff_location:', form.value.dropoff_location)
     } else {
-      console.warn('Customer location not found, cannot auto-fill')
+      console.log('Location not available for this entity')
     }
-    
-    // Clear new customer fields
-    form.value.customer_phone = ''
-    form.value.customer_first_name = ''
-    form.value.customer_last_name = ''
-    form.value.customer_email = ''
-    form.value.customer_location = ''
   } else {
-    // Customer deselected - clear dropoff location
+    // Recipient deselected - clear dropoff location
     form.value.dropoff_location = ''
-    console.log('Customer deselected, cleared dropoff_location')
+    console.log('Recipient deselected, cleared dropoff_location')
   }
   console.log('=========================')
 }
 
-// Watch for partner selection changes (backup to ensure auto-fill works)
-watch(() => form.value.partner_id, (newPartnerId, oldPartnerId) => {
-  if (partnerMode.value === 'select' && newPartnerId && newPartnerId !== oldPartnerId) {
-    // Only auto-fill if not already filled by onPartnerSelect
+// Watch for requester selection changes (backup to ensure auto-fill works)
+watch(() => form.value.requester, async (newValue, oldValue) => {
+  if (newValue && newValue !== oldValue) {
+    // Only auto-fill if not already filled by onRequesterSelect
     if (!form.value.pickup_location) {
-      const partner = partners.value.find(p => p.value === newPartnerId)
-      if (partner && partner.location) {
-        form.value.pickup_location = partner.location
-        console.log('Watch: Auto-filled pickup_location from partner:', partner.location)
+      const parsed = parseEntity(newValue)
+      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      if (location) {
+        form.value.pickup_location = location
+        console.log('Watch: Auto-filled pickup_location from requester:', location)
       }
     }
-  } else if (!newPartnerId) {
-    // Partner deselected
+  } else if (!newValue) {
+    // Requester deselected
     form.value.pickup_location = ''
   }
 })
 
-// Watch for customer selection changes (backup to ensure auto-fill works)
-watch(() => form.value.customer_id, (newCustomerId, oldCustomerId) => {
-  if (customerMode.value === 'select' && newCustomerId && newCustomerId !== oldCustomerId) {
-    // Only auto-fill if not already filled by onCustomerSelect
+// Watch for recipient selection changes (backup to ensure auto-fill works)
+watch(() => form.value.recipient, async (newValue, oldValue) => {
+  if (newValue && newValue !== oldValue) {
+    // Only auto-fill if not already filled by onRecipientSelect
     if (!form.value.dropoff_location) {
-      const customer = customers.value.find(c => c.value === newCustomerId)
-      if (customer && customer.location) {
-        form.value.dropoff_location = customer.location
-        console.log('Watch: Auto-filled dropoff_location from customer:', customer.location)
+      const parsed = parseEntity(newValue)
+      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      if (location) {
+        form.value.dropoff_location = location
+        console.log('Watch: Auto-filled dropoff_location from recipient:', location)
       }
     }
-  } else if (!newCustomerId) {
-    // Customer deselected
+  } else if (!newValue) {
+    // Recipient deselected
     form.value.dropoff_location = ''
-  }
-})
-
-// Watch for new partner location changes
-watch(() => form.value.partner_location, newVal => {
-  if (partnerMode.value === 'create' && newVal) {
-    form.value.pickup_location = newVal
-  }
-})
-
-// Watch for new customer location changes
-watch(() => form.value.customer_location, newVal => {
-  if (customerMode.value === 'create' && newVal) {
-    form.value.dropoff_location = newVal
   }
 })
 
@@ -343,6 +381,12 @@ const fetchDrivers = async () => {
       return {
         title: displayName,
         value: driver.id,
+        first_name: driver.first_name || '',
+        last_name: driver.last_name || '',
+        phone: driver.phone || driver.user?.phone || '',
+        plate_number: driver.plate_number || '',
+        vehicle_type: driver.vehicle_type || '',
+        subtitle: `${driver.plate_number || ''} ${driver.phone || driver.user?.phone || ''}`.trim(),
       }
     })
     
@@ -487,8 +531,8 @@ watch(dialogVisible, async newVal => {
 
 // Calculate price based on real distance
 const calculatePrice = async () => {
-  const pickup = form.value.pickup_location || form.value.partner_location
-  const dropoff = form.value.dropoff_location || form.value.customer_location
+  const pickup = form.value.pickup_location
+  const dropoff = form.value.dropoff_location
 
   if (!pickup || !dropoff) {
     form.value.price = 0
@@ -604,28 +648,26 @@ const onSubmit = async () => {
     
     const payload = {}
     
-    // Partner handling
-    if (partnerMode.value === 'select' && form.value.partner_id) {
-      payload.partner_id = Number(form.value.partner_id)
-    } else if (partnerMode.value === 'create') {
-      payload.partner_merchant_name = form.value.partner_merchant_name || undefined
-      payload.partner_phone = form.value.partner_phone || undefined
-      payload.partner_contact_name = form.value.partner_contact_name || undefined
-      payload.partner_location = form.value.partner_location || undefined
-      payload.partner_activity_sector = form.value.partner_activity_sector || undefined
-      payload.partner_engagement_type = form.value.partner_engagement_type || undefined
+    // Parse requester and recipient (new polymorphic structure)
+    if (!form.value.requester) {
+      alert(t('Requester is required') || 'Le demandeur est requis')
+      isSubmitting.value = false
+      return
     }
     
-    // Customer handling
-    if (customerMode.value === 'select' && form.value.customer_id) {
-      payload.customer_id = Number(form.value.customer_id)
-    } else if (customerMode.value === 'create') {
-      payload.customer_phone = form.value.customer_phone || undefined
-      payload.customer_first_name = form.value.customer_first_name || undefined
-      payload.customer_last_name = form.value.customer_last_name || undefined
-      payload.customer_email = form.value.customer_email || undefined
-      payload.customer_location = form.value.customer_location || undefined
+    if (!form.value.recipient) {
+      alert(t('Recipient is required') || 'Le destinataire est requis')
+      isSubmitting.value = false
+      return
     }
+    
+    const requester = parseEntity(form.value.requester)
+    const recipient = parseEntity(form.value.recipient)
+    
+    payload.requester_type = requester.type
+    payload.requester_id = requester.id
+    payload.recipient_type = recipient.type
+    payload.recipient_id = recipient.id
     
     // Delivery fields - ensure distance_km is always included
     payload.driver_id = form.value.driver_id ? Number(form.value.driver_id) : undefined
@@ -633,7 +675,6 @@ const onSubmit = async () => {
     payload.dropoff_location = dropoff
     payload.distance_km = Number(form.value.distance_km) // Always include, required by API
     payload.price = form.value.price ? Number(form.value.price) : undefined
-    payload.status_id = form.value.status_id ? Number(form.value.status_id) : undefined
     
     // Remove undefined and empty string fields (but keep distance_km even if 0)
     Object.keys(payload).forEach(key => {
@@ -645,8 +686,8 @@ const onSubmit = async () => {
     console.log('=== Creating/Updating delivery payload ===')
     console.log('Mode:', isEditMode.value ? 'EDIT' : 'CREATE')
     console.log('Payload:', payload)
-    console.log('Partner mode:', partnerMode.value)
-    console.log('Customer mode:', customerMode.value)
+    console.log('Requester:', requester)
+    console.log('Recipient:', recipient)
     console.log('Distance (km):', payload.distance_km)
     console.log('==========================================')
 
@@ -706,30 +747,18 @@ const onSubmit = async () => {
 
 // Reset form
 const resetForm = () => {
-  partnerMode.value = 'select'
-  customerMode.value = 'select'
   billingMode.value = 'express'
   form.value = {
-    partner_id: null,
-    partner_merchant_name: '',
-    partner_phone: '',
-    partner_contact_name: '',
-    partner_location: '',
-    partner_activity_sector: '',
-    partner_engagement_type: '',
-    customer_id: null,
-    customer_phone: '',
-    customer_first_name: '',
-    customer_last_name: '',
-    customer_email: '',
-    customer_location: '',
+    requester: null,
+    recipient: null,
     driver_id: null,
     pickup_location: '',
     dropoff_location: '',
     distance_km: null,
     price: 0,
-    status_id: null,
   }
+  requesterSearch.value = ''
+  recipientSearch.value = ''
   distanceInfo.value = null
   distanceServiceUsed.value = null
 }
@@ -751,29 +780,30 @@ const loadDeliveryData = () => {
 
   const delivery = props.delivery
 
-  // Partner data
-  if (delivery.partner?.id) {
-    partnerMode.value = 'select'
-    form.value.partner_id = delivery.partner.id
-  } else if (delivery.partner) {
-    partnerMode.value = 'create'
-    form.value.partner_merchant_name = delivery.partner.merchant_name || delivery.partner.name || ''
-    form.value.partner_phone = delivery.partner.phone || ''
-    form.value.partner_contact_name = delivery.partner.contact_name || ''
-    form.value.partner_location = normalizeUrl(delivery.partner.location || delivery.partner.default_address) || delivery.partner.location || ''
+  // Requester data (new polymorphic structure)
+  if (delivery.requester) {
+    const requesterType = delivery.requester_type || (delivery.requester.id ? 'partner' : 'customer')
+    const requesterId = delivery.requester.id || delivery.requester_id
+    form.value.requester = `${requesterType}_${requesterId}`
+  } else if (delivery.partner?.id) {
+    // Fallback for old structure
+    form.value.requester = `partner_${delivery.partner.id}`
+  } else if (delivery.customer?.id) {
+    // Fallback for old structure
+    form.value.requester = `customer_${delivery.customer.id}`
   }
 
-  // Customer data
-  if (delivery.customer?.id) {
-    customerMode.value = 'select'
-    form.value.customer_id = delivery.customer.id
-  } else if (delivery.customer) {
-    customerMode.value = 'create'
-    form.value.customer_phone = delivery.customer.phone || ''
-    form.value.customer_first_name = delivery.customer.first_name || ''
-    form.value.customer_last_name = delivery.customer.last_name || ''
-    form.value.customer_email = delivery.customer.email || ''
-    form.value.customer_location = normalizeUrl(delivery.customer.location || delivery.customer.default_address) || delivery.customer.location || ''
+  // Recipient data (new polymorphic structure)
+  if (delivery.recipient) {
+    const recipientType = delivery.recipient_type || (delivery.recipient.id ? 'customer' : 'partner')
+    const recipientId = delivery.recipient.id || delivery.recipient_id
+    form.value.recipient = `${recipientType}_${recipientId}`
+  } else if (delivery.customer?.id) {
+    // Fallback for old structure
+    form.value.recipient = `customer_${delivery.customer.id}`
+  } else if (delivery.partner?.id) {
+    // Fallback for old structure
+    form.value.recipient = `partner_${delivery.partner.id}`
   }
 
   // Delivery fields
@@ -782,7 +812,6 @@ const loadDeliveryData = () => {
   form.value.dropoff_location = normalizeUrl(delivery.dropoff_location) || delivery.dropoff_location || ''
   form.value.distance_km = delivery.distance_km ? parseFloat(delivery.distance_km) : null
   form.value.price = delivery.price ? parseFloat(delivery.price) : 0
-  form.value.status_id = delivery.status?.id || delivery.status_id || null
 
   // Set distance info if available
   if (form.value.distance_km) {
@@ -812,9 +841,8 @@ const normalizeUrl = obj => {
 watch(dialogVisible, newVal => {
   if (newVal) {
     fetchDrivers()
-    fetchDeliveryStatuses()
-    fetchPartners()
-    fetchCustomers()
+    fetchDeliveryEntities('', 'requester')
+    fetchDeliveryEntities('', 'recipient')
     
     // Load delivery data if in edit mode
     if (isEditMode.value) {
@@ -895,260 +923,134 @@ watch(() => props.delivery, () => {
             </VMenu>
           </div>
 
-          <!-- Partner and Customer Sections - Side by side -->
+          <!-- Requester and Recipient Sections - Unified (Partners + Customers) -->
           <VRow class="mb-4">
-            <!-- Partner Section -->
+            <!-- Requester Section (Who requests the delivery) -->
             <VCol
               cols="12"
               md="6"
             >
-              <VExpansionPanels
-                v-model="partnerExpanded"
+              <VCard
+                variant="outlined"
+                class="mb-4"
               >
-                <VExpansionPanel>
-                  <VExpansionPanelTitle>
-                    <div class="d-flex align-center justify-space-between w-100">
-                      <span class="text-h6">{{ $t('Partner (Pickup Location)') }}</span>
-                      <VBtnToggle
-                        v-model="partnerMode"
-                        mandatory
-                        density="compact"
-                        variant="outlined"
-                        color="primary"
-                        class="partner-mode-toggle"
-                        @click.stop
-                      >
-                        <VBtn
-                          value="select"
-                          class="px-6"
-                        >
-                          {{ $t('Existing') }}
-                        </VBtn>
-                        <VBtn
-                          value="create"
-                          class="px-6"
-                        >
-                          {{ $t('New') }}
-                        </VBtn>
-                      </VBtnToggle>
-                    </div>
-                  </VExpansionPanelTitle>
-                  <VExpansionPanelText>
-                    <VCard
-                      variant="outlined"
-                    >
-                      <VCardText>
-                <!-- Select Existing Partner -->
-                <VRow v-if="partnerMode === 'select'">
-                  <VCol cols="12">
-                    <AppSelect
-                      v-model="form.partner_id"
-                      :items="partners"
-                      :loading="isLoadingPartners"
-                      :label="$t('Select Partner')"
-                      :placeholder="$t('Search and select a partner')"
-                      item-title="title"
-                      item-value="value"
-                      clearable
-                      @update:model-value="onPartnerSelect"
-                    />
-                  </VCol>
-                  <VCol cols="12">
-                    <AppTextField
-                      v-model="form.pickup_location"
-                      :label="$t('Pickup Location')"
-                      placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                      :hint="$t('Location coordinates (auto-filled if partner selected)')"
-                    />
-                  </VCol>
-                </VRow>
-
-                <!-- Create New Partner -->
-                <VRow v-else>
-                  <VCol cols="12">
-                    <AppTextField
-                      v-model="form.partner_merchant_name"
-                      :label="$t('Merchant Name')"
-                      :placeholder="$t('Restaurant Le Gourmet')"
-                      required
-                    />
-                  </VCol>
-                  <VCol
-                    cols="12"
-                    md="6"
-                  >
-                    <AppTextField
-                      v-model="form.partner_phone"
-                      :label="$t('Phone')"
-                      placeholder="+228 90 12 34 56"
-                    />
-                  </VCol>
-                  <VCol
-                    cols="12"
-                    md="6"
-                  >
-                    <AppTextField
-                      v-model="form.partner_contact_name"
-                      :label="$t('Contact Name')"
-                      :placeholder="$t('Jean Dupont')"
-                    />
-                  </VCol>
-                  <VCol cols="12">
-                    <AppSelect
-                      v-model="form.partner_activity_sector"
-                      :items="activitySectorOptions"
-                      :label="$t('Activity Sector')"
-                      :placeholder="$t('Select activity sector')"
-                    />
-                  </VCol>
-                  <VCol cols="12">
-                    <AppSelect
-                      v-model="form.partner_engagement_type"
-                      :items="engagementTypeOptions"
-                      :label="$t('Engagement Type')"
-                      :placeholder="$t('Select engagement type')"
-                    />
-                  </VCol>
-                  <VCol cols="12">
-                    <AppTextField
-                      v-model="form.partner_location"
-                      :label="$t('Partner Location')"
-                      placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                      :hint="$t('Location coordinates')"
-                    />
-                  </VCol>
-                </VRow>
-                      </VCardText>
-                    </VCard>
-                  </VExpansionPanelText>
-                </VExpansionPanel>
-              </VExpansionPanels>
+                <VCardItem class="pb-2">
+                  <VCardTitle class="text-h6">
+                    {{ $t('Requester') }} ({{ $t('Who requests') }})
+                  </VCardTitle>
+                  <VCardSubtitle>
+                    {{ $t('Select partner or customer who requests the delivery') }}
+                  </VCardSubtitle>
+                </VCardItem>
+                <VDivider />
+                <VCardText>
+                  <VRow>
+                    <VCol cols="12">
+                      <AppAutocomplete
+                        v-model="form.requester"
+                        v-model:search="requesterSearch"
+                        :items="requesterEntities"
+                        :loading="isLoadingRequester"
+                        :label="$t('Requester')"
+                        :placeholder="$t('Search and select a partner or customer')"
+                        item-title="title"
+                        item-value="value"
+                        clearable
+                        :custom-filter="(itemTitle, queryText, item) => {
+                          const searchText = (queryText || '').toLowerCase()
+                          const title = (itemTitle || '').toLowerCase()
+                          const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                          const phone = (item.raw?.phone || '').toLowerCase()
+                          const contactName = (item.raw?.contact_name || '').toLowerCase()
+                          const email = (item.raw?.email || '').toLowerCase()
+                          const firstName = (item.raw?.first_name || '').toLowerCase()
+                          const lastName = (item.raw?.last_name || '').toLowerCase()
+                          return title.includes(searchText) || 
+                                 subtitle.includes(searchText) || 
+                                 phone.includes(searchText) || 
+                                 contactName.includes(searchText) ||
+                                 email.includes(searchText) ||
+                                 firstName.includes(searchText) ||
+                                 lastName.includes(searchText)
+                        }"
+                        @update:model-value="onRequesterSelect"
+                      />
+                    </VCol>
+                    <VCol cols="12">
+                      <AppTextField
+                        v-model="form.pickup_location"
+                        :label="$t('Pickup Location')"
+                        placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                        :hint="$t('Location coordinates (auto-filled if requester selected)')"
+                      />
+                    </VCol>
+                  </VRow>
+                </VCardText>
+              </VCard>
             </VCol>
 
-            <!-- Customer Section -->
+            <!-- Recipient Section (Who receives the delivery) -->
             <VCol
               cols="12"
               md="6"
             >
-              <VExpansionPanels
-                v-model="customerExpanded"
+              <VCard
+                variant="outlined"
+                class="mb-4"
               >
-            <VExpansionPanel>
-              <VExpansionPanelTitle>
-                <div class="d-flex align-center justify-space-between w-100">
-                  <span class="text-h6">{{ $t('Customer (Dropoff Location)') }}</span>
-                  <VBtnToggle
-                    v-model="customerMode"
-                    mandatory
-                    density="compact"
-                    variant="outlined"
-                    color="primary"
-                    class="customer-mode-toggle"
-                    @click.stop
-                  >
-                    <VBtn
-                      value="select"
-                      class="px-6"
-                    >
-                      {{ $t('Existing') }}
-                    </VBtn>
-                    <VBtn
-                      value="create"
-                      class="px-6"
-                    >
-                      {{ $t('New') }}
-                    </VBtn>
-                  </VBtnToggle>
-                </div>
-              </VExpansionPanelTitle>
-              <VExpansionPanelText>
-                <VCard
-                  variant="outlined"
-                >
-                  <VCardText>
-              <!-- Select Existing Customer -->
-              <VRow v-if="customerMode === 'select'">
-                <VCol cols="12">
-                  <AppSelect
-                    v-model="form.customer_id"
-                    :items="customers"
-                    :loading="isLoadingCustomers"
-                    :label="$t('Select Customer')"
-                    :placeholder="$t('Search and select a customer')"
-                    item-title="title"
-                    item-value="value"
-                    clearable
-                    @update:model-value="onCustomerSelect"
-                  />
-                </VCol>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="form.dropoff_location"
-                    :label="$t('Dropoff Location')"
-                    placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
-                    :hint="$t('Location coordinates (auto-filled if customer selected)')"
-                  />
-                </VCol>
-              </VRow>
-
-              <!-- Create New Customer -->
-              <VRow v-else>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.customer_first_name"
-                    :label="$t('First Name')"
-                    :placeholder="$t('Marie')"
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.customer_last_name"
-                    :label="$t('Last Name')"
-                    :placeholder="$t('Agbodan')"
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.customer_phone"
-                    :label="$t('Phone')"
-                    placeholder="+228 92 34 56 78"
-                    required
-                  />
-                </VCol>
-                <VCol
-                  cols="12"
-                  md="6"
-                >
-                  <AppTextField
-                    v-model="form.customer_email"
-                    type="email"
-                    :label="$t('Email')"
-                    placeholder="marie.agbodan@example.com"
-                  />
-                </VCol>
-                <VCol cols="12">
-                  <AppTextField
-                    v-model="form.customer_location"
-                    :label="$t('Customer Location')"
-                    placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
-                    :hint="$t('Location coordinates')"
-                  />
-                  </VCol>
-                </VRow>
-                  </VCardText>
-                </VCard>
-              </VExpansionPanelText>
-            </VExpansionPanel>
-              </VExpansionPanels>
+                <VCardItem class="pb-2">
+                  <VCardTitle class="text-h6">
+                    {{ $t('Recipient') }} ({{ $t('Who receives') }})
+                  </VCardTitle>
+                  <VCardSubtitle>
+                    {{ $t('Select partner or customer who receives the delivery') }}
+                  </VCardSubtitle>
+                </VCardItem>
+                <VDivider />
+                <VCardText>
+                  <VRow>
+                    <VCol cols="12">
+                      <AppAutocomplete
+                        v-model="form.recipient"
+                        v-model:search="recipientSearch"
+                        :items="recipientEntities"
+                        :loading="isLoadingRecipient"
+                        :label="$t('Recipient')"
+                        :placeholder="$t('Search and select a partner or customer')"
+                        item-title="title"
+                        item-value="value"
+                        clearable
+                        :custom-filter="(itemTitle, queryText, item) => {
+                          const searchText = (queryText || '').toLowerCase()
+                          const title = (itemTitle || '').toLowerCase()
+                          const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                          const phone = (item.raw?.phone || '').toLowerCase()
+                          const contactName = (item.raw?.contact_name || '').toLowerCase()
+                          const email = (item.raw?.email || '').toLowerCase()
+                          const firstName = (item.raw?.first_name || '').toLowerCase()
+                          const lastName = (item.raw?.last_name || '').toLowerCase()
+                          return title.includes(searchText) || 
+                                 subtitle.includes(searchText) || 
+                                 phone.includes(searchText) || 
+                                 contactName.includes(searchText) ||
+                                 email.includes(searchText) ||
+                                 firstName.includes(searchText) ||
+                                 lastName.includes(searchText)
+                        }"
+                        @update:model-value="onRecipientSelect"
+                      />
+                    </VCol>
+                    <VCol cols="12">
+                      <AppTextField
+                        v-model="form.dropoff_location"
+                        :label="$t('Dropoff Location')"
+                        placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
+                        :hint="$t('Location coordinates (auto-filled if recipient selected)')"
+                      />
+                    </VCol>
+                  </VRow>
+                </VCardText>
+              </VCard>
             </VCol>
           </VRow>
 
@@ -1171,9 +1073,9 @@ watch(() => props.delivery, () => {
               <!-- Driver Selection -->
               <VCol
                 cols="12"
-                md="6"
+                md="4"
               >
-                <AppSelect
+                <AppAutocomplete
                   v-model="form.driver_id"
                   :items="drivers"
                   :loading="isLoadingDrivers"
@@ -1182,28 +1084,30 @@ watch(() => props.delivery, () => {
                   item-title="title"
                   item-value="value"
                   clearable
-                />
-              </VCol>
-
-              <!-- Status -->
-              <VCol
-                cols="12"
-                md="6"
-              >
-                <AppSelect
-                  v-model="form.status_id"
-                  :items="statusOptions"
-                  :loading="isLoadingStatuses"
-                  :label="$t('Status')"
-                  :placeholder="$t('Select status')"
-                  clearable
+                  :custom-filter="(itemTitle, queryText, item) => {
+                    const searchText = (queryText || '').toLowerCase()
+                    const title = (itemTitle || '').toLowerCase()
+                    const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                    const firstName = (item.raw?.first_name || '').toLowerCase()
+                    const lastName = (item.raw?.last_name || '').toLowerCase()
+                    const phone = (item.raw?.phone || '').toLowerCase()
+                    const plateNumber = (item.raw?.plate_number || '').toLowerCase()
+                    const vehicleType = (item.raw?.vehicle_type || '').toLowerCase()
+                    return title.includes(searchText) || 
+                           subtitle.includes(searchText) || 
+                           firstName.includes(searchText) ||
+                           lastName.includes(searchText) ||
+                           phone.includes(searchText) ||
+                           plateNumber.includes(searchText) ||
+                           vehicleType.includes(searchText)
+                  }"
                 />
               </VCol>
 
               <!-- Distance -->
               <VCol
                 cols="12"
-                md="6"
+                md="4"
               >
                 <AppTextField
                   v-model="form.distance_km"
@@ -1224,7 +1128,7 @@ watch(() => props.delivery, () => {
               <!-- Price -->
               <VCol
                 cols="12"
-                md="6"
+                md="4"
               >
                 <AppTextField
                   v-model="form.price"
@@ -1240,12 +1144,14 @@ watch(() => props.delivery, () => {
                     />
                   </template>
                 </AppTextField>
-                
-                <!-- Distance info with service indicator -->
-                <div
-                  v-if="distanceInfo"
-                  class="text-sm text-medium-emphasis mt-1"
-                >
+              </VCol>
+
+              <!-- Distance info with service indicator -->
+              <VCol
+                v-if="distanceInfo"
+                cols="12"
+              >
+                <div class="text-sm text-medium-emphasis">
                   <VIcon
                     :icon="distanceInfo.isEstimated ? 'tabler-map-pin-question' : 'tabler-route'"
                     size="14"
@@ -1289,7 +1195,7 @@ watch(() => props.delivery, () => {
         <VBtn
           color="primary"
           :loading="isSubmitting"
-          :disabled="!form.pickup_location || !form.dropoff_location || (partnerMode === 'create' && !form.partner_merchant_name) || (customerMode === 'create' && !form.customer_phone)"
+          :disabled="!form.pickup_location || !form.dropoff_location || !form.requester || !form.recipient"
           @click="onSubmit"
         >
           {{ isEditMode ? ($t('Update Delivery') || 'Mettre à jour') : ($t('Create Delivery') || 'Créer la livraison') }}
@@ -1344,3 +1250,4 @@ watch(() => props.delivery, () => {
   border-color: rgba(var(--v-border-color), var(--v-border-opacity)) !important;
 }
 </style>
+
