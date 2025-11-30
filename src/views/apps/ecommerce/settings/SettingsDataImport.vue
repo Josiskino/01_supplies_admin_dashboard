@@ -3,6 +3,9 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
+// Import type: 'customers' or 'partners'
+const importType = ref('customers')
+
 const isDragging = ref(false)
 const selectedFile = ref(null)
 const isUploading = ref(false)
@@ -49,9 +52,12 @@ const handleFileInput = (e) => {
 const downloadTemplate = () => {
   // TODO: Implement template download
   // This would typically fetch a template file from the server
+  const templateName = importType.value === 'customers' 
+    ? 'customers-import-template.xlsx' 
+    : 'partners-import-template.xlsx'
   const link = document.createElement('a')
-  link.href = '/templates/import-template.xlsx' // Adjust path as needed
-  link.download = 'import-template.xlsx'
+  link.href = `/templates/${templateName}` // Adjust path as needed
+  link.download = templateName
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
@@ -65,6 +71,11 @@ const uploadFile = async () => {
   
   try {
     // TODO: Implement actual file upload to backend
+    // The endpoint should be based on importType: /import/customers or /import/partners
+    const endpoint = importType.value === 'customers' 
+      ? '/import/customers' 
+      : '/import/partners'
+    
     // Simulate upload progress
     const interval = setInterval(() => {
       uploadProgress.value += 10
@@ -84,6 +95,13 @@ const uploadFile = async () => {
 const removeFile = () => {
   selectedFile.value = null
 }
+
+// Reset file when switching import type
+watch(importType, () => {
+  selectedFile.value = null
+  isUploading.value = false
+  uploadProgress.value = 0
+})
 </script>
 
 <template>
@@ -105,6 +123,35 @@ const removeFile = () => {
       </VCardItem>
     </VCard>
 
+    <!-- Import Type Tabs -->
+    <VCard class="mb-6">
+      <VTabs
+        v-model="importType"
+        class="border-b"
+      >
+        <VTab
+          value="customers"
+          class="text-capitalize"
+        >
+          <VIcon
+            icon="tabler-users"
+            class="me-2"
+          />
+          {{ $t('Customers') }}
+        </VTab>
+        <VTab
+          value="partners"
+          class="text-capitalize"
+        >
+          <VIcon
+            icon="tabler-building-store"
+            class="me-2"
+          />
+          {{ $t('Partners') }}
+        </VTab>
+      </VTabs>
+    </VCard>
+
     <!-- Template Download Section -->
     <VCard class="mb-6">
       <VCardText>
@@ -114,7 +161,9 @@ const removeFile = () => {
               {{ $t('Download Template') }}
             </h6>
             <p class="text-body-1 text-medium-emphasis mb-0">
-              {{ $t('Before importing your data, please download our template to ensure your data follows the correct format. The template includes all required columns and formatting guidelines.') }}
+              {{ importType === 'customers' 
+                ? $t('Download the customers import template to ensure your data follows the correct format. The template includes all required columns for customer data.') 
+                : $t('Download the partners import template to ensure your data follows the correct format. The template includes all required columns for partner data.') }}
             </p>
           </div>
           <VBtn
@@ -123,6 +172,9 @@ const removeFile = () => {
             @click="downloadTemplate"
           >
             {{ $t('Download Template') }}
+            <span class="ms-2">
+              ({{ importType === 'customers' ? $t('Customers') : $t('Partners') }})
+            </span>
           </VBtn>
         </div>
 
@@ -145,8 +197,13 @@ const removeFile = () => {
     <!-- File Upload Section -->
     <VCard>
       <VCardItem>
-        <VCardTitle>
-          {{ $t('Upload Your Data') }}
+        <VCardTitle class="d-flex align-center gap-2">
+          <VIcon
+            :icon="importType === 'customers' ? 'tabler-users' : 'tabler-building-store'"
+            size="20"
+            color="primary"
+          />
+          {{ $t('Upload Your Data') }} - {{ importType === 'customers' ? $t('Customers') : $t('Partners') }}
         </VCardTitle>
         <VCardSubtitle>
           {{ $t('Select or drag and drop your Excel or Google Sheets file') }}

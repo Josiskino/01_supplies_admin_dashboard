@@ -328,16 +328,42 @@ const onDriverAdded = () => {
 <template>
   <section>
     <VCard class="mb-6">
-      <VCardItem class="pb-4">
-        <VCardTitle>{{ $t('Drivers') }}</VCardTitle>
+      <VCardItem class="pb-2">
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <span>{{ $t('Drivers') }}</span>
+          <div class="d-flex align-center gap-2">
+            <span class="text-body-2 text-medium-emphasis">{{ $t('Show') }}</span>
+            <AppSelect
+              :model-value="itemsPerPage"
+              :items="[
+                { value: 100, title: '100' },
+                { value: 150, title: '150' },
+                { value: 200, title: '200' },
+                { value: 300, title: '300' },
+              ]"
+              style="inline-size: 7rem;"
+              density="compact"
+              @update:model-value="itemsPerPage = parseInt($event, 10)"
+            />
+            <VBtn
+              prepend-icon="tabler-plus"
+              color="primary"
+              density="compact"
+              @click="isAddDriverDrawerOpen = true"
+            >
+              {{ $t('Add Driver') }}
+            </VBtn>
+          </div>
+        </VCardTitle>
       </VCardItem>
 
-      <VCardText>
-        <VRow>
+      <VCardText class="pt-2">
+        <!-- Filters Section with All Controls on One Line -->
+        <VRow class="mb-2">
           <!-- 👉 Select Status -->
           <VCol
             cols="12"
-            sm="4"
+            md="3"
           >
             <AppSelect
               v-model="selectedStatus"
@@ -345,12 +371,14 @@ const onDriverAdded = () => {
               :items="statusOptions"
               clearable
               clear-icon="tabler-x"
+              density="compact"
             />
           </VCol>
+
           <!-- 👉 Select Vehicle Type -->
           <VCol
             cols="12"
-            sm="4"
+            md="3"
           >
             <AppSelect
               v-model="selectedVehicleType"
@@ -358,56 +386,40 @@ const onDriverAdded = () => {
               :items="vehicleTypes"
               clearable
               clear-icon="tabler-x"
+              density="compact"
             />
           </VCol>
-        </VRow>
-      </VCardText>
 
-      <VDivider />
-
-      <VCardText class="d-flex flex-wrap gap-4">
-        <div class="me-3 d-flex gap-3">
-          <AppSelect
-            :model-value="itemsPerPage"
-            :items="[
-              { value: 100, title: '100' },
-              { value: 150, title: '150' },
-              { value: 200, title: '200' },
-              { value: 300, title: '300' },
-            ]"
-            style="inline-size: 7rem;"
-            @update:model-value="itemsPerPage = parseInt($event, 10)"
-          />
-        </div>
-        <VSpacer />
-
-        <div class="app-user-search-filter d-flex align-center flex-wrap gap-4">
           <!-- 👉 Search  -->
-          <div style="inline-size: 15.625rem;">
+          <VCol
+            cols="12"
+            md="4"
+          >
             <AppTextField
               v-model="searchQuery"
               :placeholder="$t('Search by name or phone')"
               clearable
+              density="compact"
             />
-          </div>
+          </VCol>
 
           <!-- 👉 Export button -->
-          <VBtn
-            variant="tonal"
-            color="secondary"
-            prepend-icon="tabler-upload"
+          <VCol
+            cols="12"
+            md="2"
+            class="d-flex align-end"
           >
-            {{ $t('Export') }}
-          </VBtn>
-
-          <!-- 👉 Add driver button -->
-          <VBtn
-            prepend-icon="tabler-plus"
-            @click="isAddDriverDrawerOpen = true"
-          >
-            {{ $t('Add Driver') }}
-          </VBtn>
-        </div>
+            <VBtn
+              variant="tonal"
+              color="secondary"
+              prepend-icon="tabler-upload"
+              block
+              density="compact"
+            >
+              {{ $t('Export') }}
+            </VBtn>
+          </VCol>
+        </VRow>
       </VCardText>
 
       <VDivider />

@@ -471,47 +471,29 @@ const cancelDelete = () => {
 <template>
   <section>
     <VCard class="mb-6">
-      <VCardItem class="pb-4">
-        <VCardTitle>{{ $t('Ongoing Deliveries') }}</VCardTitle>
+      <VCardItem class="pb-2">
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <span>{{ $t('Ongoing Deliveries') }}</span>
+          <div class="d-flex align-center gap-2">
+            <span class="text-body-2 text-medium-emphasis">{{ $t('Show') }}</span>
+            <AppSelect
+              :model-value="itemsPerPage"
+              :items="[
+                { value: 15, title: '15' },
+                { value: 30, title: '30' },
+                { value: 50, title: '50' },
+              ]"
+              style="inline-size: 7rem;"
+              density="compact"
+              @update:model-value="itemsPerPage = parseInt($event, 10)"
+            />
+          </div>
+        </VCardTitle>
       </VCardItem>
 
-      <VCardText>
-        <!-- Add Delivery Button -->
-        <div class="d-flex justify-end mb-4">
-          <VBtn
-            prepend-icon="tabler-plus"
-            color="primary"
-            @click="() => { selectedDeliveryForEdit = null; isAddDeliveryDialogOpen = true; }"
-          >
-            {{ $t('Add Delivery') }}
-          </VBtn>
-        </div>
-
-        <!-- Items Per Page Selector (Top Left) -->
+      <VCardText class="pt-2">
+        <!-- Filters Section with Add Delivery Button -->
         <VRow class="mb-2">
-          <VCol
-            cols="12"
-            md="auto"
-          >
-            <div class="d-flex align-center gap-2">
-              <span class="text-body-2 text-medium-emphasis">{{ $t('Show') }}</span>
-              <AppSelect
-                :model-value="itemsPerPage"
-                :items="[
-                  { value: 15, title: '15' },
-                  { value: 30, title: '30' },
-                  { value: 50, title: '50' },
-                ]"
-                style="inline-size: 7rem;"
-                density="compact"
-                @update:model-value="itemsPerPage = parseInt($event, 10)"
-              />
-            </div>
-          </VCol>
-        </VRow>
-
-        <!-- Filters Section -->
-        <VRow class="mb-4">
           <!-- Date From -->
           <VCol
             cols="12"
@@ -543,7 +525,7 @@ const cancelDelete = () => {
           <!-- Global Search -->
           <VCol
             cols="12"
-            md="6"
+            md="4"
           >
             <AppTextField
               v-model="searchQuery"
@@ -568,6 +550,22 @@ const cancelDelete = () => {
               @click="resetFilters"
             >
               {{ $t('Reset') }}
+            </VBtn>
+          </VCol>
+
+          <!-- Add Delivery Button -->
+          <VCol
+            cols="12"
+            md="2"
+            class="d-flex align-end"
+          >
+            <VBtn
+              prepend-icon="tabler-plus"
+              color="primary"
+              block
+              @click="() => { selectedDeliveryForEdit = null; isAddDeliveryDialogOpen = true; }"
+            >
+              {{ $t('Add Delivery') }}
             </VBtn>
           </VCol>
         </VRow>
