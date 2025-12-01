@@ -36,8 +36,8 @@ const isAdministrator = computed(() => {
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Created At'), key: 'created_at' },
-  { title: t('Customer'), key: 'customer' },
-  { title: t('Partner'), key: 'partner' },
+  { title: t('Requester'), key: 'requester' },
+  { title: t('Recipient'), key: 'recipient' },
   { title: t('Driver'), key: 'driver' },
   { title: t('Distance'), key: 'distance_km' },
   { title: t('Price'), key: 'price' },
@@ -351,7 +351,7 @@ const formatLocationLink = location => {
   return null
 }
 
-const openWhatsApp = delivery => {
+const openWhatsApp = async delivery => {
   try {
     // Check if driver has a phone number
     if (!delivery?.driver?.phone) {
@@ -360,19 +360,138 @@ const openWhatsApp = delivery => {
       return
     }
 
-    // Get partner name
-    const partnerName = delivery?.partner?.name || delivery?.partner?.merchant_name || t('Unknown Partner') || 'Partenaire inconnu'
-
-    // Get customer name
-    let customerName = '—'
-    if (delivery?.customer) {
-      if (delivery.customer.name) {
-        customerName = delivery.customer.name
-      } else if (delivery.customer.first_name || delivery.customer.last_name) {
-        customerName = `${delivery.customer.first_name || ''} ${delivery.customer.last_name || ''}`.trim()
-      } else {
-        customerName = t('Unknown Customer') || 'Client inconnu'
+    // Get requester name - check all possible fields and structures
+    let requesterName = t('Unknown Requester') || 'Demandeur inconnu'
+    let requesterPhone = ''
+    
+    // Check if requester exists (new structure) or fallback to partner (old structure)
+    let requester = delivery?.requester || delivery?.partner
+    let requesterId = null
+    
+    // Also check for partner_id field (old structure)
+    if (!requester && delivery?.partner_id) {
+      requesterId = delivery.partner_id
+    }
+    // If requester is just an ID (number) or has only ID, fetch full details
+    else if (typeof requester === 'number') {
+      requesterId = requester
+      requester = null
+    } else if (requester && typeof requester === 'object') {
+      // Check if requester has ID but no name
+      const hasName = requester.name || requester.merchant_name || requester.display_name || requester.contact_name || requester.full_name || (requester.first_name && requester.last_name)
+      if (requester.id && !hasName) {
+        requesterId = requester.id
+        // Keep requester object but we'll fetch details
+      } else if (requester.id) {
+        // Requester has ID, check if name is actually just the ID
+        const currentName = requester.name || requester.merchant_name || requester.display_name || requester.contact_name || requester.full_name
+        if (currentName && String(currentName) === String(requester.id)) {
+          // Name is just the ID, fetch full details
+          requesterId = requester.id
+        }
       }
+    }
+    
+    // If we only have ID, fetch requester details (need to determine type)
+    if (requesterId && (!requester || (!requester.name && !requester.merchant_name && !requester.full_name))) {
+      try {
+        // Try partner first (most common case)
+        const partnerResponse = await $api(`/delivery-entities/partner/${requesterId}`, { method: 'GET' })
+        if (partnerResponse?.data) {
+          requester = partnerResponse.data
+        }
+      } catch (error) {
+        // If partner fails, try customer
+        try {
+          const customerResponse = await $api(`/delivery-entities/customer/${requesterId}`, { method: 'GET' })
+          if (customerResponse?.data) {
+            requester = customerResponse.data
+          }
+        } catch (err) {
+          console.error('Error fetching requester details:', err)
+        }
+      }
+    }
+    
+    if (requester) {
+      // Try all possible name fields - prioritize name and merchant_name for partners, full_name for customers
+      if (typeof requester === 'object') {
+        // Partner requester
+        if (requester.type === 'partner' || (!requester.type && (requester.name || requester.merchant_name))) {
+          requesterName = requester.name 
+                      || requester.merchant_name 
+                      || requester.display_name
+                      || requester.contact_name
+                      || requesterName
+          
+          requesterPhone = requester.phone 
+                      || requester.contact_phone
+                      || requester.phone_number
+                      || ''
+        } else {
+          // Customer requester
+          requesterName = requester.full_name 
+                      || `${requester.first_name || ''} ${requester.last_name || ''}`.trim()
+                      || requester.name
+                      || requesterName
+          
+          requesterPhone = requester.phone || ''
+        }
+        
+        // Add +228 prefix if phone doesn't start with +
+        if (requesterPhone && !requesterPhone.startsWith('+')) {
+          // Remove any leading zeros
+          const cleanPhone = requesterPhone.replace(/^0+/, '')
+          requesterPhone = `+228${cleanPhone}`
+        }
+      } else if (typeof requester === 'string') {
+        requesterName = requester
+      }
+    } else if (requesterId) {
+      // Fallback: if we only have ID and couldn't fetch details
+      requesterName = `Requester #${requesterId}`
+    }
+
+    // Get recipient name - check all possible fields and structures
+    let recipientName = t('Unknown Recipient') || 'Destinataire inconnu'
+    let recipientPhone = ''
+    
+    // Check if recipient exists (new structure) or fallback to customer (old structure)
+    let recipient = delivery?.recipient || delivery?.customer
+    
+    if (recipient) {
+      if (typeof recipient === 'object') {
+        // Partner recipient
+        if (recipient.type === 'partner' || (!recipient.type && (recipient.name || recipient.merchant_name))) {
+          recipientName = recipient.name 
+                      || recipient.merchant_name 
+                      || recipient.display_name
+                      || recipient.contact_name
+                      || recipientName
+          
+          recipientPhone = recipient.phone 
+                      || recipient.contact_phone
+                      || recipient.phone_number
+                      || ''
+        } else {
+          // Customer recipient
+          recipientName = recipient.full_name 
+                      || `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim()
+                      || recipient.name
+                      || recipientName
+          
+          recipientPhone = recipient.phone || ''
+        }
+      } else if (typeof recipient === 'string') {
+        recipientName = recipient
+      }
+    }
+    
+    // Add +228 prefix if phone doesn't start with +
+    if (recipientPhone && !recipientPhone.startsWith('+')) {
+      // Remove any leading zeros
+      const cleanPhone = recipientPhone.replace(/^0+/, '')
+      recipientPhone = `+228${cleanPhone}`
     }
 
     // Get locations and format as links
@@ -383,9 +502,18 @@ const openWhatsApp = delivery => {
     const price = delivery?.price ? formatPrice(delivery.price) : t('Not specified') || 'Non spécifié'
 
     // Build WhatsApp message with emojis
+    // Using emojis directly - WhatsApp supports UTF-8 emojis
     let message = `🚚 *Nouvelle livraison*\n\n`
-    message += `📍 *Partenaire:* ${partnerName}\n`
-    message += `👤 *Client:* ${customerName}\n\n`
+    message += `📍 *${t('Requester') || 'Demandeur'}:* ${requesterName}`
+    if (requesterPhone) {
+      message += `\n📞 Tél: ${requesterPhone}`
+    }
+    message += `\n`
+    message += `👤 *${t('Recipient') || 'Destinataire'}:* ${recipientName}`
+    if (recipientPhone) {
+      message += `\n📞 Tél: ${recipientPhone}`
+    }
+    message += `\n\n`
 
     if (pickupLocation) {
       message += `📦 *Point de collecte:*\n${pickupLocation}\n\n`
@@ -408,10 +536,20 @@ const openWhatsApp = delivery => {
     const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber
 
     // Encode message for URL
+    // WhatsApp supports UTF-8 emojis, but we need to ensure proper encoding
+    // Using encodeURIComponent which should properly encode UTF-8 characters including emojis
+    // The browser will handle the UTF-8 encoding correctly
     const encodedMessage = encodeURIComponent(message)
 
     // Build WhatsApp URL
+    // Note: WhatsApp Web should decode UTF-8 emojis correctly from the URL
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
+    
+    console.log('=== WhatsApp Message ===')
+    console.log('Original message:', message)
+    console.log('Encoded message:', encodedMessage)
+    console.log('WhatsApp URL:', whatsappUrl)
+    console.log('========================')
 
     // Open WhatsApp in new tab
     window.open(whatsappUrl, '_blank')
@@ -594,34 +732,65 @@ const cancelDelete = () => {
             </span>
           </template>
 
-          <!-- Customer -->
-          <template #item.customer="{ item }">
+          <!-- Requester -->
+          <template #item.requester="{ item }">
             <div
-              v-if="item?.customer"
+              v-if="item?.requester"
               class="d-flex flex-column"
             >
-              <span class="text-high-emphasis font-weight-medium">
-                {{ (item.customer.full_name || `${item.customer.first_name || ''} ${item.customer.last_name || ''}`.trim() || '—').toUpperCase() }}
-              </span>
-              <a
-                v-if="item.customer.phone"
-                :href="`tel:${item.customer.phone}`"
-                class="text-xs text-primary text-decoration-none"
-              >
-                {{ item.customer.phone }}
-              </a>
+              <!-- Partner requester -->
+              <template v-if="item.requester.type === 'partner' || (!item.requester.type && item.requester.name)">
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.requester.name || item.requester.merchant_name || '—').toUpperCase() }}
+                </span>
+                <span
+                  v-if="item.requester.contact_name"
+                  class="text-xs text-disabled"
+                >
+                  {{ item.requester.contact_name }}
+                </span>
+                <a
+                  v-if="item.requester.phone || item.requester.contact_phone"
+                  :href="`tel:${item.requester.phone || item.requester.contact_phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.requester.phone || item.requester.contact_phone }}
+                </a>
+              </template>
+              <!-- Customer requester -->
+              <template v-else-if="item.requester.type === 'customer' || item.requester.first_name || item.requester.last_name || item.requester.full_name">
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.requester.full_name || `${item.requester.first_name || ''} ${item.requester.last_name || ''}`.trim() || '—').toUpperCase() }}
+                </span>
+                <a
+                  v-if="item.requester.phone"
+                  :href="`tel:${item.requester.phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.requester.phone }}
+                </a>
+              </template>
+              <!-- Fallback for old structure -->
+              <template v-else>
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.requester.name || item.requester.full_name || '—').toUpperCase() }}
+                </span>
+                <a
+                  v-if="item.requester.phone"
+                  :href="`tel:${item.requester.phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.requester.phone }}
+                </a>
+              </template>
             </div>
-            <span v-else>—</span>
-          </template>
-
-          <!-- Partner -->
-          <template #item.partner="{ item }">
+            <!-- Fallback to old structure (partner/customer) -->
             <div
-              v-if="item?.partner"
+              v-else-if="item?.partner"
               class="d-flex flex-column"
             >
               <span class="text-high-emphasis font-weight-medium">
-                {{ (item.partner.name || '—').toUpperCase() }}
+                {{ (item.partner.name || item.partner.merchant_name || '—').toUpperCase() }}
               </span>
               <span
                 v-if="item.partner.contact_name"
@@ -635,6 +804,77 @@ const cancelDelete = () => {
                 class="text-xs text-primary text-decoration-none"
               >
                 {{ item.partner.phone }}
+              </a>
+            </div>
+            <span v-else>—</span>
+          </template>
+
+          <!-- Recipient -->
+          <template #item.recipient="{ item }">
+            <div
+              v-if="item?.recipient"
+              class="d-flex flex-column"
+            >
+              <!-- Partner recipient -->
+              <template v-if="item.recipient.type === 'partner' || (!item.recipient.type && item.recipient.name)">
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.recipient.name || item.recipient.merchant_name || '—').toUpperCase() }}
+                </span>
+                <span
+                  v-if="item.recipient.contact_name"
+                  class="text-xs text-disabled"
+                >
+                  {{ item.recipient.contact_name }}
+                </span>
+                <a
+                  v-if="item.recipient.phone || item.recipient.contact_phone"
+                  :href="`tel:${item.recipient.phone || item.recipient.contact_phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.recipient.phone || item.recipient.contact_phone }}
+                </a>
+              </template>
+              <!-- Customer recipient -->
+              <template v-else-if="item.recipient.type === 'customer' || item.recipient.first_name || item.recipient.last_name || item.recipient.full_name">
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.recipient.full_name || `${item.recipient.first_name || ''} ${item.recipient.last_name || ''}`.trim() || '—').toUpperCase() }}
+                </span>
+                <a
+                  v-if="item.recipient.phone"
+                  :href="`tel:${item.recipient.phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.recipient.phone }}
+                </a>
+              </template>
+              <!-- Fallback for old structure -->
+              <template v-else>
+                <span class="text-high-emphasis font-weight-medium">
+                  {{ (item.recipient.name || item.recipient.full_name || '—').toUpperCase() }}
+                </span>
+                <a
+                  v-if="item.recipient.phone"
+                  :href="`tel:${item.recipient.phone}`"
+                  class="text-xs text-primary text-decoration-none"
+                >
+                  {{ item.recipient.phone }}
+                </a>
+              </template>
+            </div>
+            <!-- Fallback to old structure (customer) -->
+            <div
+              v-else-if="item?.customer"
+              class="d-flex flex-column"
+            >
+              <span class="text-high-emphasis font-weight-medium">
+                {{ (item.customer.full_name || `${item.customer.first_name || ''} ${item.customer.last_name || ''}`.trim() || '—').toUpperCase() }}
+              </span>
+              <a
+                v-if="item.customer.phone"
+                :href="`tel:${item.customer.phone}`"
+                class="text-xs text-primary text-decoration-none"
+              >
+                {{ item.customer.phone }}
               </a>
             </div>
             <span v-else>—</span>
@@ -948,11 +1188,41 @@ const cancelDelete = () => {
                 </div>
               </VCol>
 
-              <!-- Partner Information -->
+              <!-- Start URL -->
+              <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.start_url"
+                cols="12"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Start URL') || 'URL de démarrage' }}:</span>
+                  <div class="mt-2">
+                    <a
+                      :href="(deliveryDetails || selectedDeliveryForView).start_url"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="text-primary text-decoration-none d-inline-flex align-center"
+                    >
+                      <VIcon
+                        icon="tabler-link"
+                        size="16"
+                        class="me-1"
+                      />
+                      <span class="text-break">{{ (deliveryDetails || selectedDeliveryForView).start_url }}</span>
+                      <VIcon
+                        icon="tabler-external-link"
+                        size="14"
+                        class="ms-1"
+                      />
+                    </a>
+                  </div>
+                </div>
+              </VCol>
+
+              <!-- Requester Information -->
               <VCol cols="12">
                 <VDivider class="my-4" />
                 <h3 class="mb-4">
-                  {{ $t('Partner (Pickup Location)') || 'Partenaire (Lieu de collecte)' }}
+                  {{ $t('Requester') || 'Demandeur' }} ({{ $t('Pickup Location') || 'Lieu de collecte' }})
                 </h3>
               </VCol>
 
@@ -961,21 +1231,35 @@ const cancelDelete = () => {
                 md="6"
               >
                 <div class="mb-4">
-                  <span class="text-sm text-medium-emphasis">{{ $t('Partner Name') || 'Nom du partenaire' }}:</span>
+                  <span class="text-sm text-medium-emphasis">{{ $t('Requester Name') || 'Nom du demandeur' }}:</span>
                   <span class="ms-2 font-weight-medium">
-                    {{ (deliveryDetails || selectedDeliveryForView)?.partner?.name || (deliveryDetails || selectedDeliveryForView)?.partner?.merchant_name || '—' }}
+                    <template v-if="(deliveryDetails || selectedDeliveryForView)?.requester">
+                      <!-- Partner requester -->
+                      <template v-if="(deliveryDetails || selectedDeliveryForView).requester.type === 'partner' || (!(deliveryDetails || selectedDeliveryForView).requester.type && (deliveryDetails || selectedDeliveryForView).requester.name)">
+                        {{ (deliveryDetails || selectedDeliveryForView).requester.name || (deliveryDetails || selectedDeliveryForView).requester.merchant_name || '—' }}
+                      </template>
+                      <!-- Customer requester -->
+                      <template v-else>
+                        {{ (deliveryDetails || selectedDeliveryForView).requester.full_name || `${(deliveryDetails || selectedDeliveryForView).requester.first_name || ''} ${(deliveryDetails || selectedDeliveryForView).requester.last_name || ''}`.trim() || '—' }}
+                      </template>
+                    </template>
+                    <template v-else-if="(deliveryDetails || selectedDeliveryForView)?.partner">
+                      {{ (deliveryDetails || selectedDeliveryForView).partner.name || (deliveryDetails || selectedDeliveryForView).partner.merchant_name || '—' }}
+                    </template>
+                    <template v-else>—</template>
                   </span>
                 </div>
               </VCol>
 
               <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.requester?.contact_name || (deliveryDetails || selectedDeliveryForView)?.partner?.contact_name"
                 cols="12"
                 md="6"
               >
                 <div class="mb-4">
                   <span class="text-sm text-medium-emphasis">{{ $t('Contact Name') || 'Nom du contact' }}:</span>
                   <span class="ms-2">
-                    {{ (deliveryDetails || selectedDeliveryForView)?.partner?.contact_name || '—' }}
+                    {{ (deliveryDetails || selectedDeliveryForView)?.requester?.contact_name || (deliveryDetails || selectedDeliveryForView)?.partner?.contact_name || '—' }}
                   </span>
                 </div>
               </VCol>
@@ -987,11 +1271,11 @@ const cancelDelete = () => {
                 <div class="mb-4">
                   <span class="text-sm text-medium-emphasis">{{ $t('Phone') || 'Téléphone' }}:</span>
                   <a
-                    v-if="(deliveryDetails || selectedDeliveryForView)?.partner?.phone"
-                    :href="`tel:${(deliveryDetails || selectedDeliveryForView).partner.phone}`"
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.requester?.phone || (deliveryDetails || selectedDeliveryForView)?.requester?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.partner?.phone"
+                    :href="`tel:${(deliveryDetails || selectedDeliveryForView)?.requester?.phone || (deliveryDetails || selectedDeliveryForView)?.requester?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.partner?.phone}`"
                     class="ms-2 text-primary text-decoration-none"
                   >
-                    {{ (deliveryDetails || selectedDeliveryForView).partner.phone }}
+                    {{ (deliveryDetails || selectedDeliveryForView)?.requester?.phone || (deliveryDetails || selectedDeliveryForView)?.requester?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.partner?.phone }}
                   </a>
                   <span
                     v-else
@@ -1031,11 +1315,11 @@ const cancelDelete = () => {
                 </div>
               </VCol>
 
-              <!-- Customer Information -->
+              <!-- Recipient Information -->
               <VCol cols="12">
                 <VDivider class="my-4" />
                 <h3 class="mb-4">
-                  {{ $t('Customer (Dropoff Location)') || 'Client (Lieu de livraison)' }}
+                  {{ $t('Recipient') || 'Destinataire' }} ({{ $t('Dropoff Location') || 'Lieu de livraison' }})
                 </h3>
               </VCol>
 
@@ -1044,9 +1328,35 @@ const cancelDelete = () => {
                 md="6"
               >
                 <div class="mb-4">
-                  <span class="text-sm text-medium-emphasis">{{ $t('Customer Name') || 'Nom du client' }}:</span>
+                  <span class="text-sm text-medium-emphasis">{{ $t('Recipient Name') || 'Nom du destinataire' }}:</span>
                   <span class="ms-2 font-weight-medium">
-                    {{ (deliveryDetails || selectedDeliveryForView)?.customer?.name || `${(deliveryDetails || selectedDeliveryForView)?.customer?.first_name || ''} ${(deliveryDetails || selectedDeliveryForView)?.customer?.last_name || ''}`.trim() || '—' }}
+                    <template v-if="(deliveryDetails || selectedDeliveryForView)?.recipient">
+                      <!-- Partner recipient -->
+                      <template v-if="(deliveryDetails || selectedDeliveryForView).recipient.type === 'partner' || (!(deliveryDetails || selectedDeliveryForView).recipient.type && (deliveryDetails || selectedDeliveryForView).recipient.name)">
+                        {{ (deliveryDetails || selectedDeliveryForView).recipient.name || (deliveryDetails || selectedDeliveryForView).recipient.merchant_name || '—' }}
+                      </template>
+                      <!-- Customer recipient -->
+                      <template v-else>
+                        {{ (deliveryDetails || selectedDeliveryForView).recipient.full_name || `${(deliveryDetails || selectedDeliveryForView).recipient.first_name || ''} ${(deliveryDetails || selectedDeliveryForView).recipient.last_name || ''}`.trim() || '—' }}
+                      </template>
+                    </template>
+                    <template v-else-if="(deliveryDetails || selectedDeliveryForView)?.customer">
+                      {{ (deliveryDetails || selectedDeliveryForView).customer.full_name || `${(deliveryDetails || selectedDeliveryForView).customer.first_name || ''} ${(deliveryDetails || selectedDeliveryForView).customer.last_name || ''}`.trim() || '—' }}
+                    </template>
+                    <template v-else>—</template>
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.recipient?.contact_name"
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Contact Name') || 'Nom du contact' }}:</span>
+                  <span class="ms-2">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.recipient?.contact_name || '—' }}
                   </span>
                 </div>
               </VCol>
@@ -1058,11 +1368,11 @@ const cancelDelete = () => {
                 <div class="mb-4">
                   <span class="text-sm text-medium-emphasis">{{ $t('Phone') || 'Téléphone' }}:</span>
                   <a
-                    v-if="(deliveryDetails || selectedDeliveryForView)?.customer?.phone"
-                    :href="`tel:${(deliveryDetails || selectedDeliveryForView).customer.phone}`"
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.recipient?.phone || (deliveryDetails || selectedDeliveryForView)?.recipient?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.customer?.phone"
+                    :href="`tel:${(deliveryDetails || selectedDeliveryForView)?.recipient?.phone || (deliveryDetails || selectedDeliveryForView)?.recipient?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.customer?.phone}`"
                     class="ms-2 text-primary text-decoration-none"
                   >
-                    {{ (deliveryDetails || selectedDeliveryForView).customer.phone }}
+                    {{ (deliveryDetails || selectedDeliveryForView)?.recipient?.phone || (deliveryDetails || selectedDeliveryForView)?.recipient?.contact_phone || (deliveryDetails || selectedDeliveryForView)?.customer?.phone }}
                   </a>
                   <span
                     v-else
@@ -1072,17 +1382,18 @@ const cancelDelete = () => {
               </VCol>
 
               <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.recipient?.email || (deliveryDetails || selectedDeliveryForView)?.customer?.email"
                 cols="12"
                 md="6"
               >
                 <div class="mb-4">
                   <span class="text-sm text-medium-emphasis">{{ $t('Email') || 'Email' }}:</span>
                   <a
-                    v-if="(deliveryDetails || selectedDeliveryForView)?.customer?.email"
-                    :href="`mailto:${(deliveryDetails || selectedDeliveryForView).customer.email}`"
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.recipient?.email || (deliveryDetails || selectedDeliveryForView)?.customer?.email"
+                    :href="`mailto:${(deliveryDetails || selectedDeliveryForView)?.recipient?.email || (deliveryDetails || selectedDeliveryForView)?.customer?.email}`"
                     class="ms-2 text-primary text-decoration-none"
                   >
-                    {{ (deliveryDetails || selectedDeliveryForView).customer.email }}
+                    {{ (deliveryDetails || selectedDeliveryForView)?.recipient?.email || (deliveryDetails || selectedDeliveryForView)?.customer?.email }}
                   </a>
                   <span
                     v-else

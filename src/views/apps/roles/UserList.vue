@@ -77,7 +77,7 @@ const fetchUsers = async () => {
     }
 
     const queryString = new URLSearchParams(queryParams).toString()
-    const url = `/users${queryString ? `?${queryString}` : ''}`
+    const url = `/users/staff${queryString ? `?${queryString}` : ''}`
 
     const response = await $api(url, {
       method: 'GET',
@@ -239,6 +239,48 @@ const getStatusName = status => {
 
 const isAddNewUserDrawerVisible = ref(false)
 
+// User details dialog
+const isUserDetailsDialogOpen = ref(false)
+const selectedUser = ref(null)
+const userDetails = ref(null)
+const isLoadingUserDetails = ref(false)
+
+// Fetch user details
+const viewUserDetails = async (user) => {
+  selectedUser.value = user
+  isUserDetailsDialogOpen.value = true
+  isLoadingUserDetails.value = true
+  userDetails.value = null
+
+  try {
+    // Fetch full user details from API
+    const response = await $api(`/users/staff/${user.id}`, {
+      method: 'GET',
+    })
+
+    console.log('=== User Details Response ===')
+    console.log('Response:', response)
+    console.log('=============================')
+
+    if (response && response.success && response.data) {
+      userDetails.value = response.data
+    } else if (response && response.data) {
+      userDetails.value = response.data
+    } else if (response) {
+      userDetails.value = response
+    } else {
+      // Fallback to the user from the list
+      userDetails.value = user
+    }
+  } catch (error) {
+    console.error('Error fetching user details:', error)
+    // Fallback to the user from the list
+    userDetails.value = user
+  } finally {
+    isLoadingUserDetails.value = false
+  }
+}
+
 const addNewUser = async userData => {
   await $api('/users', {
     method: 'POST',
@@ -259,6 +301,69 @@ const deleteUser = async id => {
 
   // refetch User
   fetchUsers()
+}
+
+// Group permissions by subject
+const groupPermissionsBySubject = (permissions) => {
+  if (!permissions || !Array.isArray(permissions)) return {}
+  
+  const grouped = {}
+  
+  permissions.forEach(permission => {
+    // Split permission like "view-delivery" into ["view", "delivery"]
+    const parts = permission.split('-')
+    if (parts.length >= 2) {
+      const action = parts[0]
+      const subject = parts.slice(1).join('-')
+      
+      if (!grouped[subject]) {
+        grouped[subject] = []
+      }
+      grouped[subject].push(action)
+    } else {
+      // If permission doesn't follow action-subject format, put it in "other"
+      if (!grouped['other']) {
+        grouped['other'] = []
+      }
+      grouped['other'].push(permission)
+    }
+  })
+  
+  return grouped
+}
+
+// Format permission for display
+const formatPermission = (permission) => {
+  // Convert "view-delivery" to "View Delivery"
+  const parts = permission.split('-')
+  return parts.map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+}
+
+// Get user permissions (from roles)
+const getUserPermissions = (user) => {
+  if (!user) return []
+  
+  // Get permissions from roles
+  const permissions = new Set()
+  
+  if (user.roles && Array.isArray(user.roles)) {
+    user.roles.forEach(role => {
+      if (role.permissions && Array.isArray(role.permissions)) {
+        role.permissions.forEach(permission => {
+          permissions.add(permission)
+        })
+      }
+    })
+  }
+  
+  // Also check direct permissions if available
+  if (user.permissions && Array.isArray(user.permissions)) {
+    user.permissions.forEach(permission => {
+      permissions.add(permission)
+    })
+  }
+  
+  return Array.from(permissions).sort()
 }
 </script>
 
@@ -402,12 +507,18 @@ const deleteUser = async id => {
 
         <!-- Actions -->
         <template #item.actions="{ item }">
-          <IconBtn @click="deleteUser(item.id)">
-            <VIcon icon="tabler-trash" />
+          <IconBtn @click.stop="viewUserDetails(item)">
+            <VIcon icon="tabler-eye" />
+            <VTooltip activator="parent">
+              {{ $t('View User Details') }}
+            </VTooltip>
           </IconBtn>
 
-          <IconBtn>
-            <VIcon icon="tabler-eye" />
+          <IconBtn @click.stop="deleteUser(item.id)">
+            <VIcon icon="tabler-trash" />
+            <VTooltip activator="parent">
+              {{ $t('Delete User') }}
+            </VTooltip>
           </IconBtn>
 
           <VBtn
@@ -460,6 +571,202 @@ const deleteUser = async id => {
       v-model:isDrawerOpen="isAddNewUserDrawerVisible"
       @user-data="addNewUser"
     />
+
+    <!-- 👉 User Details Dialog -->
+    <VDialog
+      v-model="isUserDetailsDialogOpen"
+      max-width="900"
+      scrollable
+    >
+      <VCard>
+        <VCardTitle class="d-flex align-center justify-space-between">
+          <div class="d-flex align-center">
+            <VIcon
+              icon="tabler-user"
+              class="me-2"
+            />
+            {{ $t('User Details') }} - {{ userDetails?.name || selectedUser?.name || userDetails?.user?.name || 'N/A' }}
+          </div>
+          <IconBtn @click="isUserDetailsDialogOpen = false">
+            <VIcon icon="tabler-x" />
+          </IconBtn>
+        </VCardTitle>
+
+        <VDivider />
+
+        <VCardText>
+          <div
+            v-if="isLoadingUserDetails"
+            class="text-center py-8"
+          >
+            <VProgressCircular
+              indeterminate
+              color="primary"
+            />
+            <p class="mt-4">
+              {{ $t('Loading user details...') }}
+            </p>
+          </div>
+
+          <div
+            v-else-if="userDetails || selectedUser"
+            class="user-details"
+          >
+            <VRow>
+              <!-- Basic Information -->
+              <VCol cols="12">
+                <h3 class="mb-4">
+                  {{ $t('Basic Information') }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Name') }}:</span>
+                  <span class="ms-2 font-weight-medium">
+                    {{ userDetails?.name || userDetails?.user?.name || selectedUser?.name || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Email') }}:</span>
+                  <span class="ms-2">
+                    {{ userDetails?.email || userDetails?.user?.email || selectedUser?.email || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Phone') }}:</span>
+                  <span class="ms-2">
+                    {{ userDetails?.phone || userDetails?.user?.phone || selectedUser?.phone || '—' }}
+                  </span>
+                </div>
+              </VCol>
+
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Status') }}:</span>
+                  <VChip
+                    :color="resolveUserStatusVariant(userDetails?.status || selectedUser?.status)"
+                    size="small"
+                    label
+                    class="ms-2 text-capitalize"
+                  >
+                    {{ getStatusName(userDetails?.status || selectedUser?.status) }}
+                  </VChip>
+                </div>
+              </VCol>
+
+              <!-- Roles Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Roles') }}
+                </h3>
+              </VCol>
+
+              <VCol cols="12">
+                <div
+                  v-if="(userDetails?.roles || selectedUser?.roles) && (userDetails?.roles || selectedUser?.roles).length > 0"
+                  class="d-flex flex-wrap gap-2"
+                >
+                  <VChip
+                    v-for="role in (userDetails?.roles || selectedUser?.roles)"
+                    :key="role.id || role.name"
+                    size="small"
+                    color="primary"
+                    variant="tonal"
+                    class="text-capitalize"
+                  >
+                    {{ role.name || role }}
+                  </VChip>
+                </div>
+                <VAlert
+                  v-else
+                  type="info"
+                  variant="tonal"
+                >
+                  {{ $t('No roles assigned to this user.') }}
+                </VAlert>
+              </VCol>
+
+              <!-- Permissions Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  {{ $t('Permissions') }}
+                </h3>
+              </VCol>
+
+              <VCol cols="12">
+                <div
+                  v-if="getUserPermissions(userDetails || selectedUser).length > 0"
+                  class="permissions-list"
+                >
+                  <div
+                    v-for="(actions, subject) in groupPermissionsBySubject(getUserPermissions(userDetails || selectedUser))"
+                    :key="subject"
+                    class="permission-group mb-4"
+                  >
+                    <h6 class="text-body-1 font-weight-medium mb-2 text-capitalize">
+                      {{ subject === 'other' ? $t('Other') : formatPermission(subject) }}
+                    </h6>
+                    <div class="d-flex flex-wrap gap-2">
+                      <VChip
+                        v-for="action in actions"
+                        :key="action"
+                        size="small"
+                        color="success"
+                        variant="tonal"
+                        class="text-capitalize"
+                      >
+                        {{ action }}
+                      </VChip>
+                    </div>
+                  </div>
+                </div>
+
+                <VAlert
+                  v-else
+                  type="info"
+                  variant="tonal"
+                >
+                  {{ $t('This user has no permissions assigned.') }}
+                </VAlert>
+              </VCol>
+            </VRow>
+          </div>
+        </VCardText>
+
+        <VDivider />
+
+        <VCardActions>
+          <VSpacer />
+          <VBtn
+            variant="outlined"
+            @click="isUserDetailsDialogOpen = false"
+          >
+            {{ $t('Close') }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
   </section>
 </template>
 
@@ -470,5 +777,14 @@ const deleteUser = async id => {
 
 .user-list-name:not(:hover) {
   color: rgba(var(--v-theme-on-background), var(--v-medium-emphasis-opacity));
+}
+
+.permissions-list {
+  .permission-group {
+    padding: 1rem;
+    background-color: rgba(var(--v-theme-surface), 1);
+    border-radius: 8px;
+    border: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
+  }
 }
 </style>
