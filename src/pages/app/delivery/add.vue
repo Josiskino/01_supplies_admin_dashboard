@@ -68,8 +68,6 @@ const parseEntity = (value) => {
 const formatEntityForDisplay = (entity) => {
   // Extract location from various possible structures
   const extractLocation = (entity) => {
-    if (!entity) return ''
-    
     // Try direct location field
     if (entity.location) return entity.location
     
@@ -85,15 +83,6 @@ const formatEntityForDisplay = (entity) => {
     if (entity.default_address && typeof entity.default_address === 'string') {
       return entity.default_address
     }
-    
-    // Try address field (if it's a string/URL)
-    if (entity.address && typeof entity.address === 'string') {
-      return entity.address
-    }
-    
-    // Try pickup_location or dropoff_location (for delivery entities)
-    if (entity.pickup_location) return entity.pickup_location
-    if (entity.dropoff_location) return entity.dropoff_location
     
     // Return empty string if no location found
     return ''
@@ -261,22 +250,14 @@ const onRequesterSelect = async (value) => {
     
     console.log('Parsed:', parsed)
     
-    // First, try to get location from the already loaded entity in the list
-    const selectedEntity = requesterEntities.value.find(e => e.value === value)
+    // Fetch entity details with addresses
+    const location = await fetchEntityDetails(parsed.type, parsed.id)
     
-    if (selectedEntity && selectedEntity.location) {
-      form.value.pickup_location = selectedEntity.location
-      console.log('Auto-filled pickup_location from entity list:', form.value.pickup_location)
+    if (location) {
+      form.value.pickup_location = location
+      console.log('Auto-filled pickup_location:', form.value.pickup_location)
     } else {
-      // Fallback: Fetch entity details with addresses if not in list
-      const location = await fetchEntityDetails(parsed.type, parsed.id)
-      
-      if (location) {
-        form.value.pickup_location = location
-        console.log('Auto-filled pickup_location from API:', form.value.pickup_location)
-      } else {
-        console.log('Location not available for this entity')
-      }
+      console.log('Location not available for this entity')
     }
   } else {
     // Requester deselected - clear pickup location
@@ -296,22 +277,14 @@ const onRecipientSelect = async (value) => {
     
     console.log('Parsed:', parsed)
     
-    // First, try to get location from the already loaded entity in the list
-    const selectedEntity = recipientEntities.value.find(e => e.value === value)
+    // Fetch entity details with addresses
+    const location = await fetchEntityDetails(parsed.type, parsed.id)
     
-    if (selectedEntity && selectedEntity.location) {
-      form.value.dropoff_location = selectedEntity.location
-      console.log('Auto-filled dropoff_location from entity list:', form.value.dropoff_location)
+    if (location) {
+      form.value.dropoff_location = location
+      console.log('Auto-filled dropoff_location:', form.value.dropoff_location)
     } else {
-      // Fallback: Fetch entity details with addresses if not in list
-      const location = await fetchEntityDetails(parsed.type, parsed.id)
-      
-      if (location) {
-        form.value.dropoff_location = location
-        console.log('Auto-filled dropoff_location from API:', form.value.dropoff_location)
-      } else {
-        console.log('Location not available for this entity')
-      }
+      console.log('Location not available for this entity')
     }
   } else {
     // Recipient deselected - clear dropoff location
@@ -326,20 +299,11 @@ watch(() => form.value.requester, async (newValue, oldValue) => {
   if (newValue && newValue !== oldValue) {
     // Only auto-fill if not already filled by onRequesterSelect
     if (!form.value.pickup_location) {
-      // First, try to get location from the already loaded entity in the list
-      const selectedEntity = requesterEntities.value.find(e => e.value === newValue)
-      
-      if (selectedEntity && selectedEntity.location) {
-        form.value.pickup_location = selectedEntity.location
-        console.log('Watch: Auto-filled pickup_location from entity list:', selectedEntity.location)
-      } else {
-        // Fallback: Fetch entity details with addresses if not in list
-        const parsed = parseEntity(newValue)
-        const location = await fetchEntityDetails(parsed.type, parsed.id)
-        if (location) {
-          form.value.pickup_location = location
-          console.log('Watch: Auto-filled pickup_location from API:', location)
-        }
+      const parsed = parseEntity(newValue)
+      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      if (location) {
+        form.value.pickup_location = location
+        console.log('Watch: Auto-filled pickup_location from requester:', location)
       }
     }
   } else if (!newValue) {
@@ -353,20 +317,11 @@ watch(() => form.value.recipient, async (newValue, oldValue) => {
   if (newValue && newValue !== oldValue) {
     // Only auto-fill if not already filled by onRecipientSelect
     if (!form.value.dropoff_location) {
-      // First, try to get location from the already loaded entity in the list
-      const selectedEntity = recipientEntities.value.find(e => e.value === newValue)
-      
-      if (selectedEntity && selectedEntity.location) {
-        form.value.dropoff_location = selectedEntity.location
-        console.log('Watch: Auto-filled dropoff_location from entity list:', selectedEntity.location)
-      } else {
-        // Fallback: Fetch entity details with addresses if not in list
-        const parsed = parseEntity(newValue)
-        const location = await fetchEntityDetails(parsed.type, parsed.id)
-        if (location) {
-          form.value.dropoff_location = location
-          console.log('Watch: Auto-filled dropoff_location from API:', location)
-        }
+      const parsed = parseEntity(newValue)
+      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      if (location) {
+        form.value.dropoff_location = location
+        console.log('Watch: Auto-filled dropoff_location from recipient:', location)
       }
     }
   } else if (!newValue) {

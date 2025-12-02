@@ -457,3 +457,7 @@ Les adresses sont affichées dans le tableau des clients :
 
 **Dernière mise à jour** : 29 novembre 2025
 
+
+
+
+
