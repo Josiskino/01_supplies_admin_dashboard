@@ -48,8 +48,8 @@ const formatPrice = value => {
   }
 }
 
-// Calculate discount
-const discountAmount = computed(() => {
+// Calculate price adjustment
+const priceAdjustment = computed(() => {
   if (!form.value.requested_price || !props.delivery?.price) {
     return 0
   }
@@ -57,17 +57,19 @@ const discountAmount = computed(() => {
   const current = parseFloat(props.delivery.price)
   const requested = parseFloat(form.value.requested_price)
 
-  return current - requested
+  return requested - current
 })
 
-const discountPercentage = computed(() => {
-  if (!props.delivery?.price || discountAmount.value <= 0) {
+const isDiscount = computed(() => priceAdjustment.value < 0)
+const isIncrease = computed(() => priceAdjustment.value > 0)
+
+const adjustmentPercentage = computed(() => {
+  if (!props.delivery?.price || priceAdjustment.value === 0) {
     return 0
   }
 
   const current = parseFloat(props.delivery.price)
-
-  return (discountAmount.value / current) * 100
+  return (Math.abs(priceAdjustment.value) / current) * 100
 })
 
 // Initialize form when delivery changes
@@ -88,9 +90,8 @@ const onSubmit = async () => {
     errors.value.requested_price = t('Valid requested price is required') || 'Un prix demandé valide est requis'
   }
 
-  if (parseFloat(form.value.requested_price) >= parseFloat(props.delivery?.price || 0)) {
-    errors.value.requested_price = t('Requested price must be less than current price') || 'Le prix demandé doit être inférieur au prix actuel'
-  }
+  // No need to validate if price is higher or lower, both are acceptable now
+  // Just ensure it's a valid positive number (handled by the first check)
 
   if (Object.keys(errors.value).length > 0) {
     return
@@ -165,7 +166,7 @@ watch(dialogVisible, newVal => {
 
     <VCard>
       <VCardTitle class="d-flex align-center justify-space-between">
-        <span>{{ $t('Request Price Adjustment') || 'Demander un rabais' }}</span>
+        <span>{{ $t('Price Adjustment Request') || 'Demande de réajustement de prix' }}</span>
       </VCardTitle>
 
       <VDivider />
@@ -191,6 +192,14 @@ watch(dialogVisible, newVal => {
               <div>
                 <strong>{{ $t('Current Price') || 'Prix actuel' }}:</strong> {{ formatPrice(delivery.price) }}
               </div>
+              <div v-if="form.requested_price">
+                <strong v-if="isDiscount">{{ $t('Discount Amount') || 'Montant du rabais' }}:</strong>
+                <strong v-else-if="isIncrease">{{ $t('Price Increase') || 'Majoration' }}:</strong>
+                <span v-if="form.requested_price">
+                  {{ formatPrice(Math.abs(priceAdjustment)) }} 
+                  <small>({{ adjustmentPercentage.toFixed(1) }}%)</small>
+                </span>
+              </div>
             </div>
           </VAlert>
 
@@ -199,13 +208,11 @@ watch(dialogVisible, newVal => {
             <VCol cols="12">
               <AppTextField
                 v-model="form.requested_price"
-                :label="($t('Requested Price (XOF)') || 'Prix demandé (XOF)')"
+                :label="$t('New Price') || 'Nouveau prix'"
                 type="number"
-                placeholder="0"
-                required
+                :hint="$t('Enter the new price (can be higher or lower)') || 'Entrez le nouveau prix (peut être supérieur ou inférieur)'"
                 suffix="XOF"
                 :error-messages="errors.requested_price"
-                :hint="($t('Enter the price you want to request (must be less than current price)') || 'Entrez le prix que vous souhaitez demander (doit être inférieur au prix actuel)')"
               >
                 <template #prepend-inner>
                   <VIcon icon="tabler-currency-dollar" />
@@ -213,43 +220,11 @@ watch(dialogVisible, newVal => {
               </AppTextField>
             </VCol>
 
-            <!-- Discount Preview -->
-            <VCol
-              v-if="form.requested_price && discountAmount > 0"
-              cols="12"
-            >
-              <VCard
-                variant="outlined"
-                color="success"
-              >
-                <VCardText>
-                  <div class="d-flex justify-space-between align-center">
-                    <div>
-                      <div class="text-sm text-medium-emphasis">
-                        {{ $t('Discount Amount') || 'Montant du rabais' }}
-                      </div>
-                      <div class="text-h6 font-weight-medium text-success">
-                        - {{ formatPrice(discountAmount) }}
-                      </div>
-                    </div>
-                    <div class="text-right">
-                      <div class="text-sm text-medium-emphasis">
-                        {{ $t('Discount Percentage') || 'Pourcentage de rabais' }}
-                      </div>
-                      <div class="text-h6 font-weight-medium text-success">
-                        {{ discountPercentage.toFixed(2) }}%
-                      </div>
-                    </div>
-                  </div>
-                </VCardText>
-              </VCard>
-            </VCol>
-
             <!-- Reason -->
             <VCol cols="12">
               <AppTextarea
                 v-model="form.reason"
-                :label="($t('Reason (Optional)') || 'Raison (Optionnel)')"
+                :hint="$t('Optional reason for the price adjustment') || 'Raison optionnelle pour le réajustement de prix'"
                 :placeholder="($t('Explain why you are requesting this price adjustment...') || 'Expliquez pourquoi vous demandez cet ajustement de prix...')"
                 rows="3"
               />
@@ -287,10 +262,17 @@ watch(dialogVisible, newVal => {
           :disabled="isSubmitting"
           @click="onSubmit"
         >
-          {{ $t('Create Request') || 'Créer la demande' }}
+          <template v-if="isDiscount">
+            {{ $t('Request Discount') || 'Demander un rabais' }}
+          </template>
+          <template v-else-if="isIncrease">
+            {{ $t('Request Price Increase') || 'Demander une majoration' }}
+          </template>
+          <template v-else>
+            {{ $t('Submit Price Adjustment') || 'Soumettre le réajustement' }}
+          </template>
         </VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 </template>
-

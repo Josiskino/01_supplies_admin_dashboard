@@ -42,9 +42,6 @@ const headers = computed(() => [
   { title: t('Distance'), key: 'distance_km' },
   { title: t('Price'), key: 'price' },
   { title: t('Status'), key: 'status' },
-  { title: t('Start Time'), key: 'start_at' },
-  { title: t('Delivered At'), key: 'delivered_at' },
-  { title: t('Created By'), key: 'creator' },
   { title: t('Actions'), key: 'actions', sortable: false, width: '100px' },
 ])
 
@@ -830,7 +827,7 @@ const cancelDelete = () => {
               >
                 <VIcon icon="tabler-discount" />
                 <VTooltip activator="parent">
-                  {{ $t('Request Price Adjustment') || 'Demander un rabais' }}
+                  {{ $t('Request Price Adjustment') || 'Demander un ajustement de prix (rabais ou majoration)' }}
                 </VTooltip>
               </IconBtn>
 
@@ -940,6 +937,54 @@ const cancelDelete = () => {
         <VDivider />
 
         <VCardText>
+          <!-- En-tête avec les informations de base -->
+          <VRow class="mb-6">
+            <VCol cols="12" md="6">
+              <div class="d-flex align-center mb-2">
+                <VIcon icon="tabler-user" size="20" class="me-2 text-primary" />
+                <div>
+                  <div class="text-sm text-medium-emphasis">{{ $t('Created By') || 'Créé par' }}</div>
+                  <div class="font-weight-medium">
+                    {{ (deliveryDetails || selectedDeliveryForView)?.created_by?.name || '—' }}
+                  </div>
+                </div>
+              </div>
+            </VCol>
+            <VCol cols="12" md="6">
+              <div class="d-flex align-center mb-2">
+                <VIcon icon="tabler-clock" size="20" class="me-2 text-primary" />
+                <div>
+                  <div class="text-sm text-medium-emphasis">{{ $t('Created At') || 'Créé le' }}</div>
+                  <div class="font-weight-medium">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.created_at) }}
+                  </div>
+                </div>
+              </div>
+            </VCol>
+            <VCol cols="12" md="6">
+              <div class="d-flex align-center mb-2">
+                <VIcon icon="tabler-clock-play" size="20" class="me-2 text-primary" />
+                <div>
+                  <div class="text-sm text-medium-emphasis">{{ $t('Start Time') || 'Début de la livraison' }}</div>
+                  <div class="font-weight-medium">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.start_at) || '—' }}
+                  </div>
+                </div>
+              </div>
+            </VCol>
+            <VCol cols="12" md="6">
+              <div class="d-flex align-center mb-2">
+                <VIcon icon="tabler-clock-check" size="20" class="me-2 text-primary" />
+                <div>
+                  <div class="text-sm text-medium-emphasis">{{ $t('Delivered At') || 'Livraison terminée' }}</div>
+                  <div class="font-weight-medium">
+                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.delivered_at) || '—' }}
+                  </div>
+                </div>
+              </div>
+            </VCol>
+          </VRow>
+
           <div
             v-if="isLoadingDeliveryDetails"
             class="text-center py-8"
@@ -1006,17 +1051,6 @@ const cancelDelete = () => {
                 </div>
               </VCol>
 
-              <VCol
-                cols="12"
-                md="6"
-              >
-                <div class="mb-4">
-                  <span class="text-sm text-medium-emphasis">{{ $t('Created At') || 'Créé le' }}:</span>
-                  <span class="ms-2">
-                    {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.created_at) }}
-                  </span>
-                </div>
-              </VCol>
 
               <!-- Partner Information -->
               <VCol cols="12">
@@ -1276,17 +1310,6 @@ const cancelDelete = () => {
                 </div>
               </VCol>
 
-              <VCol
-                cols="12"
-                md="6"
-              >
-                <div class="mb-4">
-                  <span class="text-sm text-medium-emphasis">{{ $t('Created By') || 'Créé par' }}:</span>
-                  <span class="ms-2">
-                    {{ (deliveryDetails || selectedDeliveryForView)?.created_by?.name || '—' }}
-                  </span>
-                </div>
-              </VCol>
             </VRow>
           </div>
         </VCardText>
