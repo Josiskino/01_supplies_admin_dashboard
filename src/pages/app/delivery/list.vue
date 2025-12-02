@@ -36,8 +36,8 @@ const isAdministrator = computed(() => {
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Created At'), key: 'created_at' },
-  { title: t('Customer'), key: 'customer' },
-  { title: t('Partner'), key: 'partner' },
+  { title: t('Requester'), key: 'requester' },
+  { title: t('Recipient'), key: 'recipient' },
   { title: t('Driver'), key: 'driver' },
   { title: t('Distance'), key: 'distance_km' },
   { title: t('Price'), key: 'price' },
@@ -360,20 +360,30 @@ const openWhatsApp = delivery => {
       return
     }
 
-    // Get partner name
-    const partnerName = delivery?.partner?.name || delivery?.partner?.merchant_name || t('Unknown Partner') || 'Partenaire inconnu'
+    // Requester = entity who requested the delivery (partner or customer)
+    // Recipient = entity who receives the delivery (partner or customer)
 
-    // Get customer name
-    let customerName = '—'
-    if (delivery?.customer) {
-      if (delivery.customer.name) {
-        customerName = delivery.customer.name
-      } else if (delivery.customer.first_name || delivery.customer.last_name) {
-        customerName = `${delivery.customer.first_name || ''} ${delivery.customer.last_name || ''}`.trim()
-      } else {
-        customerName = t('Unknown Customer') || 'Client inconnu'
-      }
-    }
+    // Get requester name & phone from new JSON structure (with fallback)
+    const requesterObj = delivery?.requester || delivery?.partner || delivery?.customer
+    let requesterName =
+      delivery?.requester_name ||
+      requesterObj?.full_name ||
+      requesterObj?.name ||
+      (requesterObj ? `${requesterObj.first_name || ''} ${requesterObj.last_name || ''}`.trim() : '') ||
+      '—'
+
+    let requesterPhone = requesterObj?.phone || requesterObj?.contact_phone || requesterObj?.phone_number || ''
+
+    // Get recipient name & phone from new JSON structure (with fallback)
+    const recipientObj = delivery?.recipient || delivery?.customer
+    let recipientName =
+      delivery?.recipient_name ||
+      recipientObj?.full_name ||
+      recipientObj?.name ||
+      (recipientObj ? `${recipientObj.first_name || ''} ${recipientObj.last_name || ''}`.trim() : '') ||
+      '—'
+
+    let recipientPhone = recipientObj?.phone || recipientObj?.contact_phone || recipientObj?.phone_number || ''
 
     // Get locations and format as links
     const pickupLocation = formatLocationLink(delivery?.pickup_location)
@@ -384,8 +394,16 @@ const openWhatsApp = delivery => {
 
     // Build WhatsApp message with emojis
     let message = `🚚 *Nouvelle livraison*\n\n`
-    message += `📍 *Partenaire:* ${partnerName}\n`
-    message += `👤 *Client:* ${customerName}\n\n`
+    message += `📍 *${t('Requester') || 'Demandeur'}:* ${requesterName}`
+    if (requesterPhone) {
+      message += `\n📞 Tél: ${requesterPhone}`
+    }
+    message += `\n`
+    message += `👤 *${t('Recipient') || 'Destinataire'}:* ${recipientName}`
+    if (recipientPhone) {
+      message += `\n📞 Tél: ${recipientPhone}`
+    }
+    message += `\n\n`
 
     if (pickupLocation) {
       message += `📦 *Point de collecte:*\n${pickupLocation}\n\n`
@@ -594,34 +612,39 @@ const cancelDelete = () => {
             </span>
           </template>
 
-          <!-- Customer -->
-          <template #item.customer="{ item }">
+          <!-- Requester -->
+          <template #item.requester="{ item }">
             <div
-              v-if="item?.customer"
+              v-if="item?.requester"
               class="d-flex flex-column"
             >
               <span class="text-high-emphasis font-weight-medium">
-                {{ (item.customer.full_name || `${item.customer.first_name || ''} ${item.customer.last_name || ''}`.trim() || '—').toUpperCase() }}
+                {{
+                  (
+                    item.requester_name ||
+                    item.requester.full_name ||
+                    item.requester.name ||
+                    `${item.requester.first_name || ''} ${item.requester.last_name || ''}`.trim() ||
+                    '—'
+                  ).toUpperCase()
+                }}
               </span>
               <a
-                v-if="item.customer.phone"
-                :href="`tel:${item.customer.phone}`"
+                v-if="item.requester.phone"
+                :href="`tel:${item.requester.phone}`"
                 class="text-xs text-primary text-decoration-none"
               >
-                {{ item.customer.phone }}
+                {{ item.requester.phone }}
               </a>
             </div>
-            <span v-else>—</span>
-          </template>
 
-          <!-- Partner -->
-          <template #item.partner="{ item }">
+            <!-- Fallback ancienne structure : partner comme demandeur -->
             <div
-              v-if="item?.partner"
+              v-else-if="item?.partner"
               class="d-flex flex-column"
             >
               <span class="text-high-emphasis font-weight-medium">
-                {{ (item.partner.name || '—').toUpperCase() }}
+                {{ (item.partner.name || item.partner.merchant_name || '—').toUpperCase() }}
               </span>
               <span
                 v-if="item.partner.contact_name"
@@ -637,6 +660,53 @@ const cancelDelete = () => {
                 {{ item.partner.phone }}
               </a>
             </div>
+
+            <span v-else>—</span>
+          </template>
+
+          <!-- Recipient -->
+          <template #item.recipient="{ item }">
+            <div
+              v-if="item?.recipient"
+              class="d-flex flex-column"
+            >
+              <span class="text-high-emphasis font-weight-medium">
+                {{
+                  (
+                    item.recipient_name ||
+                    item.recipient.full_name ||
+                    item.recipient.name ||
+                    `${item.recipient.first_name || ''} ${item.recipient.last_name || ''}`.trim() ||
+                    '—'
+                  ).toUpperCase()
+                }}
+              </span>
+              <a
+                v-if="item.recipient.phone"
+                :href="`tel:${item.recipient.phone}`"
+                class="text-xs text-primary text-decoration-none"
+              >
+                {{ item.recipient.phone }}
+              </a>
+            </div>
+
+            <!-- Fallback ancienne structure : customer comme destinataire -->
+            <div
+              v-else-if="item?.customer"
+              class="d-flex flex-column"
+            >
+              <span class="text-high-emphasis font-weight-medium">
+                {{ (item.customer.full_name || `${item.customer.first_name || ''} ${item.customer.last_name || ''}`.trim() || '—').toUpperCase() }}
+              </span>
+              <a
+                v-if="item.customer.phone"
+                :href="`tel:${item.customer.phone}`"
+                class="text-xs text-primary text-decoration-none"
+              >
+                {{ item.customer.phone }}
+              </a>
+            </div>
+
             <span v-else>—</span>
           </template>
 
