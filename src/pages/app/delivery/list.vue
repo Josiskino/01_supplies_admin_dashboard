@@ -939,44 +939,80 @@ const cancelDelete = () => {
         <VCardText>
           <!-- En-tête avec les informations de base -->
           <VRow class="mb-6">
-            <VCol cols="12" md="6">
+            <VCol
+              cols="12"
+              md="6"
+            >
               <div class="d-flex align-center mb-2">
-                <VIcon icon="tabler-user" size="20" class="me-2 text-primary" />
+                <VIcon
+                  icon="tabler-user"
+                  size="20"
+                  class="me-2 text-primary"
+                />
                 <div>
-                  <div class="text-sm text-medium-emphasis">{{ $t('Created By') || 'Créé par' }}</div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Created By') || 'Créé par' }}
+                  </div>
                   <div class="font-weight-medium">
                     {{ (deliveryDetails || selectedDeliveryForView)?.created_by?.name || '—' }}
                   </div>
                 </div>
               </div>
             </VCol>
-            <VCol cols="12" md="6">
+            <VCol
+              cols="12"
+              md="6"
+            >
               <div class="d-flex align-center mb-2">
-                <VIcon icon="tabler-clock" size="20" class="me-2 text-primary" />
+                <VIcon
+                  icon="tabler-clock"
+                  size="20"
+                  class="me-2 text-primary"
+                />
                 <div>
-                  <div class="text-sm text-medium-emphasis">{{ $t('Created At') || 'Créé le' }}</div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Created At') || 'Créé le' }}
+                  </div>
                   <div class="font-weight-medium">
                     {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.created_at) }}
                   </div>
                 </div>
               </div>
             </VCol>
-            <VCol cols="12" md="6">
+            <VCol
+              cols="12"
+              md="6"
+            >
               <div class="d-flex align-center mb-2">
-                <VIcon icon="tabler-clock-play" size="20" class="me-2 text-primary" />
+                <VIcon
+                  icon="tabler-clock-play"
+                  size="20"
+                  class="me-2 text-primary"
+                />
                 <div>
-                  <div class="text-sm text-medium-emphasis">{{ $t('Start Time') || 'Début de la livraison' }}</div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Start Time') || 'Début de la livraison' }}
+                  </div>
                   <div class="font-weight-medium">
                     {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.start_at) || '—' }}
                   </div>
                 </div>
               </div>
             </VCol>
-            <VCol cols="12" md="6">
+            <VCol
+              cols="12"
+              md="6"
+            >
               <div class="d-flex align-center mb-2">
-                <VIcon icon="tabler-clock-check" size="20" class="me-2 text-primary" />
+                <VIcon
+                  icon="tabler-clock-check"
+                  size="20"
+                  class="me-2 text-primary"
+                />
                 <div>
-                  <div class="text-sm text-medium-emphasis">{{ $t('Delivered At') || 'Livraison terminée' }}</div>
+                  <div class="text-sm text-medium-emphasis">
+                    {{ $t('Delivered At') || 'Livraison terminée' }}
+                  </div>
                   <div class="font-weight-medium">
                     {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.delivered_at) || '—' }}
                   </div>
@@ -1309,7 +1345,6 @@ const cancelDelete = () => {
                   </span>
                 </div>
               </VCol>
-
             </VRow>
           </div>
         </VCardText>

@@ -93,19 +93,33 @@ const fetchRequests = async () => {
     })
 
     // Handle response structure
+    let requestsData = []
     if (response?.success && response?.data) {
-      requests.value = response.data
+      requestsData = response.data
       totalRequests.value = response.meta?.total || response.data.length
     } else if (response?.data && Array.isArray(response.data)) {
-      requests.value = response.data
+      requestsData = response.data
       totalRequests.value = response.meta?.total || response.data.length
     } else if (Array.isArray(response)) {
-      requests.value = response
+      requestsData = response
       totalRequests.value = response.length
     } else {
       requests.value = []
       totalRequests.value = 0
+      return
     }
+    
+    // Log first request for debugging
+    if (requestsData.length > 0) {
+      console.log('=== Price Adjustment Requests Debug ===')
+      console.log('First request:', requestsData[0])
+      console.log('Delivery object:', requestsData[0]?.delivery)
+      console.log('Requester name:', requestsData[0]?.delivery?.requester_name)
+      console.log('Requester object:', requestsData[0]?.delivery?.requester)
+      console.log('========================================')
+    }
+    
+    requests.value = requestsData
   } catch (error) {
     console.error('Error fetching price adjustment requests:', error)
     requests.value = []
@@ -198,110 +212,117 @@ const getAdjustmentSign = item => {
 
 // Get requester name from various possible locations
 const getRequesterName = item => {
-  // Try delivery.requester_name first (simplified name)
+  if (!item) {
+    console.warn('getRequesterName: item is null or undefined')
+    return t('Unknown Requester') || 'Demandeur inconnu'
+  }
+  
+  // ⭐ PRIORITÉ 1: delivery.requester_name (nom simplifié fourni par l'API)
   if (item.delivery?.requester_name) {
     return item.delivery.requester_name
   }
   
-  // Try item.requester_name (direct on item)
-  if (item.requester_name) {
-    return item.requester_name
+  // ⭐ PRIORITÉ 2: delivery.requester.name (nom depuis l'objet requester)
+  if (item.delivery?.requester?.name) {
+    return item.delivery.requester.name
   }
   
-  // Try delivery.requester object
-  const requester = item.delivery?.requester || item.requester
-  if (requester) {
-    // Partner structure
-    if (requester.name) return requester.name
-    if (requester.merchant_name) return requester.merchant_name
-    if (requester.display_name) return requester.display_name
-    
-    // Customer structure
-    if (requester.full_name) return requester.full_name
-    const customerName = `${requester.first_name || ''} ${requester.last_name || ''}`.trim()
+  // ⭐ PRIORITÉ 3: delivery.requester.full_name (pour les clients)
+  if (item.delivery?.requester?.full_name) {
+    return item.delivery.requester.full_name
+  }
+  
+  // ⭐ PRIORITÉ 4: Construire le nom depuis first_name et last_name
+  if (item.delivery?.requester) {
+    const requester = item.delivery.requester
+    const constructedName = `${requester.first_name || ''} ${requester.last_name || ''}`.trim()
+    if (constructedName) {
+      return constructedName
+    }
+  }
+  
+  // Fallback: Ancienne structure delivery.partner
+  if (item.delivery?.partner?.name) {
+    return item.delivery.partner.name
+  }
+  if (item.delivery?.partner?.merchant_name) {
+    return item.delivery.partner.merchant_name
+  }
+  
+  // Fallback: Ancienne structure delivery.customer
+  if (item.delivery?.customer?.full_name) {
+    return item.delivery.customer.full_name
+  }
+  if (item.delivery?.customer) {
+    const customerName = `${item.delivery.customer.first_name || ''} ${item.delivery.customer.last_name || ''}`.trim()
     if (customerName) return customerName
   }
   
-  // Fallback to old structure: delivery.partner
-  const partner = item.delivery?.partner || item.partner
-  if (partner) {
-    if (partner.name) return partner.name
-    if (partner.merchant_name) return partner.merchant_name
-    if (partner.display_name) return partner.display_name
-  }
-  
-  // Fallback to old structure: delivery.customer
-  const customer = item.delivery?.customer || item.customer
-  if (customer) {
-    if (customer.full_name) return customer.full_name
-    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
-    if (customerName) return customerName
-  }
-  
-  // Last resort
+  // Dernier recours - log pour déboguer seulement si vraiment rien n'est trouvé
+  console.warn('getRequesterName: No name found', {
+    hasDelivery: !!item.delivery,
+    hasRequester: !!item.delivery?.requester,
+    hasPartner: !!item.delivery?.partner,
+    hasCustomer: !!item.delivery?.customer,
+    deliveryKeys: item.delivery ? Object.keys(item.delivery) : [],
+  })
   return t('Unknown Requester') || 'Demandeur inconnu'
 }
 
 // Get requester type (partner or customer)
 const getRequesterType = item => {
-  // Check delivery.requester
+  // ⭐ PRIORITÉ 1: delivery.requester.type (type depuis l'objet requester)
   if (item.delivery?.requester?.type) {
     return item.delivery.requester.type
   }
-  if (item.requester?.type) {
-    return item.requester.type
-  }
   
-  // Check delivery.requester_type
+  // ⭐ PRIORITÉ 2: delivery.requester_type (type direct)
   if (item.delivery?.requester_type) {
     return item.delivery.requester_type
   }
-  if (item.requester_type) {
-    return item.requester_type
-  }
   
-  // Infer from structure: if partner exists, it's a partner
-  if (item.delivery?.partner || item.partner || item.delivery?.requester?.merchant_name) {
+  // Fallback: Inférer depuis la structure
+  // Si delivery.partner existe, c'est un partenaire
+  if (item.delivery?.partner) {
     return 'partner'
   }
   
-  // Otherwise assume customer
+  // Sinon, c'est probablement un client
   return 'customer'
 }
 
 // Get recipient name
 const getRecipientName = item => {
-  // Try delivery.recipient_name first
+  // ⭐ PRIORITÉ 1: delivery.recipient_name (nom simplifié fourni par l'API)
   if (item.delivery?.recipient_name) {
     return item.delivery.recipient_name
   }
   
-  // Try item.recipient_name
-  if (item.recipient_name) {
-    return item.recipient_name
+  // ⭐ PRIORITÉ 2: delivery.recipient.name (nom depuis l'objet recipient)
+  if (item.delivery?.recipient?.name) {
+    return item.delivery.recipient.name
   }
   
-  // Try delivery.recipient object
-  const recipient = item.delivery?.recipient || item.recipient
-  if (recipient) {
-    // Partner structure
-    if (recipient.name) return recipient.name
-    if (recipient.merchant_name) return recipient.merchant_name
-    if (recipient.display_name) return recipient.display_name
-    
-    // Customer structure
-    if (recipient.full_name) return recipient.full_name
-    const recipientName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim()
-    if (recipientName) return recipientName
+  // ⭐ PRIORITÉ 3: delivery.recipient.full_name (pour les clients)
+  if (item.delivery?.recipient?.full_name) {
+    return item.delivery.recipient.full_name
   }
   
-  // Fallback to old structure: delivery.customer
-  const customer = item.delivery?.customer || item.customer
-  if (customer) {
-    if (customer.full_name) return customer.full_name
-    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
-    if (customerName) return customerName
+  // ⭐ PRIORITÉ 4: Construire le nom depuis first_name et last_name
+  if (item.delivery?.recipient) {
+    const recipient = item.delivery.recipient
+    const constructedName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim()
+    if (constructedName) return constructedName
   }
+  
+  // Fallback: Ancienne structure delivery.customer
+  if (item.delivery?.customer?.full_name) {
+    return item.delivery.customer.full_name
+  }
+  const customerName = item.delivery?.customer
+    ? `${item.delivery.customer.first_name || ''} ${item.delivery.customer.last_name || ''}`.trim()
+    : ''
+  if (customerName) return customerName
   
   return null
 }
