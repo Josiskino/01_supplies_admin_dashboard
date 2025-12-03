@@ -37,10 +37,10 @@ const statusOptions = computed(() => [
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Delivery') || 'Livraison', key: 'delivery', sortable: false, width: '150px' },
-  { title: t('Partner') || 'Partenaire', key: 'partner', sortable: false, width: '200px' },
+  { title: t('Requester') || 'Demandeur', key: 'requester', sortable: false, width: '200px' },
   { title: t('Current Price') || 'Prix actuel', key: 'current_price', sortable: true, width: '130px' },
   { title: t('Requested Price') || 'Prix demandé', key: 'requested_price', sortable: true, width: '130px' },
-  { title: t('Discount') || 'Rabais', key: 'discount', sortable: true, width: '150px' },
+  { title: t('Price Adjustment') || 'Ajustement de prix', key: 'adjustment', sortable: true, width: '150px' },
   { title: t('Reason') || 'Raison', key: 'reason', sortable: false, width: '200px' },
   { title: t('Requested By') || 'Demandé par', key: 'requested_by', sortable: false, width: '150px' },
   { title: t('Status') || 'Statut', key: 'status', sortable: true, width: '120px' },
@@ -156,6 +156,154 @@ const formatDate = value => {
 // Get status info
 const getStatusInfo = status => {
   return statusOptions.value.find(s => s.value === status) || statusOptions.value[0]
+}
+
+// Calculate adjustment amount (difference between requested and current price)
+const calculateAdjustmentAmount = item => {
+  const currentPrice = Number(item.current_price) || 0
+  const requestedPrice = Number(item.requested_price) || 0
+  return requestedPrice - currentPrice
+}
+
+// Calculate adjustment percentage
+const calculateAdjustmentPercentage = item => {
+  const currentPrice = Number(item.current_price) || 0
+  const adjustmentAmount = calculateAdjustmentAmount(item)
+  
+  if (currentPrice === 0) return 0
+  return (adjustmentAmount / currentPrice) * 100
+}
+
+// Get adjustment color (red for discount, green for increase)
+const getAdjustmentColor = item => {
+  const adjustment = calculateAdjustmentAmount(item)
+  if (adjustment < 0) {
+    return 'text-error' // Discount (rabais)
+  } else if (adjustment > 0) {
+    return 'text-success' // Increase (majoration)
+  }
+  return 'text-medium-emphasis' // No change
+}
+
+// Get adjustment sign
+const getAdjustmentSign = item => {
+  const adjustment = calculateAdjustmentAmount(item)
+  if (adjustment < 0) {
+    return '-' // Discount (rabais)
+  } else if (adjustment > 0) {
+    return '+' // Increase (majoration)
+  }
+  return '' // No change
+}
+
+// Get requester name from various possible locations
+const getRequesterName = item => {
+  // Try delivery.requester_name first (simplified name)
+  if (item.delivery?.requester_name) {
+    return item.delivery.requester_name
+  }
+  
+  // Try item.requester_name (direct on item)
+  if (item.requester_name) {
+    return item.requester_name
+  }
+  
+  // Try delivery.requester object
+  const requester = item.delivery?.requester || item.requester
+  if (requester) {
+    // Partner structure
+    if (requester.name) return requester.name
+    if (requester.merchant_name) return requester.merchant_name
+    if (requester.display_name) return requester.display_name
+    
+    // Customer structure
+    if (requester.full_name) return requester.full_name
+    const customerName = `${requester.first_name || ''} ${requester.last_name || ''}`.trim()
+    if (customerName) return customerName
+  }
+  
+  // Fallback to old structure: delivery.partner
+  const partner = item.delivery?.partner || item.partner
+  if (partner) {
+    if (partner.name) return partner.name
+    if (partner.merchant_name) return partner.merchant_name
+    if (partner.display_name) return partner.display_name
+  }
+  
+  // Fallback to old structure: delivery.customer
+  const customer = item.delivery?.customer || item.customer
+  if (customer) {
+    if (customer.full_name) return customer.full_name
+    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
+    if (customerName) return customerName
+  }
+  
+  // Last resort
+  return t('Unknown Requester') || 'Demandeur inconnu'
+}
+
+// Get requester type (partner or customer)
+const getRequesterType = item => {
+  // Check delivery.requester
+  if (item.delivery?.requester?.type) {
+    return item.delivery.requester.type
+  }
+  if (item.requester?.type) {
+    return item.requester.type
+  }
+  
+  // Check delivery.requester_type
+  if (item.delivery?.requester_type) {
+    return item.delivery.requester_type
+  }
+  if (item.requester_type) {
+    return item.requester_type
+  }
+  
+  // Infer from structure: if partner exists, it's a partner
+  if (item.delivery?.partner || item.partner || item.delivery?.requester?.merchant_name) {
+    return 'partner'
+  }
+  
+  // Otherwise assume customer
+  return 'customer'
+}
+
+// Get recipient name
+const getRecipientName = item => {
+  // Try delivery.recipient_name first
+  if (item.delivery?.recipient_name) {
+    return item.delivery.recipient_name
+  }
+  
+  // Try item.recipient_name
+  if (item.recipient_name) {
+    return item.recipient_name
+  }
+  
+  // Try delivery.recipient object
+  const recipient = item.delivery?.recipient || item.recipient
+  if (recipient) {
+    // Partner structure
+    if (recipient.name) return recipient.name
+    if (recipient.merchant_name) return recipient.merchant_name
+    if (recipient.display_name) return recipient.display_name
+    
+    // Customer structure
+    if (recipient.full_name) return recipient.full_name
+    const recipientName = `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim()
+    if (recipientName) return recipientName
+  }
+  
+  // Fallback to old structure: delivery.customer
+  const customer = item.delivery?.customer || item.customer
+  if (customer) {
+    if (customer.full_name) return customer.full_name
+    const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim()
+    if (customerName) return customerName
+  }
+  
+  return null
 }
 
 // Open approve dialog
@@ -409,25 +557,25 @@ onMounted(() => {
             </VChip>
           </template>
 
-          <!-- Partner -->
-          <template #item.partner="{ item }">
+          <!-- Requester -->
+          <template #item.requester="{ item }">
             <div class="d-flex align-center gap-2">
               <VAvatar
                 size="32"
                 variant="tonal"
-                color="secondary"
+                :color="getRequesterType(item) === 'partner' ? 'secondary' : 'primary'"
               >
-                <VIcon icon="tabler-building-store" />
+                <VIcon :icon="getRequesterType(item) === 'partner' ? 'tabler-building-store' : 'tabler-user'" />
               </VAvatar>
               <div>
                 <div class="text-body-1 font-weight-medium">
-                  {{ item.delivery?.partner?.name || item.delivery?.partner?.merchant_name || $t('Unknown Partner') || 'Partenaire inconnu' }}
+                  {{ getRequesterName(item) }}
                 </div>
                 <div
-                  v-if="item.delivery?.customer"
+                  v-if="getRecipientName(item)"
                   class="text-sm text-medium-emphasis"
                 >
-                  {{ $t('Customer') || 'Client' }}: {{ item.delivery.customer.name || $t('Unknown') || 'Inconnu' }}
+                  {{ $t('Recipient') || 'Destinataire' }}: {{ getRecipientName(item) }}
                 </div>
               </div>
             </div>
@@ -447,14 +595,17 @@ onMounted(() => {
             </span>
           </template>
 
-          <!-- Discount -->
-          <template #item.discount="{ item }">
+          <!-- Price Adjustment -->
+          <template #item.adjustment="{ item }">
             <div class="d-flex flex-column">
-              <span class="text-body-1 font-weight-bold text-error">
-                - {{ formatPrice(item.discount_amount) }}
+              <span
+                class="text-body-1 font-weight-bold"
+                :class="getAdjustmentColor(item)"
+              >
+                {{ getAdjustmentSign(item) }}{{ formatPrice(Math.abs(calculateAdjustmentAmount(item))) }}
               </span>
               <span class="text-xs text-medium-emphasis">
-                ({{ item.discount_percentage?.toFixed(2) || '0.00' }}%)
+                ({{ getAdjustmentSign(item) }}{{ Math.abs(calculateAdjustmentPercentage(item)).toFixed(2) }}%)
               </span>
             </div>
           </template>

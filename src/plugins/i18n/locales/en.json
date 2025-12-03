@@ -609,6 +609,8 @@
   "Current Price": "Current Price",
   "Requested Price": "Requested Price",
   "Discount": "Discount",
+  "Price Adjustment": "Price Adjustment",
+  "Unknown Requester": "Unknown Requester",
   "Requested By": "Requested By",
   "Reason": "Reason",
   "No reason provided": "No reason provided",

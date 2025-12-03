@@ -64,30 +64,43 @@ const parseEntity = (value) => {
   }
 }
 
-// Helper function to format entity for display
-const formatEntityForDisplay = (entity) => {
-  // Extract location from various possible structures
-  const extractLocation = (entity) => {
-    // Try direct location field
-    if (entity.location) return entity.location
-    
-    // Try default_address.location
-    if (entity.default_address?.location) return entity.default_address.location
-    
-    // Try addresses[0].location
-    if (entity.addresses && Array.isArray(entity.addresses) && entity.addresses.length > 0) {
-      if (entity.addresses[0].location) return entity.addresses[0].location
-    }
-    
-    // Try default_address (if it's a string/URL)
-    if (entity.default_address && typeof entity.default_address === 'string') {
-      return entity.default_address
-    }
-    
-    // Return empty string if no location found
-    return ''
+// Helper function to extract location from various possible structures
+const extractLocation = (entity) => {
+  if (!entity) return ''
+  
+  // Try direct location field
+  if (entity.location) return entity.location
+  
+  // Try default_address.location
+  if (entity.default_address?.location) return entity.default_address.location
+  
+  // Try addresses[0].location
+  if (entity.addresses && Array.isArray(entity.addresses) && entity.addresses.length > 0) {
+    // Try to find default address first
+    const defaultAddr = entity.addresses.find(addr => addr.is_default === true)
+    if (defaultAddr?.location) return defaultAddr.location
+    // Fallback to first address
+    if (entity.addresses[0].location) return entity.addresses[0].location
   }
   
+  // Try default_address (if it's a string/URL)
+  if (entity.default_address && typeof entity.default_address === 'string') {
+    return entity.default_address
+  }
+  
+  // Try address field (for customers)
+  if (entity.address?.location) return entity.address.location
+  
+  // Try pickup_location or dropoff_location (for partners)
+  if (entity.pickup_location) return entity.pickup_location
+  if (entity.dropoff_location) return entity.dropoff_location
+  
+  // Return empty string if no location found
+  return ''
+}
+
+// Helper function to format entity for display
+const formatEntityForDisplay = (entity) => {
   const location = extractLocation(entity)
   
   if (entity.type === 'partner' || entity.type === undefined) {
@@ -207,27 +220,8 @@ const fetchEntityDetails = async (type, id) => {
     if (response && response.data) {
       const entity = response.data
       
-      // Extract location from various possible structures
-      let location = ''
-      
-      // Try default_address.location first
-      if (entity.default_address?.location) {
-        location = entity.default_address.location
-      }
-      // Try addresses[0].location
-      else if (entity.addresses && Array.isArray(entity.addresses) && entity.addresses.length > 0) {
-        if (entity.addresses[0].location) {
-          location = entity.addresses[0].location
-        }
-      }
-      // Try direct location field
-      else if (entity.location) {
-        location = entity.location
-      }
-      // Try default_address as string/URL
-      else if (entity.default_address && typeof entity.default_address === 'string') {
-        location = entity.default_address
-      }
+      // Use the shared extractLocation helper
+      const location = extractLocation(entity)
       
       console.log('Extracted location:', location)
       return location
@@ -250,8 +244,20 @@ const onRequesterSelect = async (value) => {
     
     console.log('Parsed:', parsed)
     
-    // Fetch entity details with addresses
-    const location = await fetchEntityDetails(parsed.type, parsed.id)
+    // First, try to get location from already loaded entities
+    let location = ''
+    const foundEntity = requesterEntities.value.find(
+      e => e.type === parsed.type && e.id === parsed.id
+    )
+    
+    if (foundEntity && foundEntity.location) {
+      location = foundEntity.location
+      console.log('Location found in loaded entities:', location)
+    } else {
+      // Fallback: fetch entity details with addresses via API
+      console.log('Location not in loaded entities, fetching from API...')
+      location = await fetchEntityDetails(parsed.type, parsed.id)
+    }
     
     if (location) {
       form.value.pickup_location = location
@@ -277,8 +283,20 @@ const onRecipientSelect = async (value) => {
     
     console.log('Parsed:', parsed)
     
-    // Fetch entity details with addresses
-    const location = await fetchEntityDetails(parsed.type, parsed.id)
+    // First, try to get location from already loaded entities
+    let location = ''
+    const foundEntity = recipientEntities.value.find(
+      e => e.type === parsed.type && e.id === parsed.id
+    )
+    
+    if (foundEntity && foundEntity.location) {
+      location = foundEntity.location
+      console.log('Location found in loaded entities:', location)
+    } else {
+      // Fallback: fetch entity details with addresses via API
+      console.log('Location not in loaded entities, fetching from API...')
+      location = await fetchEntityDetails(parsed.type, parsed.id)
+    }
     
     if (location) {
       form.value.dropoff_location = location
@@ -300,7 +318,20 @@ watch(() => form.value.requester, async (newValue, oldValue) => {
     // Only auto-fill if not already filled by onRequesterSelect
     if (!form.value.pickup_location) {
       const parsed = parseEntity(newValue)
-      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      
+      // First, try to get location from already loaded entities
+      let location = ''
+      const foundEntity = requesterEntities.value.find(
+        e => e.type === parsed.type && e.id === parsed.id
+      )
+      
+      if (foundEntity && foundEntity.location) {
+        location = foundEntity.location
+      } else {
+        // Fallback: fetch entity details via API
+        location = await fetchEntityDetails(parsed.type, parsed.id)
+      }
+      
       if (location) {
         form.value.pickup_location = location
         console.log('Watch: Auto-filled pickup_location from requester:', location)
@@ -318,7 +349,20 @@ watch(() => form.value.recipient, async (newValue, oldValue) => {
     // Only auto-fill if not already filled by onRecipientSelect
     if (!form.value.dropoff_location) {
       const parsed = parseEntity(newValue)
-      const location = await fetchEntityDetails(parsed.type, parsed.id)
+      
+      // First, try to get location from already loaded entities
+      let location = ''
+      const foundEntity = recipientEntities.value.find(
+        e => e.type === parsed.type && e.id === parsed.id
+      )
+      
+      if (foundEntity && foundEntity.location) {
+        location = foundEntity.location
+      } else {
+        // Fallback: fetch entity details via API
+        location = await fetchEntityDetails(parsed.type, parsed.id)
+      }
+      
       if (location) {
         form.value.dropoff_location = location
         console.log('Watch: Auto-filled dropoff_location from recipient:', location)
