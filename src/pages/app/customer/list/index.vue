@@ -1,5 +1,6 @@
 <script setup>
 import CustomerAddDrawer from '@/pages/app/customer/add/index.vue'
+import CustomerDetailsDialog from './customer-details-dialog.vue'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -15,6 +16,10 @@ const selectedRows = ref([])
 const isLoading = ref(false)
 const isAddCustomerDrawerOpen = ref(false)
 const customerToEdit = ref(null)
+
+// Customer details dialog
+const isDetailsDialogOpen = ref(false)
+const selectedCustomer = ref(null)
 
 const isSuccessSnackVisible = ref(false)
 const successSnackText = ref('')
@@ -387,6 +392,12 @@ const editCustomer = customer => {
   console.log('========================')
 }
 
+// View customer details
+const viewCustomer = customer => {
+  selectedCustomer.value = customer
+  isDetailsDialogOpen.value = true
+}
+
 const deleteCustomer = async id => {
   try {
     await $api(`/customers/${id}`, {
@@ -613,7 +624,7 @@ const deleteCustomer = async id => {
             </VTooltip>
           </IconBtn>
 
-          <IconBtn>
+          <IconBtn @click="viewCustomer(item)">
             <VIcon icon="tabler-eye" />
             <VTooltip activator="parent">
               {{ $t('View Customer') }}
@@ -628,7 +639,7 @@ const deleteCustomer = async id => {
             <VIcon icon="tabler-dots-vertical" />
             <VMenu activator="parent">
               <VList>
-                <VListItem>
+                <VListItem @click="viewCustomer(item)">
                   <template #prepend>
                     <VIcon icon="tabler-eye" />
                   </template>
@@ -675,6 +686,13 @@ const deleteCustomer = async id => {
         customerToEdit = null
       }"
     />
+
+    <!-- Customer Details Dialog -->
+    <CustomerDetailsDialog
+      v-model:is-dialog-visible="isDetailsDialogOpen"
+      :customer="selectedCustomer"
+    />
+
     <VSnackbar
       v-model="isSuccessSnackVisible"
       location="top right"

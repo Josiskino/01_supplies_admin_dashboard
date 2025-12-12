@@ -54,6 +54,33 @@ const drivers = ref([])
 const requesterSearch = ref('')
 const recipientSearch = ref('')
 
+// Customer creation mode (when no results found) - Only for requester
+const isCreatingRequesterCustomer = ref(false)
+
+// Customer creation form data for requester
+const requesterCustomerForm = ref({
+  last_name: '',
+  phone: '',
+  location: '',
+  address_label: '',
+})
+
+// Recipient form data (manual input form)
+const recipientForm = ref({
+  phone: '',
+  address_label: '',
+  address: '',
+})
+
+// Recipient search and creation
+const isCreatingRecipientCustomer = ref(false)
+const selectedRecipientEntity = ref(null)
+
+// Snackbar for notifications
+const snackbar = ref(false)
+const snackbarText = ref('')
+const snackbarColor = ref('success')
+
 // Helper function to parse entity value (e.g., "partner_5" -> { type: 'partner', id: 5 })
 const parseEntity = (value) => {
   if (!value) return { type: null, id: null }
@@ -135,6 +162,7 @@ const formatEntityForDisplay = (entity) => {
 const fetchDeliveryEntities = async (searchTerm = '', target = 'requester') => {
   const isLoading = target === 'requester' ? isLoadingRequester : isLoadingRecipient
   const entities = target === 'requester' ? requesterEntities : recipientEntities
+  const isCreating = target === 'requester' ? isCreatingRequesterCustomer : isCreatingRecipientCustomer
   
   isLoading.value = true
   try {
@@ -173,11 +201,63 @@ const fetchDeliveryEntities = async (searchTerm = '', target = 'requester') => {
     
     entities.value = allEntities
     
+    // Check if we should enable customer creation mode
+    // Enable if search term exists, has at least 2 characters, and:
+    // - No results found, OR
+    // - Results found but none match exactly (case-insensitive)
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      const searchTermLower = searchTerm.trim().toLowerCase()
+      
+      // Check if any entity matches exactly (case-insensitive)
+      const exactMatch = allEntities.some(entity => {
+        const title = (entity.title || '').toLowerCase()
+        const lastName = (entity.raw?.last_name || '').toLowerCase()
+        const firstName = (entity.raw?.first_name || '').toLowerCase()
+        const name = (entity.raw?.name || '').toLowerCase()
+        const displayName = (entity.raw?.display_name || '').toLowerCase()
+        
+        return title === searchTermLower || 
+               lastName === searchTermLower || 
+               firstName === searchTermLower ||
+               name === searchTermLower ||
+               displayName === searchTermLower ||
+               `${firstName} ${lastName}`.trim() === searchTermLower ||
+               `${lastName} ${firstName}`.trim() === searchTermLower
+      })
+      
+      // If no exact match, enable creation mode
+      if (!exactMatch) {
+        isCreating.value = true
+        // Pre-fill the name in the form
+        if (target === 'requester') {
+          requesterCustomerForm.value.last_name = searchTerm.trim()
+        } else {
+          recipientCustomerForm.value.last_name = searchTerm.trim()
+        }
+      } else {
+        // Exact match found, disable creation mode
+        isCreating.value = false
+      }
+    } else if (!searchTerm || searchTerm.trim().length === 0) {
+      // If search is cleared, disable creation mode
+      isCreating.value = false
+    }
+    
     console.log('Loaded entities:', allEntities.length)
     console.log('Partners:', partnersList.length, 'Customers:', customersList.length)
+    console.log('Creation mode enabled:', isCreating.value)
   } catch (error) {
     console.error('Error fetching delivery entities:', error)
     entities.value = []
+    // On error, if we have a search term, enable creation mode
+    if (searchTerm && searchTerm.trim().length >= 2) {
+      isCreating.value = true
+      if (target === 'requester') {
+        requesterCustomerForm.value.last_name = searchTerm.trim()
+      } else {
+        recipientCustomerForm.value.last_name = searchTerm.trim()
+      }
+    }
   } finally {
     isLoading.value = false
   }
@@ -191,6 +271,12 @@ watch(requesterSearch, (searchTerm) => {
   if (requesterSearchTimeout) {
     clearTimeout(requesterSearchTimeout)
   }
+  
+  // Disable creation mode if search is cleared
+  if (!searchTerm || searchTerm.trim().length === 0) {
+    isCreatingRequesterCustomer.value = false
+  }
+  
   requesterSearchTimeout = setTimeout(() => {
     fetchDeliveryEntities(searchTerm, 'requester')
   }, 300)
@@ -200,10 +286,399 @@ watch(recipientSearch, (searchTerm) => {
   if (recipientSearchTimeout) {
     clearTimeout(recipientSearchTimeout)
   }
+  
+  // Disable creation mode if search is cleared
+  if (!searchTerm || searchTerm.trim().length === 0) {
+    isCreatingRecipientCustomer.value = false
+  }
+  
   recipientSearchTimeout = setTimeout(() => {
     fetchDeliveryEntities(searchTerm, 'recipient')
   }, 300)
 })
+
+// Handle recipient selection - auto-fill address and address label
+const onRecipientSelect = async (value) => {
+  console.log('=== Recipient selected ===')
+  console.log('Value:', value)
+  
+  // Disable creation mode when a value is selected
+  if (value) {
+    isCreatingRecipientCustomer.value = false
+  }
+  
+  if (value) {
+    const parsed = parseEntity(value)
+    
+    console.log('Parsed:', parsed)
+    
+    // First, try to get data from already loaded entities
+    const foundEntity = recipientEntities.value.find(
+      e => e.value === value
+    )
+    
+    if (foundEntity) {
+      // Get address label if available
+      if (foundEntity.raw?.default_address?.label) {
+        recipientForm.value.address_label = foundEntity.raw.default_address.label
+      } else if (foundEntity.raw?.addresses?.[0]?.label) {
+        recipientForm.value.address_label = foundEntity.raw.addresses[0].label
+      }
+      
+      // Get address if available (this goes to dropoff_location)
+      if (foundEntity.raw?.default_address?.address) {
+        form.value.dropoff_location = foundEntity.raw.default_address.address
+      } else if (foundEntity.raw?.addresses?.[0]?.address) {
+        form.value.dropoff_location = foundEntity.raw.addresses[0].address
+      } else if (foundEntity.raw?.default_address?.location) {
+        form.value.dropoff_location = foundEntity.raw.default_address.location
+      } else if (foundEntity.raw?.addresses?.[0]?.location) {
+        form.value.dropoff_location = foundEntity.raw.addresses[0].location
+      } else if (foundEntity.location) {
+        form.value.dropoff_location = foundEntity.location
+      }
+      
+      // Get phone if available
+      if (foundEntity.raw?.phone) {
+        recipientForm.value.phone = foundEntity.raw.phone
+      }
+      
+      console.log('Data found in loaded entities')
+    }
+    
+    // Fallback: fetch entity details with addresses via API
+    if (!form.value.dropoff_location) {
+      console.log('Address not in loaded entities, fetching from API...')
+      try {
+        const entityDetails = await $api(`/delivery-entities/${parsed.type}/${parsed.id}`, { method: 'GET' })
+        const entityData = entityDetails?.data || entityDetails
+        
+        if (entityData) {
+          // Get address label if available
+          if (entityData.default_address?.label) {
+            recipientForm.value.address_label = entityData.default_address.label
+          } else if (entityData.addresses?.[0]?.label) {
+            recipientForm.value.address_label = entityData.addresses[0].label
+          }
+          
+          // Get address if available (this goes to dropoff_location)
+          if (entityData.default_address?.address) {
+            form.value.dropoff_location = entityData.default_address.address
+          } else if (entityData.addresses?.[0]?.address) {
+            form.value.dropoff_location = entityData.addresses[0].address
+          } else if (entityData.default_address?.location) {
+            form.value.dropoff_location = entityData.default_address.location
+          } else if (entityData.addresses?.[0]?.location) {
+            form.value.dropoff_location = entityData.addresses[0].location
+          }
+          
+          // Get phone if available
+          if (entityData.phone) {
+            recipientForm.value.phone = entityData.phone
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching entity details:', error)
+      }
+    }
+    
+    console.log('Auto-filled dropoff_location (address):', form.value.dropoff_location)
+  } else {
+    // Recipient deselected - clear fields
+    form.value.dropoff_location = ''
+    recipientForm.value.address_label = ''
+    recipientForm.value.phone = ''
+    console.log('Recipient deselected, cleared fields')
+  }
+  console.log('=========================')
+}
+
+// Create customer function for requester
+const createRequesterCustomer = async () => {
+  const customerForm = requesterCustomerForm
+  const isCreating = isCreatingRequesterCustomer
+  
+  // Validation
+  if (!customerForm.value.last_name || !customerForm.value.last_name.trim()) {
+    snackbarText.value = t('Name is required') || 'Le nom est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+  
+  if (!customerForm.value.phone || !customerForm.value.phone.trim()) {
+    snackbarText.value = t('Phone is required') || 'Le téléphone est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+  
+  try {
+    const payload = {
+      last_name: customerForm.value.last_name.trim(),
+      phone: customerForm.value.phone.trim(),
+    }
+    
+    if (customerForm.value.location && customerForm.value.location.trim()) {
+      payload.location = customerForm.value.location.trim()
+    }
+    
+    if (customerForm.value.address_label && customerForm.value.address_label.trim()) {
+      payload.address_label = customerForm.value.address_label.trim()
+    }
+    
+    console.log('Creating requester customer:', payload)
+    
+    const response = await $api('/customers', {
+      method: 'POST',
+      body: payload,
+    })
+    
+    console.log('Customer created:', response)
+    
+    // Show success notification
+    snackbarText.value = t('Customer created successfully') || 'Client créé avec succès'
+    snackbarColor.value = 'success'
+    snackbar.value = true
+    
+    // Reset creation mode
+    isCreating.value = false
+    
+    // Reset form
+    customerForm.value = {
+      last_name: '',
+      phone: '',
+      location: '',
+      address_label: '',
+    }
+    
+    // Extract customer data from response
+    const customerData = response?.data || response
+    const createdCustomerName = customerData?.last_name || customerData?.name || ''
+    const createdCustomerId = customerData?.id
+    
+    // Clear search to reset autocomplete
+    requesterSearch.value = ''
+    form.value.requester = null
+    
+    // Reload entities silently (will include the new customer)
+    await nextTick()
+    await fetchDeliveryEntities('', 'requester')
+    
+    // Wait a bit for entities to load, then search for the newly created customer
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Try to find the newly created customer
+    if (createdCustomerId) {
+      // First try: search by the name
+      if (createdCustomerName) {
+        await fetchDeliveryEntities(createdCustomerName, 'requester')
+        await nextTick()
+      }
+      
+      // Find the customer in the loaded entities
+      const newCustomer = requesterEntities.value.find(e => {
+        // Try to match by ID first
+        if (e.id === createdCustomerId || e.value === `customer_${createdCustomerId}`) {
+          return true
+        }
+        // Fallback: match by name
+        if (createdCustomerName) {
+          const title = (e.title || '').toLowerCase()
+          const searchName = createdCustomerName.toLowerCase()
+          return title.includes(searchName) || searchName.includes(title)
+        }
+        return false
+      })
+      
+      if (newCustomer) {
+        const newCustomerValue = newCustomer.value || `customer_${createdCustomerId}`
+        form.value.requester = newCustomerValue
+        await onRequesterSelect(newCustomerValue)
+      } else {
+        // If not found, try to construct the value directly
+        const newCustomerValue = `customer_${createdCustomerId}`
+        form.value.requester = newCustomerValue
+        await onRequesterSelect(newCustomerValue)
+      }
+    }
+  } catch (error) {
+    console.error('Error creating customer:', error)
+    snackbarText.value = error.response?._data?.message || t('Error creating customer') || 'Erreur lors de la création du client'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  }
+}
+
+// Customer creation form data for recipient
+const recipientCustomerForm = ref({
+  last_name: '',
+  phone: '',
+  location: '',
+  address_label: '',
+})
+
+// Create customer function for recipient
+const createRecipientCustomer = async () => {
+  // Use recipientSearch if recipientCustomerForm.last_name is empty
+  const customerName = recipientCustomerForm.value.last_name || recipientSearch.value || ''
+  const customerPhone = recipientForm.value.phone || recipientCustomerForm.value.phone || ''
+  
+  // Validation
+  if (!customerName || !customerName.trim()) {
+    snackbarText.value = t('Name is required') || 'Le nom est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+  
+  if (!customerPhone || !customerPhone.trim()) {
+    snackbarText.value = t('Phone is required') || 'Le téléphone est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+  
+  try {
+    const payload = {
+      last_name: customerName.trim(),
+      phone: customerPhone.trim(),
+    }
+    
+    // Note: address field is not sent (commented out in customer form)
+    // Only location and address_label if provided
+    if (recipientCustomerForm.value.location && recipientCustomerForm.value.location.trim()) {
+      payload.location = recipientCustomerForm.value.location.trim()
+    }
+    
+    if (recipientCustomerForm.value.address_label && recipientCustomerForm.value.address_label.trim()) {
+      payload.address_label = recipientCustomerForm.value.address_label.trim()
+    }
+    
+    console.log('Creating recipient customer:', payload)
+    
+    const response = await $api('/customers', {
+      method: 'POST',
+      body: payload,
+    })
+    
+    console.log('Customer created:', response)
+    
+    // Show success notification
+    snackbarText.value = t('Customer created successfully') || 'Client créé avec succès'
+    snackbarColor.value = 'success'
+    snackbar.value = true
+    
+    // Reset creation mode
+    isCreatingRecipientCustomer.value = false
+    
+    // Reset form
+    recipientCustomerForm.value = {
+      last_name: '',
+      phone: '',
+      location: '',
+      address_label: '',
+    }
+    
+    // Extract customer data from response
+    const customerData = response?.data || response
+    const createdCustomerName = customerData?.last_name || customerData?.name || ''
+    const createdCustomerId = customerData?.id
+    
+    // Clear search to reset autocomplete
+    recipientSearch.value = ''
+    form.value.recipient = null
+    
+    // Reload entities silently (will include the new customer)
+    await nextTick()
+    await fetchDeliveryEntities('', 'recipient')
+    
+    // Wait a bit for entities to load, then search for the newly created customer
+    await nextTick()
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Try to find the newly created customer
+    if (createdCustomerId) {
+      // First try: search by the name
+      if (createdCustomerName) {
+        await fetchDeliveryEntities(createdCustomerName, 'recipient')
+        await nextTick()
+      }
+      
+      // Find the customer in the loaded entities
+      const newCustomer = recipientEntities.value.find(e => {
+        // Try to match by ID first
+        if (e.id === createdCustomerId || e.value === `customer_${createdCustomerId}`) {
+          return true
+        }
+        // Fallback: match by name
+        if (createdCustomerName) {
+          const title = (e.title || '').toLowerCase()
+          const searchName = createdCustomerName.toLowerCase()
+          return title.includes(searchName) || searchName.includes(title)
+        }
+        return false
+      })
+      
+      if (newCustomer) {
+        const newCustomerValue = newCustomer.value || `customer_${createdCustomerId}`
+        form.value.recipient = newCustomerValue
+        await onRecipientSelect(newCustomerValue)
+      } else {
+        // If not found, try to construct the value directly
+        const newCustomerValue = `customer_${createdCustomerId}`
+        form.value.recipient = newCustomerValue
+        await onRecipientSelect(newCustomerValue)
+      }
+    }
+  } catch (error) {
+    console.error('Error creating customer:', error)
+    snackbarText.value = error.response?._data?.message || t('Error creating customer') || 'Erreur lors de la création du client'
+    snackbarColor.value = 'error'
+    snackbar.value = true
+  }
+}
+
+// Legacy function for backward compatibility
+const createCustomer = async (target = 'requester') => {
+  if (target === 'requester') {
+    await createRequesterCustomer()
+  } else {
+    await createRecipientCustomer()
+  }
+}
+
+// Cancel customer creation
+const cancelRequesterCustomerCreation = () => {
+  isCreatingRequesterCustomer.value = false
+  requesterCustomerForm.value = {
+    last_name: '',
+    phone: '',
+    location: '',
+    address_label: '',
+  }
+  requesterSearch.value = ''
+}
+
+const cancelRecipientCustomerCreation = () => {
+  isCreatingRecipientCustomer.value = false
+  recipientCustomerForm.value = {
+    last_name: '',
+    phone: '',
+    location: '',
+    address_label: '',
+  }
+  recipientForm.value = {
+    phone: '',
+    address_label: '',
+    address: '',
+  }
+  recipientSearch.value = ''
+  selectedRecipientEntity.value = null
+  form.value.recipient = null
+  form.value.dropoff_location = ''
+}
 
 // Fetch entity details with addresses
 const fetchEntityDetails = async (type, id) => {
@@ -239,6 +714,11 @@ const onRequesterSelect = async (value) => {
   console.log('=== Requester selected ===')
   console.log('Value:', value)
   
+  // Disable creation mode when a value is selected
+  if (value) {
+    isCreatingRequesterCustomer.value = false
+  }
+  
   if (value) {
     const parsed = parseEntity(value)
     
@@ -271,45 +751,6 @@ const onRequesterSelect = async (value) => {
     console.log('Requester deselected, cleared pickup_location')
   }
   console.log('========================')
-}
-
-// Handle recipient selection - auto-fill dropoff location
-const onRecipientSelect = async (value) => {
-  console.log('=== Recipient selected ===')
-  console.log('Value:', value)
-  
-  if (value) {
-    const parsed = parseEntity(value)
-    
-    console.log('Parsed:', parsed)
-    
-    // First, try to get location from already loaded entities
-    let location = ''
-    const foundEntity = recipientEntities.value.find(
-      e => e.type === parsed.type && e.id === parsed.id
-    )
-    
-    if (foundEntity && foundEntity.location) {
-      location = foundEntity.location
-      console.log('Location found in loaded entities:', location)
-    } else {
-      // Fallback: fetch entity details with addresses via API
-      console.log('Location not in loaded entities, fetching from API...')
-      location = await fetchEntityDetails(parsed.type, parsed.id)
-    }
-    
-    if (location) {
-      form.value.dropoff_location = location
-      console.log('Auto-filled dropoff_location:', form.value.dropoff_location)
-    } else {
-      console.log('Location not available for this entity')
-    }
-  } else {
-    // Recipient deselected - clear dropoff location
-    form.value.dropoff_location = ''
-    console.log('Recipient deselected, cleared dropoff_location')
-  }
-  console.log('=========================')
 }
 
 // Watch for requester selection changes (backup to ensure auto-fill works)
@@ -346,22 +787,12 @@ watch(() => form.value.requester, async (newValue, oldValue) => {
 // Watch for recipient selection changes (backup to ensure auto-fill works)
 watch(() => form.value.recipient, async (newValue, oldValue) => {
   if (newValue && newValue !== oldValue) {
-    // Only auto-fill if not already filled by onRecipientSelect
+    // Only auto-fill if not already filled
     if (!form.value.dropoff_location) {
       const parsed = parseEntity(newValue)
       
-      // First, try to get location from already loaded entities
-      let location = ''
-      const foundEntity = recipientEntities.value.find(
-        e => e.type === parsed.type && e.id === parsed.id
-      )
-      
-      if (foundEntity && foundEntity.location) {
-        location = foundEntity.location
-      } else {
-        // Fallback: fetch entity details via API
-        location = await fetchEntityDetails(parsed.type, parsed.id)
-      }
+      // Fetch entity details via API
+      const location = await fetchEntityDetails(parsed.type, parsed.id)
       
       if (location) {
         form.value.dropoff_location = location
@@ -699,14 +1130,26 @@ const onSubmit = async () => {
       return
     }
     
-    if (!form.value.recipient) {
+    // For recipient, check if we have either a selected entity or manual form data
+    let recipient = null
+    if (form.value.recipient) {
+      // Entity was selected (from search)
+      recipient = parseEntity(form.value.recipient)
+    } else if (selectedRecipientEntity.value && selectedRecipientEntity.value.value) {
+      // Entity was selected via searchRecipientByNameOrPhone
+      recipient = parseEntity(selectedRecipientEntity.value.value)
+    } else if (isCreatingRecipientCustomer.value && recipientForm.value.name && recipientForm.value.phone) {
+      // Manual form data but customer creation is in progress
+      alert(t('Recipient is required') || 'Le destinataire est requis. Veuillez créer le client ou sélectionner un destinataire existant.')
+      isSubmitting.value = false
+      return
+    } else {
       alert(t('Recipient is required') || 'Le destinataire est requis')
       isSubmitting.value = false
       return
     }
     
     const requester = parseEntity(form.value.requester)
-    const recipient = parseEntity(form.value.recipient)
     
     payload.requester_type = requester.type
     payload.requester_id = requester.id
@@ -805,6 +1248,27 @@ const resetForm = () => {
   recipientSearch.value = ''
   distanceInfo.value = null
   distanceServiceUsed.value = null
+  
+  // Reset customer creation forms and modes
+  isCreatingRequesterCustomer.value = false
+  isCreatingRecipientCustomer.value = false
+  requesterCustomerForm.value = {
+    last_name: '',
+    phone: '',
+    location: '',
+    address_label: '',
+  }
+  recipientCustomerForm.value = {
+    last_name: '',
+    phone: '',
+    location: '',
+    address_label: '',
+  }
+  recipientForm.value = {
+    phone: '',
+    address_label: '',
+  }
+  selectedRecipientEntity.value = null
 }
 
 // Close dialog
@@ -842,12 +1306,38 @@ const loadDeliveryData = () => {
     const recipientType = delivery.recipient_type || (delivery.recipient.id ? 'customer' : 'partner')
     const recipientId = delivery.recipient.id || delivery.recipient_id
     form.value.recipient = `${recipientType}_${recipientId}`
+    
+    // Fill recipient form with data
+    recipientForm.value.phone = delivery.recipient.phone || ''
+    
+    // Get address data
+    const addressData = delivery.recipient.default_address || delivery.recipient.addresses?.[0]
+    if (addressData) {
+      recipientForm.value.address_label = addressData.label || ''
+      form.value.dropoff_location = addressData.address || addressData.location || ''
+    }
   } else if (delivery.customer?.id) {
     // Fallback for old structure
     form.value.recipient = `customer_${delivery.customer.id}`
+    recipientForm.value.phone = delivery.customer.phone || ''
+    
+    // Get address data
+    const addressData = delivery.customer.default_address || delivery.customer.addresses?.[0]
+    if (addressData) {
+      recipientForm.value.address_label = addressData.label || ''
+      form.value.dropoff_location = addressData.address || addressData.location || ''
+    }
   } else if (delivery.partner?.id) {
     // Fallback for old structure
     form.value.recipient = `partner_${delivery.partner.id}`
+    recipientForm.value.phone = delivery.partner.phone || ''
+    
+    // Get address data
+    const addressData = delivery.partner.default_address || delivery.partner.addresses?.[0]
+    if (addressData) {
+      recipientForm.value.address_label = addressData.label || ''
+      form.value.dropoff_location = addressData.address || addressData.location || ''
+    }
   }
 
   // Delivery fields
@@ -989,45 +1479,120 @@ watch(() => props.delivery, () => {
                 <VDivider />
                 <VCardText>
                   <VRow>
-                    <VCol cols="12">
-                      <AppAutocomplete
-                        v-model="form.requester"
-                        v-model:search="requesterSearch"
-                        :items="requesterEntities"
-                        :loading="isLoadingRequester"
-                        :label="$t('Requester')"
-                        :placeholder="$t('Search and select a partner or customer')"
-                        item-title="title"
-                        item-value="value"
-                        clearable
-                        :custom-filter="(itemTitle, queryText, item) => {
-                          const searchText = (queryText || '').toLowerCase()
-                          const title = (itemTitle || '').toLowerCase()
-                          const subtitle = (item.raw?.subtitle || '').toLowerCase()
-                          const phone = (item.raw?.phone || '').toLowerCase()
-                          const contactName = (item.raw?.contact_name || '').toLowerCase()
-                          const email = (item.raw?.email || '').toLowerCase()
-                          const firstName = (item.raw?.first_name || '').toLowerCase()
-                          const lastName = (item.raw?.last_name || '').toLowerCase()
-                          return title.includes(searchText) || 
-                                 subtitle.includes(searchText) || 
-                                 phone.includes(searchText) || 
-                                 contactName.includes(searchText) ||
-                                 email.includes(searchText) ||
-                                 firstName.includes(searchText) ||
-                                 lastName.includes(searchText)
-                        }"
-                        @update:model-value="onRequesterSelect"
-                      />
-                    </VCol>
-                    <VCol cols="12">
-                      <AppTextField
-                        v-model="form.pickup_location"
-                        :label="$t('Pickup Location')"
-                        placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                        :hint="$t('Location coordinates (auto-filled if requester selected)')"
-                      />
-                    </VCol>
+                    <!-- Customer Creation Form (when no results found) -->
+                    <template v-if="isCreatingRequesterCustomer">
+                      <VCol cols="12">
+                        <VAlert
+                          type="info"
+                          variant="tonal"
+                          class="mb-4"
+                        >
+                          {{ $t('No results found. Create a new customer') || 'Aucun résultat trouvé. Créer un nouveau client' }}
+                        </VAlert>
+                      </VCol>
+                      <VCol cols="12">
+                        <AppTextField
+                          v-model="requesterCustomerForm.last_name"
+                          :label="$t('Full Name') || 'Nom complet'"
+                          placeholder="Marie Agbodan"
+                          dense
+                          required
+                        />
+                      </VCol>
+                      <VCol cols="12">
+                        <AppTextField
+                          v-model="requesterCustomerForm.phone"
+                          :label="$t('Phone') || 'Téléphone'"
+                          placeholder="+228 92 34 56 78"
+                          dense
+                          required
+                        />
+                      </VCol>
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="requesterCustomerForm.address_label"
+                          :label="$t('Address Label') || 'Libellé de l\'adresse'"
+                          placeholder="Domicile"
+                          dense
+                          hint="Ex: Domicile, Bureau, etc."
+                        />
+                      </VCol>
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="requesterCustomerForm.location"
+                          :label="$t('GPS Coordinates') || 'Coordonnées GPS'"
+                          placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                          dense
+                          hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
+                        />
+                      </VCol>
+                      <VCol cols="12">
+                        <div class="d-flex gap-2">
+                          <VBtn
+                            color="primary"
+                            @click="createRequesterCustomer"
+                          >
+                            {{ $t('Validate') || 'Valider' }}
+                          </VBtn>
+                          <VBtn
+                            color="secondary"
+                            variant="tonal"
+                            @click="cancelRequesterCustomerCreation"
+                          >
+                            {{ $t('Cancel') || 'Annuler' }}
+                          </VBtn>
+                        </div>
+                      </VCol>
+                    </template>
+
+                    <!-- Normal Autocomplete (when results found or no search) -->
+                    <template v-else>
+                      <VCol cols="12">
+                        <AppAutocomplete
+                          v-model="form.requester"
+                          v-model:search="requesterSearch"
+                          :items="requesterEntities"
+                          :loading="isLoadingRequester"
+                          :label="$t('Requester')"
+                          :placeholder="$t('Search and select a partner or customer')"
+                          item-title="title"
+                          item-value="value"
+                          clearable
+                          :custom-filter="(itemTitle, queryText, item) => {
+                            const searchText = (queryText || '').toLowerCase()
+                            const title = (itemTitle || '').toLowerCase()
+                            const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                            const phone = (item.raw?.phone || '').toLowerCase()
+                            const contactName = (item.raw?.contact_name || '').toLowerCase()
+                            const email = (item.raw?.email || '').toLowerCase()
+                            const firstName = (item.raw?.first_name || '').toLowerCase()
+                            const lastName = (item.raw?.last_name || '').toLowerCase()
+                            return title.includes(searchText) || 
+                                   subtitle.includes(searchText) || 
+                                   phone.includes(searchText) || 
+                                   contactName.includes(searchText) ||
+                                   email.includes(searchText) ||
+                                   firstName.includes(searchText) ||
+                                   lastName.includes(searchText)
+                          }"
+                          @update:model-value="onRequesterSelect"
+                        />
+                      </VCol>
+                      <VCol cols="12">
+                        <AppTextField
+                          v-model="form.pickup_location"
+                          :label="$t('Pickup Location')"
+                          placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                          :hint="$t('Location coordinates (auto-filled if requester selected)')"
+                        />
+                      </VCol>
+                    </template>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -1053,13 +1618,17 @@ watch(() => props.delivery, () => {
                 <VDivider />
                 <VCardText>
                   <VRow>
-                    <VCol cols="12">
+                    <!-- Ligne 1: Nom (avec autocomplete) et Numéro -->
+                    <VCol
+                      cols="12"
+                      md="6"
+                    >
                       <AppAutocomplete
                         v-model="form.recipient"
                         v-model:search="recipientSearch"
                         :items="recipientEntities"
                         :loading="isLoadingRecipient"
-                        :label="$t('Recipient')"
+                        :label="$t('Full Name') || 'Nom complet'"
                         :placeholder="$t('Search and select a partner or customer')"
                         item-title="title"
                         item-value="value"
@@ -1084,13 +1653,71 @@ watch(() => props.delivery, () => {
                         @update:model-value="onRecipientSelect"
                       />
                     </VCol>
-                    <VCol cols="12">
+                    <VCol
+                      cols="12"
+                      md="6"
+                    >
+                      <AppTextField
+                        v-model="recipientForm.phone"
+                        :label="$t('Phone') || 'Téléphone'"
+                        placeholder="+228 92 34 56 78"
+                        dense
+                      />
+                    </VCol>
+
+                    <!-- Ligne 2: Libellé adresse et Location -->
+                    <VCol
+                      cols="12"
+                      md="6"
+                    >
+                      <AppTextField
+                        v-model="recipientForm.address_label"
+                        :label="$t('Address Label') || 'Libellé de l\'adresse'"
+                        placeholder="Domicile"
+                        dense
+                        hint="Ex: Domicile, Bureau, etc."
+                      />
+                    </VCol>
+                    <VCol
+                      cols="12"
+                      md="6"
+                    >
                       <AppTextField
                         v-model="form.dropoff_location"
-                        :label="$t('Dropoff Location')"
+                        :label="$t('Location') || 'Localisation'"
                         placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
-                        :hint="$t('Location coordinates (auto-filled if recipient selected)')"
+                        :hint="$t('Location coordinates (auto-filled if recipient selected)') || 'Coordonnées GPS (auto-rempli si destinataire sélectionné)'"
+                        dense
                       />
+                    </VCol>
+
+                    <!-- Validate Button (shown when no exact match found) -->
+                    <VCol
+                      v-if="isCreatingRecipientCustomer && recipientSearch && recipientSearch.trim().length >= 2"
+                      cols="12"
+                    >
+                      <VAlert
+                        type="info"
+                        variant="tonal"
+                        class="mb-2"
+                      >
+                        {{ $t('No exact match found. Fill the fields below and click Validate to create a new customer') || 'Aucune correspondance exacte trouvée. Remplissez les champs ci-dessous et cliquez sur Valider pour créer un nouveau client' }}
+                      </VAlert>
+                      <div class="d-flex gap-2">
+                        <VBtn
+                          color="primary"
+                          @click="createRecipientCustomer"
+                        >
+                          {{ $t('Validate') || 'Valider' }}
+                        </VBtn>
+                        <VBtn
+                          color="secondary"
+                          variant="tonal"
+                          @click="cancelRecipientCustomerCreation"
+                        >
+                          {{ $t('Cancel') || 'Annuler' }}
+                        </VBtn>
+                      </div>
                     </VCol>
                   </VRow>
                 </VCardText>
@@ -1246,6 +1873,25 @@ watch(() => props.delivery, () => {
         </VBtn>
       </VCardActions>
     </VCard>
+
+    <!-- Snackbar for notifications -->
+    <VSnackbar
+      v-model="snackbar"
+      :color="snackbarColor"
+      :timeout="3000"
+      location="top"
+    >
+      {{ snackbarText }}
+      <template #actions>
+        <VBtn
+          icon
+          variant="text"
+          @click="snackbar = false"
+        >
+          <VIcon icon="tabler-x" />
+        </VBtn>
+      </template>
+    </VSnackbar>
   </VDialog>
 </template>
 

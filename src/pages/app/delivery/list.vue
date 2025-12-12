@@ -1063,14 +1063,50 @@ const cancelDelete = () => {
                 </div>
               </VCol>
 
+              <!-- Price Information Section -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  <VIcon
+                    icon="tabler-currency-dollar"
+                    class="me-2"
+                  />
+                  {{ $t('Price Information') || 'Informations de prix' }}
+                </h3>
+              </VCol>
+
+              <!-- Current Price -->
               <VCol
                 cols="12"
                 md="6"
               >
                 <div class="mb-4">
-                  <span class="text-sm text-medium-emphasis">{{ $t('Price') || 'Prix' }}:</span>
-                  <span class="ms-2 font-weight-medium">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Current Price') || 'Prix actuel' }}:</span>
+                  <span class="ms-2 font-weight-bold text-h6">
                     {{ formatPrice((deliveryDetails || selectedDeliveryForView)?.price) }}
+                  </span>
+                  <VChip
+                    v-if="(deliveryDetails || selectedDeliveryForView)?.price_adjusted"
+                    size="x-small"
+                    color="info"
+                    variant="tonal"
+                    class="ms-2"
+                  >
+                    {{ $t('Adjusted') || 'Ajusté' }}
+                  </VChip>
+                </div>
+              </VCol>
+
+              <!-- Initial Price (if adjusted) -->
+              <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.price_adjusted && (deliveryDetails || selectedDeliveryForView)?.initial_price"
+                cols="12"
+                md="6"
+              >
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Initial Price') || 'Prix initial' }}:</span>
+                  <span class="ms-2 text-decoration-line-through text-medium-emphasis">
+                    {{ formatPrice((deliveryDetails || selectedDeliveryForView)?.initial_price) }}
                   </span>
                 </div>
               </VCol>
@@ -1085,6 +1121,57 @@ const cancelDelete = () => {
                     {{ (deliveryDetails || selectedDeliveryForView)?.distance_km ? `${(deliveryDetails || selectedDeliveryForView).distance_km} km` : '—' }}
                   </span>
                 </div>
+              </VCol>
+
+              <!-- Price Adjustment Details -->
+              <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.price_adjusted && (deliveryDetails || selectedDeliveryForView)?.price_adjustment"
+                cols="12"
+              >
+                <VAlert
+                  color="info"
+                  variant="tonal"
+                  class="mt-2"
+                >
+                  <div class="d-flex flex-column gap-2">
+                    <div class="d-flex align-center">
+                      <VIcon
+                        icon="tabler-discount"
+                        size="20"
+                        class="me-2"
+                      />
+                      <strong>{{ $t('Price Adjustment Details') || 'Détails de l\'ajustement' }}</strong>
+                    </div>
+
+                    <div v-if="(deliveryDetails || selectedDeliveryForView).price_adjustment.discount_amount">
+                      <span class="text-sm text-medium-emphasis">{{ $t('Adjustment Amount') || 'Montant de l\'ajustement' }}:</span>
+                      <span class="ms-2 font-weight-bold">
+                        {{ formatPrice(Math.abs((deliveryDetails || selectedDeliveryForView).price_adjustment.discount_amount)) }}
+                      </span>
+                    </div>
+
+                    <div v-if="(deliveryDetails || selectedDeliveryForView).price_adjustment.reason">
+                      <span class="text-sm text-medium-emphasis">{{ $t('Reason') || 'Raison' }}:</span>
+                      <span class="ms-2">
+                        {{ (deliveryDetails || selectedDeliveryForView).price_adjustment.reason }}
+                      </span>
+                    </div>
+
+                    <div v-if="(deliveryDetails || selectedDeliveryForView).price_adjustment.adjusted_by">
+                      <span class="text-sm text-medium-emphasis">{{ $t('Adjusted By') || 'Ajusté par' }}:</span>
+                      <span class="ms-2">
+                        {{ (deliveryDetails || selectedDeliveryForView).price_adjustment.adjusted_by.name || '—' }}
+                      </span>
+                    </div>
+
+                    <div v-if="(deliveryDetails || selectedDeliveryForView).price_adjustment.adjusted_at">
+                      <span class="text-sm text-medium-emphasis">{{ $t('Adjusted At') || 'Ajusté le' }}:</span>
+                      <span class="ms-2">
+                        {{ formatDateTime((deliveryDetails || selectedDeliveryForView).price_adjustment.adjusted_at) }}
+                      </span>
+                    </div>
+                  </div>
+                </VAlert>
               </VCol>
 
 

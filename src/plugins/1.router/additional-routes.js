@@ -1,3 +1,5 @@
+import { getFirstAccessiblePage } from '@/navigation/vertical/dashboard'
+
 const emailRouteComponent = () => import('@/pages/template/apps/email/index.vue')
 
 // 👉 Redirects
@@ -22,31 +24,11 @@ export const redirects = [
         return { name: 'auth-login', query: to.query }
       }
       
-      // Normalize role for comparison (case-insensitive)
-      const normalizedRole = userRole.toString().trim().toLowerCase()
+      // Get first accessible page from sidebar
+      const firstPage = getFirstAccessiblePage(userRole)
       
-      // Redirect based on role
-      // Admin roles - keep dashboard for now
-      if (normalizedRole === 'admin' || 
-          normalizedRole === 'super admin' || 
-          normalizedRole === 'superadmin' ||
-          normalizedRole === 'super-admin') {
-        return { name: 'template-dashboards-crm' }
-      }
-      
-      // Logisticien and Assistant Logisticien → Delivery list
-      if (normalizedRole === 'logisticien' || normalizedRole === 'assistant logisticien') {
-        return { name: 'delivery-list' }
-      }
-      
-      // Comptable → Financial transactions
-      if (normalizedRole === 'comptable') {
-        return { name: 'financial-transactions' }
-      }
-      
-      // Client role
-      if (normalizedRole === 'client') {
-        return { name: 'template-access-control' }
+      if (firstPage) {
+        return { name: firstPage }
       }
       
       // Default: redirect to login

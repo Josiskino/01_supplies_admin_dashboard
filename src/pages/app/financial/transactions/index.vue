@@ -339,6 +339,42 @@ const formatPrice = value => {
   }
 }
 
+// Get difference type and info
+const getDifferenceInfo = item => {
+  const difference = parseFloat(item.difference) || 0
+  const theoreticalAmount = parseFloat(item.theoretical_amount) || parseFloat(item.total_deliveries_amount) || 0
+  const amountPaid = parseFloat(item.amount_paid) || 0
+  
+  if (Math.abs(difference) < 0.01) {
+    // Conforme (difference ≈ 0)
+    return {
+      type: 'conform',
+      color: 'success',
+      icon: 'tabler-check',
+      label: t('Conform') || 'Conforme',
+      amount: 0,
+    }
+  } else if (difference > 0) {
+    // Manquant (difference > 0, amount_paid < theoretical_amount)
+    return {
+      type: 'missing',
+      color: 'error',
+      icon: 'tabler-alert-triangle',
+      label: t('Missing') || 'Manquant',
+      amount: difference,
+    }
+  } else {
+    // Excédent (difference < 0, amount_paid > theoretical_amount)
+    return {
+      type: 'excess',
+      color: 'info',
+      icon: 'tabler-arrow-up',
+      label: t('Excess') || 'Excédent',
+      amount: Math.abs(difference),
+    }
+  }
+}
+
 
 // Watch for filter changes and refetch
 watch([selectedDriverId, selectedStatus, dateFrom, dateTo, settlementDate, searchQuery, itemsPerPage], () => {
@@ -717,12 +753,31 @@ onMounted(() => {
 
           <!-- Difference -->
           <template #item.difference="{ item }">
-            <span
-              class="text-body-1 font-weight-bold"
-              :class="parseFloat(item.difference) >= 0 ? 'text-success' : 'text-error'"
-            >
-              {{ formatPrice(item.difference) }}
-            </span>
+            <div class="d-flex flex-column">
+              <VChip
+                size="small"
+                :color="getDifferenceInfo(item).color"
+                variant="tonal"
+                class="mb-1"
+              >
+                <VIcon
+                  :icon="getDifferenceInfo(item).icon"
+                  size="14"
+                  class="me-1"
+                />
+                {{ getDifferenceInfo(item).label }}
+              </VChip>
+              <span
+                class="text-body-2 font-weight-medium"
+                :class="`text-${getDifferenceInfo(item).color}`"
+              >
+                {{ getDifferenceInfo(item).type === 'excess' 
+                  ? `+${formatPrice(getDifferenceInfo(item).amount)}`
+                  : getDifferenceInfo(item).type === 'missing'
+                    ? `-${formatPrice(getDifferenceInfo(item).amount)}`
+                    : formatPrice(0) }}
+              </span>
+            </div>
           </template>
 
           <!-- Status -->

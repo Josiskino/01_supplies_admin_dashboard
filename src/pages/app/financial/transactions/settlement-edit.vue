@@ -70,6 +70,60 @@ const formatPrice = value => {
   }
 }
 
+// Get theoretical amount
+const getTheoreticalAmount = computed(() => {
+  if (!settlementDetails.value) return 0
+  return parseFloat(settlementDetails.value.theoretical_amount) || 
+         parseFloat(settlementDetails.value.total_deliveries_amount) || 0
+})
+
+// Calculate difference in real-time
+const calculatedDifference = computed(() => {
+  const theoretical = getTheoreticalAmount.value
+  const paid = parseFloat(form.value.amount_paid) || 0
+  return theoretical - paid
+})
+
+// Get difference info
+const getDifferenceInfo = computed(() => {
+  const diff = calculatedDifference.value
+  
+  if (Math.abs(diff) < 0.01) {
+    return {
+      type: 'conform',
+      color: 'success',
+      icon: 'tabler-check',
+      label: t('Conform') || 'Conforme',
+      amount: 0,
+    }
+  } else if (diff > 0) {
+    return {
+      type: 'missing',
+      color: 'error',
+      icon: 'tabler-alert-triangle',
+      label: t('Missing') || 'Manquant',
+      amount: diff,
+    }
+  } else {
+    return {
+      type: 'excess',
+      color: 'info',
+      icon: 'tabler-arrow-up',
+      label: t('Excess') || 'Excédent',
+      amount: Math.abs(diff),
+    }
+  }
+})
+
+// Check if excess is significant (>10%)
+const isSignificantExcess = computed(() => {
+  if (getDifferenceInfo.value.type !== 'excess') return false
+  const theoretical = getTheoreticalAmount.value
+  if (theoretical === 0) return false
+  const excessPercent = (getDifferenceInfo.value.amount / theoretical) * 100
+  return excessPercent > 10
+})
+
 // Fetch settlement details
 const fetchSettlementDetails = async () => {
   if (!props.settlement?.id) {
@@ -317,6 +371,25 @@ watch(() => props.settlement, () => {
             </VCard>
 
             <VRow>
+              <!-- Theoretical Amount (Read-only) -->
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <AppTextField
+                  :model-value="formatPrice(getTheoreticalAmount)"
+                  :label="($t('Theoretical Amount') || 'Montant théorique')"
+                  readonly
+                  variant="outlined"
+                  hint="($t('Amount expected based on deliveries and expenses') || 'Montant attendu basé sur les livraisons et dépenses')"
+                  persistent-hint
+                >
+                  <template #prepend-inner>
+                    <VIcon icon="tabler-calculator" />
+                  </template>
+                </AppTextField>
+              </VCol>
+
               <!-- Amount Paid -->
               <VCol
                 cols="12"
@@ -325,11 +398,84 @@ watch(() => props.settlement, () => {
                 <AppTextField
                   v-model="form.amount_paid"
                   :label="($t('Amount Paid') || 'Montant payé')"
-                  :placeholder="($t('Enter amount paid') || 'Entrez le montant payé')"
+                  :placeholder="($t('Enter amount actually received') || 'Entrez le montant réellement reçu')"
                   type="number"
+                  min="0"
+                  step="0.01"
                   :error-messages="errors.amount_paid"
+                  :hint="($t('Can be higher or lower than theoretical amount') || 'Peut être supérieur ou inférieur au montant théorique')"
+                  persistent-hint
                   required
-                />
+                >
+                  <template #prepend-inner>
+                    <VIcon icon="tabler-currency-dollar" />
+                  </template>
+                </AppTextField>
+              </VCol>
+            </VRow>
+
+            <!-- Difference Display -->
+            <VRow
+              v-if="form.amount_paid"
+              class="mt-2"
+            >
+              <VCol cols="12">
+                <VCard
+                  :color="getDifferenceInfo.color"
+                  variant="tonal"
+                >
+                  <VCardText class="d-flex align-center justify-space-between">
+                    <div class="d-flex align-center gap-2">
+                      <VIcon
+                        :icon="getDifferenceInfo.icon"
+                        :color="getDifferenceInfo.color"
+                      />
+                      <div>
+                        <div class="text-sm text-medium-emphasis">
+                          {{ $t('Difference') || 'Différence' }}
+                        </div>
+                        <div class="text-h6 font-weight-bold">
+                          {{ getDifferenceInfo.type === 'excess' 
+                            ? `+${formatPrice(getDifferenceInfo.amount)}`
+                            : getDifferenceInfo.type === 'missing'
+                              ? `-${formatPrice(getDifferenceInfo.amount)}`
+                              : formatPrice(0) }}
+                        </div>
+                      </div>
+                    </div>
+                    <VChip
+                      :color="getDifferenceInfo.color"
+                      variant="flat"
+                    >
+                      <VIcon
+                        :icon="getDifferenceInfo.icon"
+                        size="14"
+                        class="me-1"
+                      />
+                      {{ getDifferenceInfo.label }}
+                    </VChip>
+                  </VCardText>
+                </VCard>
+
+                <!-- Warning for significant excess -->
+                <VAlert
+                  v-if="isSignificantExcess"
+                  type="warning"
+                  variant="tonal"
+                  class="mt-2"
+                >
+                  <div class="d-flex align-center gap-2">
+                    <VIcon icon="tabler-alert-triangle" />
+                    <div>
+                      <div class="font-weight-medium">
+                        {{ $t('Significant Excess') || 'Excédent significatif' }}
+                      </div>
+                      <div class="text-sm">
+                        {{ $t('The amount paid exceeds the theoretical amount by more than 10%. Please verify and add a note if necessary.') || 'Le montant payé dépasse le montant théorique de plus de 10%. Veuillez vérifier et ajouter une note si nécessaire.' }}
+                      </div>
+                    </div>
+                  </div>
+                </VAlert>
               </VCol>
             </VRow>
 

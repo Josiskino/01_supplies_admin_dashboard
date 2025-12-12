@@ -95,6 +95,37 @@ const getExpensesAmount = settlement => {
   return 0
 }
 
+// Get difference type and info
+const getDifferenceInfo = settlement => {
+  const difference = parseFloat(settlement?.difference) || 0
+  
+  if (Math.abs(difference) < 0.01) {
+    return {
+      type: 'conform',
+      color: 'success',
+      icon: 'tabler-check',
+      label: t('Conform') || 'Conforme',
+      amount: 0,
+    }
+  } else if (difference > 0) {
+    return {
+      type: 'missing',
+      color: 'error',
+      icon: 'tabler-alert-triangle',
+      label: t('Missing') || 'Manquant',
+      amount: difference,
+    }
+  } else {
+    return {
+      type: 'excess',
+      color: 'info',
+      icon: 'tabler-arrow-up',
+      label: t('Excess') || 'Excédent',
+      amount: Math.abs(difference),
+    }
+  }
+}
+
 // Fetch delivery details to get partner information
 const fetchDeliveryDetails = async deliveryId => {
   try {
@@ -323,14 +354,31 @@ watch(() => props.settlement, () => {
                   cols="12"
                   md="3"
                 >
-                  <div class="text-sm text-medium-emphasis">
+                  <div class="text-sm text-medium-emphasis mb-1">
                     {{ $t('Difference') || 'Différence' }}
                   </div>
+                  <VChip
+                    size="small"
+                    :color="getDifferenceInfo(settlementDetails).color"
+                    variant="tonal"
+                    class="mb-1"
+                  >
+                    <VIcon
+                      :icon="getDifferenceInfo(settlementDetails).icon"
+                      size="14"
+                      class="me-1"
+                    />
+                    {{ getDifferenceInfo(settlementDetails).label }}
+                  </VChip>
                   <div
                     class="text-body-1 font-weight-bold"
-                    :class="parseFloat(settlementDetails.difference) >= 0 ? 'text-success' : 'text-error'"
+                    :class="`text-${getDifferenceInfo(settlementDetails).color}`"
                   >
-                    {{ formatPrice(settlementDetails.difference) }}
+                    {{ getDifferenceInfo(settlementDetails).type === 'excess' 
+                      ? `+${formatPrice(getDifferenceInfo(settlementDetails).amount)}`
+                      : getDifferenceInfo(settlementDetails).type === 'missing'
+                        ? `-${formatPrice(getDifferenceInfo(settlementDetails).amount)}`
+                        : formatPrice(0) }}
                   </div>
                 </VCol>
               </VRow>

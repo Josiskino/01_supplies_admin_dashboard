@@ -258,8 +258,8 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
         @submit.prevent="onSubmit"
       >
         <VRow>
-          <!-- First Name -->
-          <VCol
+          <!-- First Name - Commented out -->
+          <!-- <VCol
             cols="12"
             md="6"
           >
@@ -270,24 +270,21 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
               dense
               required
             />
-          </VCol>
+          </VCol> -->
 
-          <!-- Last Name -->
-          <VCol
-            cols="12"
-            md="6"
-          >
+          <!-- Last Name - Now "Nom complet" -->
+          <VCol cols="12">
             <AppTextField
               v-model="form.last_name"
-              label="Last Name"
-              placeholder="Agbodan"
+              label="Nom complet"
+              placeholder="Marie Agbodan"
               dense
               required
             />
           </VCol>
 
-          <!-- Email -->
-          <VCol cols="12">
+          <!-- Email - Commented out -->
+          <!-- <VCol cols="12">
             <AppTextField
               v-model="form.email"
               type="email"
@@ -296,13 +293,13 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
               dense
               required
             />
-          </VCol>
+          </VCol> -->
 
           <!-- Phone -->
           <VCol cols="12">
             <AppTextField
               v-model="form.phone"
-              label="Phone"
+              label="Téléphone"
               placeholder="+228 92 34 56 78"
               dense
               required
@@ -316,10 +313,10 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
           >
             <AppTextField
               v-model="form.address_label"
-              label="Address Label"
+              label="Libellé de l'adresse"
               placeholder="Domicile"
               dense
-              hint="e.g., Domicile, Bureau, etc."
+              hint="Ex: Domicile, Bureau, etc."
             />
           </VCol>
 
@@ -330,15 +327,15 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
           >
             <AppTextField
               v-model="form.location"
-              label="Location (Coordinates)"
+              label="Coordonnées GPS"
               placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
               dense
               hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
             />
           </VCol>
 
-          <!-- Address -->
-          <VCol cols="12">
+          <!-- Address - Commented out -->
+          <!-- <VCol cols="12">
             <VTextarea
               v-model="form.address"
               label="Address"
@@ -346,7 +343,7 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
               dense
               rows="3"
             />
-          </VCol>
+          </VCol> -->
         </VRow>
       </VForm>
     </div>

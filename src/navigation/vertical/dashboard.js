@@ -15,7 +15,7 @@ const allNavItems = [
     title: 'Delivery',
     icon: { icon: 'tabler-truck' },
     to: 'delivery-list',
-    roles: ['Logisticien', 'Assistant Logisticien'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur'],
     // Commented out for future use - uncomment to restore dropdown menu
     // children: [
     //   { title: 'Dashboard', to: 'delivery-dashboard' },
@@ -27,14 +27,14 @@ const allNavItems = [
     title: 'Partners',
     icon: { icon: 'tabler-users' },
     to: 'partners-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur'],
   },
   // 3. Livreurs (Couriers)
   { 
     title: 'Couriers',
     icon: { icon: 'tabler-users' },
     to: 'couriers-list',
-    roles: ['Logisticien', 'Assistant Logisticien'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur'],
     // Commented out - Activity screen is no longer displayed in navigation
     // children: [
     //   { title: 'List', to: 'couriers-list' },
@@ -46,16 +46,17 @@ const allNavItems = [
     title: 'Customers',
     icon: { icon: 'tabler-users' },
     to: 'customer-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur'],
   },
   // 5. Financier (Financial)
   {
     title: 'Financial',
     icon: { icon: 'tabler-currency-dollar' },
-    roles: ['Comptable'],
+    roles: ['Comptable', 'Superviseur'],
     children: [
       { title: 'Transactions', to: 'financial-transactions' },
       { title: 'Price Adjustments', to: 'financial-price-adjustments' },
+      { title: 'Expenses', to: 'financial-expenses' },
       { title: 'Report', to: 'financial-report' },
     ],
   },
@@ -167,6 +168,62 @@ export const getFilteredNavigation = () => {
   console.log('[Navigation] Filtered items:', filtered.map(i => i.title || i.heading))
 
   return filtered
+}
+
+// Function to get the first accessible page for a user role
+export const getFirstAccessiblePage = (userRole = null) => {
+  // If no role provided, try to get it from cookie
+  if (!userRole) {
+    userRole = getUserRole()
+  }
+
+  if (!userRole) {
+    return null
+  }
+
+  // Normalize user role for comparison (case-insensitive)
+  const normalizedUserRole = userRole?.toString().trim().toLowerCase()
+
+  // If user is admin, return first item
+  const isAdmin = normalizedUserRole === 'admin' || 
+                  normalizedUserRole === 'super admin' || 
+                  normalizedUserRole === 'superadmin' ||
+                  normalizedUserRole === 'super-admin'
+
+  if (isAdmin) {
+    // For admin, return first non-heading item
+    const firstItem = allNavItems.find(item => !item.heading && (item.to || item.children))
+    if (firstItem) {
+      if (firstItem.children && firstItem.children.length > 0) {
+        return firstItem.children[0].to
+      }
+      return firstItem.to
+    }
+    return null
+  }
+
+  // Filter items based on role
+  const filtered = allNavItems.filter(item => {
+    if (item.heading) return false
+    if (!item.roles || item.roles.length === 0) return false
+
+    const normalizedItemRoles = item.roles.map(r => r?.toString().trim().toLowerCase())
+    return normalizedItemRoles.includes(normalizedUserRole)
+  })
+
+  // Find first accessible item
+  for (const item of filtered) {
+    // If item has children, return first child
+    if (item.children && item.children.length > 0) {
+      return item.children[0].to
+    }
+    // If item has direct route, return it
+    if (item.to) {
+      return item.to
+    }
+  }
+
+  return null
 }
 
 // Export all nav items for reference
