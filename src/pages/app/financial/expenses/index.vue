@@ -163,18 +163,21 @@ const fetchExpenses = async () => {
 // Fetch categories
 const fetchCategories = async () => {
   try {
-    const response = await $api('/expense-categories', {
+    const response = await $api('/status/expense-categories', {
       method: 'GET',
     })
 
+    // Format categories for AppSelect: { title: category_name or description, value: id }
+    let categoriesList = []
     if (response?.data && Array.isArray(response.data)) {
-      categories.value = response.data.map(cat => ({
-        title: cat.name,
-        value: cat.id,
-      }))
+      categoriesList = response.data
     } else if (Array.isArray(response)) {
-      categories.value = response.map(cat => ({
-        title: cat.name,
+      categoriesList = response
+    }
+    
+    if (categoriesList.length > 0) {
+      categories.value = categoriesList.map(cat => ({
+        title: cat.category_name || cat.description || cat.name || '',
         value: cat.id,
       }))
     }
@@ -712,7 +715,6 @@ onMounted(() => {
     <AddEditExpenseDialog
       v-model:is-dialog-visible="isAddEditDialogOpen"
       :expense="selectedExpense"
-      :categories="categories"
       :drivers="drivers"
       @expense-saved="fetchExpenses"
     />

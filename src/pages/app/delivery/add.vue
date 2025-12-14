@@ -1,7 +1,7 @@
 <script setup>
 /* eslint-disable camelcase */
-import { useI18n } from 'vue-i18n'
 import { calculateDeliveryPrice, calculateDistanceFromUrls, invalidateDistanceServiceCache } from '@/utils/googleMaps'
+import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
@@ -162,7 +162,15 @@ const formatEntityForDisplay = (entity) => {
 const fetchDeliveryEntities = async (searchTerm = '', target = 'requester') => {
   const isLoading = target === 'requester' ? isLoadingRequester : isLoadingRecipient
   const entities = target === 'requester' ? requesterEntities : recipientEntities
-  const isCreating = target === 'requester' ? isCreatingRequesterCustomer : isCreatingRecipientCustomer
+  const isCreating = target === 'recipient' ? isCreatingRecipientCustomer : null
+  
+  // Désactiver le mode création au début de la recherche UNIQUEMENT si on a un terme de recherche
+  // Cela permet de ne pas perdre le mode création si l'utilisateur clique en dehors
+  // Surtout important pour le destinataire
+  if (target === 'recipient' && searchTerm && searchTerm.trim().length >= 2) {
+    // On désactive temporairement, mais on le réactivera si pas de résultats exacts
+    isCreating.value = false
+  }
   
   isLoading.value = true
   try {
@@ -201,63 +209,11 @@ const fetchDeliveryEntities = async (searchTerm = '', target = 'requester') => {
     
     entities.value = allEntities
     
-    // Check if we should enable customer creation mode
-    // Enable if search term exists, has at least 2 characters, and:
-    // - No results found, OR
-    // - Results found but none match exactly (case-insensitive)
-    if (searchTerm && searchTerm.trim().length >= 2) {
-      const searchTermLower = searchTerm.trim().toLowerCase()
-      
-      // Check if any entity matches exactly (case-insensitive)
-      const exactMatch = allEntities.some(entity => {
-        const title = (entity.title || '').toLowerCase()
-        const lastName = (entity.raw?.last_name || '').toLowerCase()
-        const firstName = (entity.raw?.first_name || '').toLowerCase()
-        const name = (entity.raw?.name || '').toLowerCase()
-        const displayName = (entity.raw?.display_name || '').toLowerCase()
-        
-        return title === searchTermLower || 
-               lastName === searchTermLower || 
-               firstName === searchTermLower ||
-               name === searchTermLower ||
-               displayName === searchTermLower ||
-               `${firstName} ${lastName}`.trim() === searchTermLower ||
-               `${lastName} ${firstName}`.trim() === searchTermLower
-      })
-      
-      // If no exact match, enable creation mode
-      if (!exactMatch) {
-        isCreating.value = true
-        // Pre-fill the name in the form
-        if (target === 'requester') {
-          requesterCustomerForm.value.last_name = searchTerm.trim()
-        } else {
-          recipientCustomerForm.value.last_name = searchTerm.trim()
-        }
-      } else {
-        // Exact match found, disable creation mode
-        isCreating.value = false
-      }
-    } else if (!searchTerm || searchTerm.trim().length === 0) {
-      // If search is cleared, disable creation mode
-      isCreating.value = false
-    }
-    
     console.log('Loaded entities:', allEntities.length)
     console.log('Partners:', partnersList.length, 'Customers:', customersList.length)
-    console.log('Creation mode enabled:', isCreating.value)
   } catch (error) {
     console.error('Error fetching delivery entities:', error)
     entities.value = []
-    // On error, if we have a search term, enable creation mode
-    if (searchTerm && searchTerm.trim().length >= 2) {
-      isCreating.value = true
-      if (target === 'requester') {
-        requesterCustomerForm.value.last_name = searchTerm.trim()
-      } else {
-        recipientCustomerForm.value.last_name = searchTerm.trim()
-      }
-    }
   } finally {
     isLoading.value = false
   }
@@ -272,26 +228,23 @@ watch(requesterSearch, (searchTerm) => {
     clearTimeout(requesterSearchTimeout)
   }
   
-  // Disable creation mode if search is cleared
-  if (!searchTerm || searchTerm.trim().length === 0) {
-    isCreatingRequesterCustomer.value = false
-  }
-  
   requesterSearchTimeout = setTimeout(() => {
     fetchDeliveryEntities(searchTerm, 'requester')
   }, 300)
 })
 
+// Watcher sur recipientSearch pour déclencher la recherche
 watch(recipientSearch, (searchTerm) => {
   if (recipientSearchTimeout) {
     clearTimeout(recipientSearchTimeout)
   }
   
-  // Disable creation mode if search is cleared
+  // Si la recherche est vide, ne rien faire
   if (!searchTerm || searchTerm.trim().length === 0) {
-    isCreatingRecipientCustomer.value = false
+    return
   }
   
+  // Déclencher la recherche avec un debounce de 300ms
   recipientSearchTimeout = setTimeout(() => {
     fetchDeliveryEntities(searchTerm, 'recipient')
   }, 300)
@@ -521,9 +474,9 @@ const recipientCustomerForm = ref({
 
 // Create customer function for recipient
 const createRecipientCustomer = async () => {
-  // Use recipientSearch if recipientCustomerForm.last_name is empty
-  const customerName = recipientCustomerForm.value.last_name || recipientSearch.value || ''
-  const customerPhone = recipientForm.value.phone || recipientCustomerForm.value.phone || ''
+  // Utiliser les données du formulaire de création
+  const customerName = recipientCustomerForm.value.last_name || ''
+  const customerPhone = recipientCustomerForm.value.phone || ''
   
   // Validation
   if (!customerName || !customerName.trim()) {
@@ -565,6 +518,14 @@ const createRecipientCustomer = async () => {
     
     console.log('Customer created:', response)
     
+    // Extract customer data from response
+    const customerData = response?.data || response
+    const createdCustomerName = customerData?.last_name || customerData?.name || customerName.trim()
+    const createdCustomerId = customerData?.id
+    
+    // Préserver les données saisies avant de réinitialiser
+    const savedLocation = recipientCustomerForm.value.location || ''
+    
     // Show success notification
     snackbarText.value = t('Customer created successfully') || 'Client créé avec succès'
     snackbarColor.value = 'success'
@@ -573,7 +534,7 @@ const createRecipientCustomer = async () => {
     // Reset creation mode
     isCreatingRecipientCustomer.value = false
     
-    // Reset form
+    // Reset customer creation form
     recipientCustomerForm.value = {
       last_name: '',
       phone: '',
@@ -581,55 +542,33 @@ const createRecipientCustomer = async () => {
       address_label: '',
     }
     
-    // Extract customer data from response
-    const customerData = response?.data || response
-    const createdCustomerName = customerData?.last_name || customerData?.name || ''
-    const createdCustomerId = customerData?.id
-    
-    // Clear search to reset autocomplete
-    recipientSearch.value = ''
-    form.value.recipient = null
-    
-    // Reload entities silently (will include the new customer)
-    await nextTick()
-    await fetchDeliveryEntities('', 'recipient')
-    
-    // Wait a bit for entities to load, then search for the newly created customer
-    await nextTick()
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Try to find the newly created customer
+    // Sélectionner directement le client créé
     if (createdCustomerId) {
-      // First try: search by the name
-      if (createdCustomerName) {
-        await fetchDeliveryEntities(createdCustomerName, 'recipient')
-        await nextTick()
+      const newCustomerValue = `customer_${createdCustomerId}`
+      
+      // Recharger les entités pour avoir les données complètes
+      await nextTick()
+      await fetchDeliveryEntities('', 'recipient')
+      await nextTick()
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Sélectionner le client
+      form.value.recipient = newCustomerValue
+      
+      // Vider le champ de recherche pour que l'autocomplete affiche le nom du client sélectionné
+      recipientSearch.value = ''
+      
+      // Appeler onRecipientSelect pour remplir automatiquement les autres champs
+      await onRecipientSelect(newCustomerValue)
+      
+      // Restaurer la localisation si elle a été saisie
+      if (savedLocation && !form.value.dropoff_location) {
+        form.value.dropoff_location = savedLocation
       }
       
-      // Find the customer in the loaded entities
-      const newCustomer = recipientEntities.value.find(e => {
-        // Try to match by ID first
-        if (e.id === createdCustomerId || e.value === `customer_${createdCustomerId}`) {
-          return true
-        }
-        // Fallback: match by name
-        if (createdCustomerName) {
-          const title = (e.title || '').toLowerCase()
-          const searchName = createdCustomerName.toLowerCase()
-          return title.includes(searchName) || searchName.includes(title)
-        }
-        return false
-      })
-      
-      if (newCustomer) {
-        const newCustomerValue = newCustomer.value || `customer_${createdCustomerId}`
-        form.value.recipient = newCustomerValue
-        await onRecipientSelect(newCustomerValue)
-      } else {
-        // If not found, try to construct the value directly
-        const newCustomerValue = `customer_${createdCustomerId}`
-        form.value.recipient = newCustomerValue
-        await onRecipientSelect(newCustomerValue)
+      // Restaurer le téléphone si il a été saisi
+      if (customerPhone && !recipientForm.value.phone) {
+        recipientForm.value.phone = customerPhone
       }
     }
   } catch (error) {
@@ -713,11 +652,6 @@ const fetchEntityDetails = async (type, id) => {
 const onRequesterSelect = async (value) => {
   console.log('=== Requester selected ===')
   console.log('Value:', value)
-  
-  // Disable creation mode when a value is selected
-  if (value) {
-    isCreatingRequesterCustomer.value = false
-  }
   
   if (value) {
     const parsed = parseEntity(value)
@@ -1479,120 +1413,45 @@ watch(() => props.delivery, () => {
                 <VDivider />
                 <VCardText>
                   <VRow>
-                    <!-- Customer Creation Form (when no results found) -->
-                    <template v-if="isCreatingRequesterCustomer">
-                      <VCol cols="12">
-                        <VAlert
-                          type="info"
-                          variant="tonal"
-                          class="mb-4"
-                        >
-                          {{ $t('No results found. Create a new customer') || 'Aucun résultat trouvé. Créer un nouveau client' }}
-                        </VAlert>
-                      </VCol>
-                      <VCol cols="12">
-                        <AppTextField
-                          v-model="requesterCustomerForm.last_name"
-                          :label="$t('Full Name') || 'Nom complet'"
-                          placeholder="Marie Agbodan"
-                          dense
-                          required
-                        />
-                      </VCol>
-                      <VCol cols="12">
-                        <AppTextField
-                          v-model="requesterCustomerForm.phone"
-                          :label="$t('Phone') || 'Téléphone'"
-                          placeholder="+228 92 34 56 78"
-                          dense
-                          required
-                        />
-                      </VCol>
-                      <VCol
-                        cols="12"
-                        md="6"
-                      >
-                        <AppTextField
-                          v-model="requesterCustomerForm.address_label"
-                          :label="$t('Address Label') || 'Libellé de l\'adresse'"
-                          placeholder="Domicile"
-                          dense
-                          hint="Ex: Domicile, Bureau, etc."
-                        />
-                      </VCol>
-                      <VCol
-                        cols="12"
-                        md="6"
-                      >
-                        <AppTextField
-                          v-model="requesterCustomerForm.location"
-                          :label="$t('GPS Coordinates') || 'Coordonnées GPS'"
-                          placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                          dense
-                          hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
-                        />
-                      </VCol>
-                      <VCol cols="12">
-                        <div class="d-flex gap-2">
-                          <VBtn
-                            color="primary"
-                            @click="createRequesterCustomer"
-                          >
-                            {{ $t('Validate') || 'Valider' }}
-                          </VBtn>
-                          <VBtn
-                            color="secondary"
-                            variant="tonal"
-                            @click="cancelRequesterCustomerCreation"
-                          >
-                            {{ $t('Cancel') || 'Annuler' }}
-                          </VBtn>
-                        </div>
-                      </VCol>
-                    </template>
-
-                    <!-- Normal Autocomplete (when results found or no search) -->
-                    <template v-else>
-                      <VCol cols="12">
-                        <AppAutocomplete
-                          v-model="form.requester"
-                          v-model:search="requesterSearch"
-                          :items="requesterEntities"
-                          :loading="isLoadingRequester"
-                          :label="$t('Requester')"
-                          :placeholder="$t('Search and select a partner or customer')"
-                          item-title="title"
-                          item-value="value"
-                          clearable
-                          :custom-filter="(itemTitle, queryText, item) => {
-                            const searchText = (queryText || '').toLowerCase()
-                            const title = (itemTitle || '').toLowerCase()
-                            const subtitle = (item.raw?.subtitle || '').toLowerCase()
-                            const phone = (item.raw?.phone || '').toLowerCase()
-                            const contactName = (item.raw?.contact_name || '').toLowerCase()
-                            const email = (item.raw?.email || '').toLowerCase()
-                            const firstName = (item.raw?.first_name || '').toLowerCase()
-                            const lastName = (item.raw?.last_name || '').toLowerCase()
-                            return title.includes(searchText) || 
-                                   subtitle.includes(searchText) || 
-                                   phone.includes(searchText) || 
-                                   contactName.includes(searchText) ||
-                                   email.includes(searchText) ||
-                                   firstName.includes(searchText) ||
-                                   lastName.includes(searchText)
-                          }"
-                          @update:model-value="onRequesterSelect"
-                        />
-                      </VCol>
-                      <VCol cols="12">
-                        <AppTextField
-                          v-model="form.pickup_location"
-                          :label="$t('Pickup Location')"
-                          placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
-                          :hint="$t('Location coordinates (auto-filled if requester selected)')"
-                        />
-                      </VCol>
-                    </template>
+                    <VCol cols="12">
+                      <AppAutocomplete
+                        v-model="form.requester"
+                        v-model:search="requesterSearch"
+                        :items="requesterEntities"
+                        :loading="isLoadingRequester"
+                        :label="$t('Requester')"
+                        :placeholder="$t('Search and select a partner or customer')"
+                        item-title="title"
+                        item-value="value"
+                        clearable
+                        :custom-filter="(itemTitle, queryText, item) => {
+                          const searchText = (queryText || '').toLowerCase()
+                          const title = (itemTitle || '').toLowerCase()
+                          const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                          const phone = (item.raw?.phone || '').toLowerCase()
+                          const contactName = (item.raw?.contact_name || '').toLowerCase()
+                          const email = (item.raw?.email || '').toLowerCase()
+                          const firstName = (item.raw?.first_name || '').toLowerCase()
+                          const lastName = (item.raw?.last_name || '').toLowerCase()
+                          return title.includes(searchText) || 
+                                 subtitle.includes(searchText) || 
+                                 phone.includes(searchText) || 
+                                 contactName.includes(searchText) ||
+                                 email.includes(searchText) ||
+                                 firstName.includes(searchText) ||
+                                 lastName.includes(searchText)
+                        }"
+                        @update:model-value="onRequesterSelect"
+                      />
+                    </VCol>
+                    <VCol cols="12">
+                      <AppTextField
+                        v-model="form.pickup_location"
+                        :label="$t('Pickup Location')"
+                        placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                        :hint="$t('Location coordinates (auto-filled if requester selected)')"
+                      />
+                    </VCol>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -1618,107 +1477,142 @@ watch(() => props.delivery, () => {
                 <VDivider />
                 <VCardText>
                   <VRow>
-                    <!-- Ligne 1: Nom (avec autocomplete) et Numéro -->
-                    <VCol
-                      cols="12"
-                      md="6"
-                    >
-                      <AppAutocomplete
-                        v-model="form.recipient"
-                        v-model:search="recipientSearch"
-                        :items="recipientEntities"
-                        :loading="isLoadingRecipient"
-                        :label="$t('Full Name') || 'Nom complet'"
-                        :placeholder="$t('Search and select a partner or customer')"
-                        item-title="title"
-                        item-value="value"
-                        clearable
-                        :custom-filter="(itemTitle, queryText, item) => {
-                          const searchText = (queryText || '').toLowerCase()
-                          const title = (itemTitle || '').toLowerCase()
-                          const subtitle = (item.raw?.subtitle || '').toLowerCase()
-                          const phone = (item.raw?.phone || '').toLowerCase()
-                          const contactName = (item.raw?.contact_name || '').toLowerCase()
-                          const email = (item.raw?.email || '').toLowerCase()
-                          const firstName = (item.raw?.first_name || '').toLowerCase()
-                          const lastName = (item.raw?.last_name || '').toLowerCase()
-                          return title.includes(searchText) || 
-                                 subtitle.includes(searchText) || 
-                                 phone.includes(searchText) || 
-                                 contactName.includes(searchText) ||
-                                 email.includes(searchText) ||
-                                 firstName.includes(searchText) ||
-                                 lastName.includes(searchText)
-                        }"
-                        @update:model-value="onRecipientSelect"
-                      />
-                    </VCol>
-                    <VCol
-                      cols="12"
-                      md="6"
-                    >
-                      <AppTextField
-                        v-model="recipientForm.phone"
-                        :label="$t('Phone') || 'Téléphone'"
-                        placeholder="+228 92 34 56 78"
-                        dense
-                      />
-                    </VCol>
+                    <!-- Mode normal : Autocomplete + bouton ajouter -->
+                    <template v-if="!isCreatingRecipientCustomer">
+                      <VCol cols="12">
+                        <div class="d-flex align-start gap-2">
+                          <AppAutocomplete
+                            v-model="form.recipient"
+                            v-model:search="recipientSearch"
+                            :items="recipientEntities"
+                            :loading="isLoadingRecipient"
+                            :label="$t('Recipient')"
+                            :placeholder="$t('Search and select a partner or customer')"
+                            item-title="title"
+                            item-value="value"
+                            clearable
+                            class="flex-grow-1"
+                            :custom-filter="(itemTitle, queryText, item) => {
+                              const searchText = (queryText || '').toLowerCase()
+                              const title = (itemTitle || '').toLowerCase()
+                              const subtitle = (item.raw?.subtitle || '').toLowerCase()
+                              const phone = (item.raw?.phone || '').toLowerCase()
+                              const contactName = (item.raw?.contact_name || '').toLowerCase()
+                              const email = (item.raw?.email || '').toLowerCase()
+                              const firstName = (item.raw?.first_name || '').toLowerCase()
+                              const lastName = (item.raw?.last_name || '').toLowerCase()
+                              return title.includes(searchText) || 
+                                     subtitle.includes(searchText) || 
+                                     phone.includes(searchText) || 
+                                     contactName.includes(searchText) ||
+                                     email.includes(searchText) ||
+                                     firstName.includes(searchText) ||
+                                     lastName.includes(searchText)
+                            }"
+                            @update:model-value="onRecipientSelect"
+                          />
+                          <VBtn
+                            color="primary"
+                            variant="tonal"
+                            style="margin-top: 24px;"
+                            @click="isCreatingRecipientCustomer = true"
+                          >
+                            <VIcon icon="tabler-plus" class="me-1" />
+                            {{ $t('New') || 'Nouveau' }}
+                          </VBtn>
+                        </div>
+                      </VCol>
+                      <VCol cols="12">
+                        <AppTextField
+                          v-model="form.dropoff_location"
+                          :label="$t('Dropoff Location')"
+                          placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
+                          :hint="$t('Location coordinates (auto-filled if recipient selected)')"
+                        />
+                      </VCol>
+                    </template>
 
-                    <!-- Ligne 2: Libellé adresse et Location -->
-                    <VCol
-                      cols="12"
-                      md="6"
-                    >
-                      <AppTextField
-                        v-model="recipientForm.address_label"
-                        :label="$t('Address Label') || 'Libellé de l\'adresse'"
-                        placeholder="Domicile"
-                        dense
-                        hint="Ex: Domicile, Bureau, etc."
-                      />
-                    </VCol>
-                    <VCol
-                      cols="12"
-                      md="6"
-                    >
-                      <AppTextField
-                        v-model="form.dropoff_location"
-                        :label="$t('Location') || 'Localisation'"
-                        placeholder="6°11'10.2&quot;N 1°13'20.5&quot;E"
-                        :hint="$t('Location coordinates (auto-filled if recipient selected)') || 'Coordonnées GPS (auto-rempli si destinataire sélectionné)'"
-                        dense
-                      />
-                    </VCol>
-
-                    <!-- Validate Button (shown when no exact match found) -->
-                    <VCol
-                      v-if="isCreatingRecipientCustomer && recipientSearch && recipientSearch.trim().length >= 2"
-                      cols="12"
-                    >
-                      <VAlert
-                        type="info"
-                        variant="tonal"
-                        class="mb-2"
-                      >
-                        {{ $t('No exact match found. Fill the fields below and click Validate to create a new customer') || 'Aucune correspondance exacte trouvée. Remplissez les champs ci-dessous et cliquez sur Valider pour créer un nouveau client' }}
-                      </VAlert>
-                      <div class="d-flex gap-2">
-                        <VBtn
-                          color="primary"
-                          @click="createRecipientCustomer"
-                        >
-                          {{ $t('Validate') || 'Valider' }}
-                        </VBtn>
-                        <VBtn
-                          color="secondary"
+                    <!-- Mode création de client -->
+                    <template v-else>
+                      <VCol cols="12">
+                        <VAlert
+                          type="info"
                           variant="tonal"
-                          @click="cancelRecipientCustomerCreation"
+                          class="mb-4"
                         >
-                          {{ $t('Cancel') || 'Annuler' }}
-                        </VBtn>
-                      </div>
-                    </VCol>
+                          {{ $t('Create a new customer') || 'Créer un nouveau client' }}
+                        </VAlert>
+                      </VCol>
+                      <!-- Ligne 1: Nom complet et Téléphone -->
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="recipientCustomerForm.last_name"
+                          :label="$t('Full Name') || 'Nom complet'"
+                          placeholder="Marie Agbodan"
+                          dense
+                          required
+                        />
+                      </VCol>
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="recipientCustomerForm.phone"
+                          :label="$t('Phone') || 'Téléphone'"
+                          placeholder="+228 92 34 56 78"
+                          dense
+                          required
+                        />
+                      </VCol>
+                      <!-- Ligne 2: Libellé adresse et Localisation -->
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="recipientCustomerForm.address_label"
+                          :label="$t('Address Label') || 'Libellé de l\'adresse'"
+                          placeholder="Domicile"
+                          dense
+                          hint="Ex: Domicile, Bureau, etc."
+                        />
+                      </VCol>
+                      <VCol
+                        cols="12"
+                        md="6"
+                      >
+                        <AppTextField
+                          v-model="recipientCustomerForm.location"
+                          :label="$t('GPS Coordinates') || 'Coordonnées GPS'"
+                          placeholder="6°10'53.8&quot;N 1°12'35.7&quot;E"
+                          dense
+                          hint="Format: 6°10'53.8&quot;N 1°12'35.7&quot;E"
+                        />
+                      </VCol>
+                      <!-- Boutons -->
+                      <VCol cols="12">
+                        <div class="d-flex gap-2">
+                          <VBtn
+                            color="primary"
+                            @click="createRecipientCustomer"
+                          >
+                            <VIcon icon="tabler-check" class="me-1" />
+                            {{ $t('Create Customer') || 'Créer le client' }}
+                          </VBtn>
+                          <VBtn
+                            color="secondary"
+                            variant="tonal"
+                            @click="cancelRecipientCustomerCreation"
+                          >
+                            {{ $t('Cancel') || 'Annuler' }}
+                          </VBtn>
+                        </div>
+                      </VCol>
+                    </template>
                   </VRow>
                 </VCardText>
               </VCard>

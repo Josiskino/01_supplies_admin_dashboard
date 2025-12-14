@@ -13,10 +13,6 @@ const props = defineProps({
     type: Object,
     default: null,
   },
-  categories: {
-    type: Array,
-    default: () => [],
-  },
   drivers: {
     type: Array,
     default: () => [],
@@ -30,8 +26,18 @@ const dialogVisible = computed({
   set: val => emit('update:isDialogVisible', val),
 })
 
+// Helper function to get today's date in YYYY-MM-DD format
+const getTodayDate = () => {
+  const today = new Date()
+  const year = today.getFullYear()
+  const month = String(today.getMonth() + 1).padStart(2, '0')
+  const day = String(today.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // Form data
 const form = ref({
+  date: getTodayDate(), // Date par défaut : aujourd'hui
   title: '',
   description: '',
   amount: '',
@@ -44,6 +50,69 @@ const isSubmitting = ref(false)
 
 // Driver search
 const driverSearch = ref('')
+
+// Expense categories
+const expenseCategories = ref([])
+const isLoadingCategories = ref(false)
+
+// Fetch expense categories from API
+const fetchExpenseCategories = async () => {
+  isLoadingCategories.value = true
+  try {
+    const response = await $api('/status/expense-categories', { method: 'GET' })
+    
+    console.log('Expense categories API response:', response)
+    
+    // Handle different response structures
+    let categoriesList = []
+    
+    // Case 1: response.data is an array (most common)
+    if (response?.data && Array.isArray(response.data)) {
+      categoriesList = response.data
+    }
+    // Case 2: response is directly an array
+    else if (Array.isArray(response)) {
+      categoriesList = response
+    }
+    // Case 3: response.data.data exists
+    else if (response?.data?.data && Array.isArray(response.data.data)) {
+      categoriesList = response.data.data
+    }
+    
+    console.log('Categories list to format:', categoriesList)
+    
+    // Format categories for AppSelect: { title: category_name or description, value: id }
+    if (categoriesList.length > 0) {
+      // Log pour voir la structure complète d'une catégorie
+      if (categoriesList.length > 0) {
+        console.log('Sample category object:', categoriesList[0])
+        console.log('Available keys in category:', Object.keys(categoriesList[0]))
+      }
+      
+      expenseCategories.value = categoriesList.map(category => {
+        // Le JSON retourne name: null, mais le modèle Laravel a category_name
+        // Utiliser category_name s'il existe, sinon description
+        const title = category.category_name || category.description || category.name || ''
+        
+        return {
+          title: title,
+          value: category.id,
+          description: category.description || '',
+        }
+      })
+      
+      console.log('Formatted expense categories:', expenseCategories.value)
+    } else {
+      console.warn('No categories found in response')
+      expenseCategories.value = []
+    }
+  } catch (error) {
+    console.error('Error fetching expense categories:', error)
+    expenseCategories.value = []
+  } finally {
+    isLoadingCategories.value = false
+  }
+}
 
 // Expense type options
 const expenseTypeOptions = computed(() => [
@@ -70,6 +139,7 @@ const isEditMode = computed(() => !!props.expense?.id)
 // Reset form function (defined before watches)
 const resetForm = () => {
   form.value = {
+    date: getTodayDate(), // Date par défaut : aujourd'hui
     title: '',
     description: '',
     amount: '',
@@ -83,7 +153,20 @@ const resetForm = () => {
 // Watch for expense prop changes to load data
 watch(() => props.expense, newExpense => {
   if (newExpense) {
+    // Format date from expense (could be YYYY-MM-DD or ISO string)
+    let expenseDate = getTodayDate()
+    if (newExpense.date) {
+      const date = new Date(newExpense.date)
+      if (!isNaN(date.getTime())) {
+        const year = date.getFullYear()
+        const month = String(date.getMonth() + 1).padStart(2, '0')
+        const day = String(date.getDate()).padStart(2, '0')
+        expenseDate = `${year}-${month}-${day}`
+      }
+    }
+    
     form.value = {
+      date: expenseDate,
       title: newExpense.title || '',
       description: newExpense.description || '',
       amount: newExpense.amount || '',
@@ -126,6 +209,7 @@ const onSubmit = async () => {
 
   try {
     const payload = {
+      date: form.value.date,
       title: form.value.title,
       description: form.value.description || null,
       amount: parseFloat(form.value.amount),
@@ -180,9 +264,13 @@ const onClose = () => {
   dialogVisible.value = false
 }
 
-// Watch for dialog close
+// Watch for dialog open/close
 watch(dialogVisible, newVal => {
-  if (!newVal) {
+  if (newVal) {
+    // Load categories when dialog opens
+    fetchExpenseCategories()
+  } else {
+    // Reset when dialog closes
     if (!props.expense) {
       resetForm()
     } else {
@@ -243,8 +331,22 @@ watch(dialogVisible, newVal => {
               </AppAutocomplete>
             </VCol>
 
-            <!-- Title -->
-            <VCol cols="12">
+            <!-- Date and Title -->
+            <VCol
+              cols="12"
+              md="4"
+            >
+              <AppTextField
+                v-model="form.date"
+                :label="$t('Date') || 'Date'"
+                type="date"
+                required
+              />
+            </VCol>
+            <VCol
+              cols="12"
+              md="8"
+            >
               <AppTextField
                 v-model="form.title"
                 :label="$t('Title') || 'Libellé'"
@@ -287,9 +389,12 @@ watch(dialogVisible, newVal => {
             >
               <AppSelect
                 v-model="form.category_id"
-                :items="categories"
+                :items="expenseCategories"
+                :loading="isLoadingCategories"
                 :label="$t('Category') || 'Catégorie'"
                 :placeholder="$t('Select category (optional)') || 'Sélectionner une catégorie (optionnel)'"
+                item-title="title"
+                item-value="value"
                 clearable
               />
             </VCol>
