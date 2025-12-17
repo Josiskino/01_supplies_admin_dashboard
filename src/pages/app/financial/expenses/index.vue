@@ -43,7 +43,7 @@ const headers = computed(() => [
   { title: t('Category') || 'Catégorie', key: 'category', sortable: false, width: '150px' },
   { title: t('Amount') || 'Montant', key: 'amount', sortable: true, width: '130px' },
   { title: t('Created By') || 'Créé par', key: 'created_by', sortable: false, width: '150px' },
-  { title: t('Date') || 'Date', key: 'created_at', sortable: true, width: '150px' },
+  { title: t('Date') || 'Date', key: 'expense_date', sortable: true, width: '150px' },
   { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '120px' },
 ])
 
@@ -252,8 +252,6 @@ const formatDate = value => {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     })
   } catch {
     return '—'
@@ -661,10 +659,10 @@ onMounted(() => {
             <span v-else>—</span>
           </template>
 
-          <!-- Created At -->
-          <template #item.created_at="{ item }">
+          <!-- Expense Date -->
+          <template #item.expense_date="{ item }">
             <span class="text-sm">
-              {{ formatDate(item.created_at) }}
+              {{ formatDate(item.expense_date) }}
             </span>
           </template>
 

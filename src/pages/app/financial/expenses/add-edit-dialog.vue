@@ -35,6 +35,48 @@ const getTodayDate = () => {
   return `${year}-${month}-${day}`
 }
 
+// Helper function to format date string to YYYY-MM-DD format without timezone issues
+const formatDateToYYYYMMDD = (dateString) => {
+  if (!dateString) return getTodayDate()
+  
+  // Convert to string if it's not already
+  const dateStr = String(dateString).trim()
+  
+  // If already in YYYY-MM-DD format, return as is (this is what input type="date" provides)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return dateStr
+  }
+  
+  // Try to extract YYYY-MM-DD from ISO string (e.g., "2025-01-17T00:00:00.000Z" -> "2025-01-17")
+  // This avoids timezone conversion issues
+  const isoMatch = dateStr.match(/^(\d{4}-\d{2}-\d{2})/)
+  if (isoMatch) {
+    return isoMatch[1]
+  }
+  
+  // Try parsing as Date object and extract date part directly from string first
+  // If it's a date like "2025-01-17 00:00:00" or similar, try to extract the date part
+  const datePartMatch = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (datePartMatch) {
+    const [, year, month, day] = datePartMatch
+    return `${year}-${month}-${day}`
+  }
+  
+  // Fallback: try parsing as Date object (for edge cases)
+  // Use UTC methods to avoid timezone conversion issues
+  const date = new Date(dateStr)
+  if (!isNaN(date.getTime())) {
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+  
+  // Last resort: return today's date
+  console.warn('formatDateToYYYYMMDD: Invalid date string, using today:', dateString)
+  return getTodayDate()
+}
+
 // Form data
 const form = ref({
   date: getTodayDate(), // Date par défaut : aujourd'hui
@@ -47,6 +89,11 @@ const form = ref({
 })
 
 const isSubmitting = ref(false)
+
+// Snackbar for notifications
+const snackbar = ref(false)
+const snackbarText = ref('')
+const snackbarColor = ref('success')
 
 // Driver search
 const driverSearch = ref('')
@@ -151,18 +198,18 @@ const resetForm = () => {
 }
 
 // Watch for expense prop changes to load data
-watch(() => props.expense, newExpense => {
-  if (newExpense) {
-    // Format date from expense (could be YYYY-MM-DD or ISO string)
-    let expenseDate = getTodayDate()
-    if (newExpense.date) {
-      const date = new Date(newExpense.date)
-      if (!isNaN(date.getTime())) {
-        const year = date.getFullYear()
-        const month = String(date.getMonth() + 1).padStart(2, '0')
-        const day = String(date.getDate()).padStart(2, '0')
-        expenseDate = `${year}-${month}-${day}`
-      }
+watch(() => props.expense, (newExpense, oldExpense) => {
+  // Only update if expense actually changed and dialog is visible
+  if (newExpense && newExpense.id) {
+    // Format date from expense (use expense_date field)
+    
+    // Make sure we have a valid date - use expense_date as primary field
+    let expenseDate = getTodayDate() // Default fallback
+    
+    if (newExpense.expense_date) {
+      expenseDate = formatDateToYYYYMMDD(newExpense.expense_date)
+    } else {
+      console.warn('No expense_date found in expense object, using today\'s date as fallback')
     }
     
     form.value = {
@@ -170,14 +217,23 @@ watch(() => props.expense, newExpense => {
       title: newExpense.title || '',
       description: newExpense.description || '',
       amount: newExpense.amount || '',
-      category_id: newExpense.category?.id || null,
-      driver_id: newExpense.driver?.id || null,
+      category_id: newExpense.category?.id || newExpense.category_id || null,
+      driver_id: newExpense.driver?.id || newExpense.driver_id || null,
       expense_type: newExpense.expense_type || 'general',
     }
-  } else {
+    
+    // Set driver search if driver is present
+    if (form.value.driver_id && props.drivers.length > 0) {
+      const driver = props.drivers.find(d => (d.value || d.id) === form.value.driver_id)
+      if (driver) {
+        driverSearch.value = driver.title || driver.name || ''
+      }
+    }
+  } else if (!newExpense && !dialogVisible.value) {
+    // Only reset if dialog is closed and no expense is selected
     resetForm()
   }
-}, { immediate: true })
+}, { immediate: false })
 
 // Reset driver_id when expense_type changes to general
 watch(() => form.value.expense_type, newType => {
@@ -191,25 +247,34 @@ watch(() => form.value.expense_type, newType => {
 const onSubmit = async () => {
   // Validation
   if (!form.value.title) {
-    alert(t('Title is required') || 'Le libellé est requis')
+    snackbarText.value = t('Title is required') || 'Le libellé est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
     return
   }
 
   if (!form.value.amount || parseFloat(form.value.amount) <= 0) {
-    alert(t('Valid amount is required') || 'Un montant valide est requis')
+    snackbarText.value = t('Valid amount is required') || 'Un montant valide est requis'
+    snackbarColor.value = 'error'
+    snackbar.value = true
     return
   }
 
   if (form.value.expense_type === 'driver' && !form.value.driver_id) {
-    alert(t('Driver is required for driver expenses') || 'Le livreur est requis pour les dépenses livreurs')
+    snackbarText.value = t('Driver is required for driver expenses') || 'Le livreur est requis pour les dépenses livreurs'
+    snackbarColor.value = 'error'
+    snackbar.value = true
     return
   }
 
   isSubmitting.value = true
 
   try {
+    // Ensure date is in YYYY-MM-DD format before sending
+    const formattedDate = formatDateToYYYYMMDD(form.value.date)
+    
     const payload = {
-      date: form.value.date,
+      expense_date: formattedDate, // Use expense_date instead of date
       title: form.value.title,
       description: form.value.description || null,
       amount: parseFloat(form.value.amount),
@@ -222,6 +287,8 @@ const onSubmit = async () => {
       payload.driver_id = form.value.driver_id
     }
 
+    let hasError = false
+
     if (isEditMode.value) {
       // Update existing expense
       await $api(`/expenses/${props.expense.id}`, {
@@ -229,11 +296,25 @@ const onSubmit = async () => {
         body: payload,
         onResponseError({ response }) {
           console.error('Error updating expense:', response._data)
+          hasError = true
           const errorMessage = response._data?.message || t('Error updating expense') || 'Erreur lors de la mise à jour de la dépense'
           const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
-          alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
+          snackbarText.value = `${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`
+          snackbarColor.value = 'error'
+          snackbar.value = true
         },
       })
+      
+      // Show success notification only if no error occurred
+      if (!hasError) {
+        snackbarText.value = t('Expense updated successfully') || 'Dépense mise à jour avec succès'
+        snackbarColor.value = 'success'
+        snackbar.value = true
+        
+        emit('expenseSaved')
+        resetForm()
+        dialogVisible.value = false
+      }
     } else {
       // Create new expense
       await $api('/expenses', {
@@ -241,16 +322,26 @@ const onSubmit = async () => {
         body: payload,
         onResponseError({ response }) {
           console.error('Error creating expense:', response._data)
+          hasError = true
           const errorMessage = response._data?.message || t('Error creating expense') || 'Erreur lors de la création de la dépense'
           const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
-          alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
+          snackbarText.value = `${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`
+          snackbarColor.value = 'error'
+          snackbar.value = true
         },
       })
+      
+      // Show success notification only if no error occurred
+      if (!hasError) {
+        snackbarText.value = t('Expense created successfully') || 'Dépense créée avec succès'
+        snackbarColor.value = 'success'
+        snackbar.value = true
+        
+        emit('expenseSaved')
+        resetForm()
+        dialogVisible.value = false
+      }
     }
-
-    emit('expenseSaved')
-    resetForm()
-    dialogVisible.value = false
   } catch (error) {
     console.error(`Error ${isEditMode.value ? 'updating' : 'creating'} expense:`, error)
   } finally {
@@ -269,6 +360,39 @@ watch(dialogVisible, newVal => {
   if (newVal) {
     // Load categories when dialog opens
     fetchExpenseCategories()
+    
+    // If expense is provided, load its data when dialog opens
+    if (props.expense && props.expense.id) {
+      console.log('Dialog opened with expense, loading data...')
+      console.log('Expense date from props:', props.expense.date)
+      
+      // Format date from expense (use expense_date field)
+      let expenseDate = getTodayDate() // Default fallback
+      
+      if (props.expense.expense_date) {
+        expenseDate = formatDateToYYYYMMDD(props.expense.expense_date)
+      } else {
+        console.warn('No expense_date found in expense object when opening dialog')
+      }
+      
+      form.value = {
+        date: expenseDate,
+        title: props.expense.title || '',
+        description: props.expense.description || '',
+        amount: props.expense.amount || '',
+        category_id: props.expense.category?.id || props.expense.category_id || null,
+        driver_id: props.expense.driver?.id || props.expense.driver_id || null,
+        expense_type: props.expense.expense_type || 'general',
+      }
+      
+      // Set driver search if driver is present
+      if (form.value.driver_id && props.drivers.length > 0) {
+        const driver = props.drivers.find(d => (d.value || d.id) === form.value.driver_id)
+        if (driver) {
+          driverSearch.value = driver.title || driver.name || ''
+        }
+      }
+    }
   } else {
     // Reset when dialog closes
     if (!props.expense) {
@@ -423,5 +547,16 @@ watch(dialogVisible, newVal => {
       </VCardActions>
     </VCard>
   </VDialog>
+
+  <!-- Success/Error Notification Snackbar -->
+  <VSnackbar
+    v-model="snackbar"
+    location="top right"
+    :timeout="3000"
+    :color="snackbarColor"
+    variant="elevated"
+  >
+    {{ snackbarText }}
+  </VSnackbar>
 </template>
 

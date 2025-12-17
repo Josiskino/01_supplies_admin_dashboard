@@ -633,6 +633,8 @@
   "Driver is required for driver expenses": "Le livreur est requis pour les dépenses livreurs",
   "Error updating expense": "Erreur lors de la mise à jour de la dépense",
   "Error creating expense": "Erreur lors de la création de la dépense",
+  "Expense updated successfully": "Dépense mise à jour avec succès",
+  "Expense created successfully": "Dépense créée avec succès",
   "Select expense type": "Sélectionner le type",
   "Select driver": "Sélectionner un livreur",
   "Enter title": "Entrer le libellé",

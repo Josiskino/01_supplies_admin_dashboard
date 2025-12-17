@@ -638,6 +638,8 @@
   "Driver is required for driver expenses": "Driver is required for driver expenses",
   "Error updating expense": "Error updating expense",
   "Error creating expense": "Error creating expense",
+  "Expense updated successfully": "Expense updated successfully",
+  "Expense created successfully": "Expense created successfully",
   "Select expense type": "Select expense type",
   "Select driver": "Select driver",
   "Enter title": "Enter title",
