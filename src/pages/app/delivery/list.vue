@@ -481,6 +481,33 @@ const cancelDelete = () => {
   isDeleteDialogOpen.value = false
   deliveryToDelete.value = null
 }
+
+// Copy to clipboard
+const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text)
+    successSnackText.value = t('Copied to clipboard') || 'Copié dans le presse-papier'
+    isSuccessSnackVisible.value = true
+  } catch (error) {
+    console.error('Error copying to clipboard:', error)
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea')
+    textArea.value = text
+    textArea.style.position = 'fixed'
+    textArea.style.opacity = '0'
+    document.body.appendChild(textArea)
+    textArea.select()
+    try {
+      document.execCommand('copy')
+      successSnackText.value = t('Copied to clipboard') || 'Copié dans le presse-papier'
+      isSuccessSnackVisible.value = true
+    } catch (err) {
+      console.error('Fallback copy failed:', err)
+      alert(t('Failed to copy to clipboard') || 'Échec de la copie dans le presse-papier')
+    }
+    document.body.removeChild(textArea)
+  }
+}
 </script>
 
 <template>
@@ -1430,6 +1457,65 @@ const cancelDelete = () => {
                   <span class="ms-2">
                     {{ formatDateTime((deliveryDetails || selectedDeliveryForView)?.timestamps?.delivered_at || (deliveryDetails || selectedDeliveryForView)?.delivered_at) }}
                   </span>
+                </div>
+              </VCol>
+
+              <!-- Start URL Section -->
+              <VCol
+                v-if="(deliveryDetails || selectedDeliveryForView)?.start_url"
+                cols="12"
+              >
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  <VIcon
+                    icon="tabler-link"
+                    class="me-2"
+                  />
+                  {{ $t('Start URL') || 'Lien de démarrage' }}
+                </h3>
+                <div class="mb-4">
+                  <span class="text-sm text-medium-emphasis">{{ $t('Start URL') || 'Lien de démarrage' }}:</span>
+                  <div class="mt-2">
+                    <VCard
+                      variant="outlined"
+                      class="pa-3"
+                    >
+                      <div class="d-flex align-center justify-space-between gap-2">
+                        <div class="flex-grow-1 text-truncate">
+                          <a
+                            :href="(deliveryDetails || selectedDeliveryForView)?.start_url"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="text-primary text-decoration-none d-inline-flex align-center"
+                          >
+                            <VIcon
+                              icon="tabler-external-link"
+                              size="16"
+                              class="me-2"
+                            />
+                            <span class="text-truncate">
+                              {{ (deliveryDetails || selectedDeliveryForView)?.start_url }}
+                            </span>
+                          </a>
+                        </div>
+                        <VBtn
+                          icon
+                          size="small"
+                          variant="text"
+                          color="primary"
+                          @click="copyToClipboard((deliveryDetails || selectedDeliveryForView)?.start_url)"
+                        >
+                          <VIcon icon="tabler-copy" />
+                          <VTooltip activator="parent">
+                            {{ $t('Copy to clipboard') || 'Copier dans le presse-papier' }}
+                          </VTooltip>
+                        </VBtn>
+                      </div>
+                    </VCard>
+                  </div>
+                  <p class="text-xs text-medium-emphasis mt-2">
+                    {{ $t('Use this link to start the delivery') || 'Utilisez ce lien pour démarrer la livraison' }}
+                  </p>
                 </div>
               </VCol>
             </VRow>
