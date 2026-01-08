@@ -16,7 +16,6 @@ const selectedDriverId = ref(null)
 const selectedStatus = ref(null)
 const dateFrom = ref(null)
 const dateTo = ref(null)
-const settlementDate = ref(null)
 const searchQuery = ref('')
 
 // Data table options
@@ -27,6 +26,11 @@ const isLoading = ref(false)
 // Settlements data
 const settlements = ref([])
 const totalSettlements = ref(0)
+
+// Global statistics from backend (for all filtered data, not just current page)
+const globalTotalDeliveries = ref(0)
+const globalTotalExpenses = ref(0)
+const globalTotalDifference = ref(0)
 
 // Drivers list for filter
 const drivers = ref([])
@@ -60,22 +64,17 @@ const headers = computed(() => [
   { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '200px' },
 ])
 
-// Statistics
+// Statistics - Use global totals from backend (not just current page)
 const totalDeliveriesAmount = computed(() => {
-  return settlements.value.reduce((sum, s) => sum + getDeliveriesAmount(s), 0)
+  return globalTotalDeliveries.value
 })
 
 const totalExpensesAmount = computed(() => {
-  return settlements.value.reduce((sum, s) => {
-    // Use driver_expenses (can be string or number) or total_expenses_amount
-    const amount = parseFloat(s.driver_expenses) || parseFloat(s.total_expenses_amount) || 0
-
-    return sum + amount
-  }, 0)
+  return globalTotalExpenses.value
 })
 
 const totalDifference = computed(() => {
-  return settlements.value.reduce((sum, s) => sum + (parseFloat(s.difference) || 0), 0)
+  return globalTotalDifference.value
 })
 
 // Fetch drivers for filter
@@ -135,16 +134,15 @@ const fetchSettlements = async () => {
       queryParams.status = selectedStatus.value
     }
 
-    if (dateFrom.value) {
-      queryParams.date_from = dateFrom.value
+    // Format dates to YYYY-MM-DD for API
+    const formattedDateFrom = formatDateToYYYYMMDD(dateFrom.value)
+    if (formattedDateFrom) {
+      queryParams.date_from = formattedDateFrom
     }
 
-    if (dateTo.value) {
-      queryParams.date_to = dateTo.value
-    }
-
-    if (settlementDate.value) {
-      queryParams.settlement_date = settlementDate.value
+    const formattedDateTo = formatDateToYYYYMMDD(dateTo.value)
+    if (formattedDateTo) {
+      queryParams.date_to = formattedDateTo
     }
 
     if (searchQuery.value) {
@@ -182,27 +180,67 @@ const fetchSettlements = async () => {
     if (response?.success && response?.data) {
       settlements.value = Array.isArray(response.data) ? response.data : []
       totalSettlements.value = response.meta?.total || (Array.isArray(response.data) ? response.data.length : 0)
+      
+      // Extract global statistics from backend (response.meta.summary)
+      if (response.meta?.summary) {
+        globalTotalDeliveries.value = parseFloat(response.meta.summary.total_deliveries_amount) || 0
+        globalTotalExpenses.value = parseFloat(response.meta.summary.total_expenses) || 0
+        globalTotalDifference.value = parseFloat(response.meta.summary.total_difference) || 0
+      } else {
+        // Fallback: calculate from current page data (not ideal)
+        console.warn('⚠️ [TRANSACTIONS] response.meta.summary non trouvé, calcul à partir des données de la page')
+        globalTotalDeliveries.value = settlements.value.reduce((sum, s) => sum + getDeliveriesAmount(s), 0)
+        globalTotalExpenses.value = settlements.value.reduce((sum, s) => {
+          const amount = parseFloat(s.driver_expenses) || parseFloat(s.total_expenses_amount) || 0
+          return sum + amount
+        }, 0)
+        globalTotalDifference.value = settlements.value.reduce((sum, s) => sum + (parseFloat(s.difference) || 0), 0)
+      }
     } else if (response?.data && Array.isArray(response.data)) {
       settlements.value = response.data
       totalSettlements.value = response.meta?.total || response.data.length
+      
+      // Extract global statistics
+      if (response.meta?.summary) {
+        globalTotalDeliveries.value = parseFloat(response.meta.summary.total_deliveries_amount) || 0
+        globalTotalExpenses.value = parseFloat(response.meta.summary.total_expenses) || 0
+        globalTotalDifference.value = parseFloat(response.meta.summary.total_difference) || 0
+      } else {
+        globalTotalDeliveries.value = settlements.value.reduce((sum, s) => sum + getDeliveriesAmount(s), 0)
+        globalTotalExpenses.value = settlements.value.reduce((sum, s) => sum + (parseFloat(s.driver_expenses) || parseFloat(s.total_expenses_amount) || 0), 0)
+        globalTotalDifference.value = settlements.value.reduce((sum, s) => sum + (parseFloat(s.difference) || 0), 0)
+      }
     } else if (Array.isArray(response)) {
       settlements.value = response
       totalSettlements.value = response.length
+      
+      // Calculate from data (no meta.summary available)
+      globalTotalDeliveries.value = settlements.value.reduce((sum, s) => sum + getDeliveriesAmount(s), 0)
+      globalTotalExpenses.value = settlements.value.reduce((sum, s) => sum + (parseFloat(s.driver_expenses) || parseFloat(s.total_expenses_amount) || 0), 0)
+      globalTotalDifference.value = settlements.value.reduce((sum, s) => sum + (parseFloat(s.difference) || 0), 0)
     } else {
       settlements.value = []
       totalSettlements.value = 0
+      globalTotalDeliveries.value = 0
+      globalTotalExpenses.value = 0
+      globalTotalDifference.value = 0
     }
 
     // Log du résultat final
     console.log('📊 [TRANSACTIONS] Données chargées:', {
       settlementsCount: settlements.value.length,
       totalSettlements: totalSettlements.value,
+      globalStatistics: {
+        totalDeliveries: globalTotalDeliveries.value,
+        totalExpenses: globalTotalExpenses.value,
+        totalDifference: globalTotalDifference.value,
+      },
+      metaSummary: response?.meta?.summary,
       filters: {
         driver_id: selectedDriverId.value,
         status: selectedStatus.value,
-        date_from: dateFrom.value,
-        date_to: dateTo.value,
-        settlement_date: settlementDate.value,
+        date_from: formatDateToYYYYMMDD(dateFrom.value),
+        date_to: formatDateToYYYYMMDD(dateTo.value),
         search: searchQuery.value,
         page: page.value,
         per_page: itemsPerPage.value,
@@ -218,6 +256,9 @@ const fetchSettlements = async () => {
     })
     settlements.value = []
     totalSettlements.value = 0
+    globalTotalDeliveries.value = 0
+    globalTotalExpenses.value = 0
+    globalTotalDifference.value = 0
   } finally {
     isLoading.value = false
   }
@@ -303,7 +344,7 @@ const getDeliveriesAmount = item => {
   return 0
 }
 
-// Format date
+// Format date for display
 const formatDate = value => {
   if (!value) {
     return '—'
@@ -319,6 +360,37 @@ const formatDate = value => {
     })
   } catch {
     return '—'
+  }
+}
+
+// Format date to YYYY-MM-DD for API
+const formatDateToYYYYMMDD = value => {
+  if (!value) {
+    return null
+  }
+
+  try {
+    // If already in YYYY-MM-DD format, return as is
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return value
+    }
+
+    // If it's a date object or ISO string
+    const date = new Date(value)
+    
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return null
+    }
+
+    // Extract date part without timezone issues
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+  } catch {
+    return null
   }
 }
 
@@ -377,13 +449,14 @@ const getDifferenceInfo = item => {
 
 
 // Watch for filter changes and refetch
-watch([selectedDriverId, selectedStatus, dateFrom, dateTo, settlementDate, searchQuery, itemsPerPage], () => {
+watch([selectedDriverId, selectedStatus, dateFrom, dateTo, searchQuery, itemsPerPage], () => {
   console.log('🔄 [TRANSACTIONS] Filtres modifiés, rechargement des données...', {
     selectedDriverId: selectedDriverId.value,
     selectedStatus: selectedStatus.value,
     dateFrom: dateFrom.value,
     dateTo: dateTo.value,
-    settlementDate: settlementDate.value,
+    formattedDateFrom: formatDateToYYYYMMDD(dateFrom.value),
+    formattedDateTo: formatDateToYYYYMMDD(dateTo.value),
     searchQuery: searchQuery.value,
     itemsPerPage: itemsPerPage.value,
     timestamp: new Date().toISOString(),
@@ -600,26 +673,12 @@ onMounted(() => {
           <VCol
             cols="12"
             sm="6"
-            md="2"
-          >
-            <AppDateTimePicker
-              v-model="settlementDate"
-              :label="$t('Settlement Date') || 'Date de règlement'"
-              :placeholder="$t('Select date')"
-              :config="{ dateFormat: 'Y-m-d' }"
-              clearable
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="6"
-            md="2"
+            md="3"
           >
             <AppDateTimePicker
               v-model="dateFrom"
-              :label="$t('Date From')"
-              :placeholder="$t('Date from')"
+              :label="$t('Date From') || 'Date de début'"
+              :placeholder="$t('Date from') || 'Date de début'"
               :config="{ dateFormat: 'Y-m-d' }"
               clearable
             />
@@ -628,12 +687,12 @@ onMounted(() => {
           <VCol
             cols="12"
             sm="6"
-            md="2"
+            md="3"
           >
             <AppDateTimePicker
               v-model="dateTo"
-              :label="$t('Date To')"
-              :placeholder="$t('Date to')"
+              :label="$t('Date To') || 'Date de fin'"
+              :placeholder="$t('Date to') || 'Date de fin'"
               :config="{ dateFormat: 'Y-m-d' }"
               clearable
             />
@@ -884,7 +943,6 @@ onMounted(() => {
     <SettlementAddDialog
       v-model:is-dialog-visible="isSettlementDialogOpen"
       :driver-data="selectedDriverForSettlement"
-      :payment-date="settlementDate"
       @settlement-created="fetchSettlements"
     />
 

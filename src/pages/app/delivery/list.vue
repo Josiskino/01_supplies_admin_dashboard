@@ -59,6 +59,13 @@ const dateTo = ref(null)
 const deliveries = ref([])
 const total = ref(0)
 
+// Summary statistics from backend
+const summary = ref({
+  today_total_deliveries: 0,
+  today_total_amount: 0,
+  today_delivery_rate: 0,
+})
+
 // Add delivery dialog
 const isAddDeliveryDialogOpen = ref(false)
 const selectedDeliveryForEdit = ref(null)
@@ -120,6 +127,21 @@ const formatDate = value => {
   }
 }
 
+const formatTime = value => {
+  if (!value) return '—'
+  try {
+    const date = new Date(value)
+    
+    return date.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+  catch {
+    return '—'
+  }
+}
+
 const formatDateTime = value => {
   if (!value) return '—'
   try {
@@ -169,7 +191,27 @@ const fetchDeliveries = async () => {
 
     console.log('=== Delivery list response ===')
     console.log('Response:', res)
+    console.log('Meta:', res?.meta)
+    console.log('Summary:', res?.meta?.summary)
     console.log('==============================')
+
+    // Helper function to extract summary from response
+    const extractSummary = (meta) => {
+      if (meta?.summary) {
+        console.log('=== Extracting summary ===', JSON.stringify(meta.summary, null, 2))
+        console.log('today_total_deliveries:', meta.summary.today_total_deliveries)
+        console.log('today_total_amount:', meta.summary.today_total_amount)
+        console.log('today_delivery_rate:', meta.summary.today_delivery_rate)
+        
+        summary.value = {
+          today_total_deliveries: meta.summary.today_total_deliveries ?? meta.summary.total_deliveries ?? 0,
+          today_total_amount: meta.summary.today_total_amount ?? meta.summary.total_amount ?? 0,
+          today_delivery_rate: meta.summary.today_delivery_rate ?? meta.summary.delivery_rate ?? 0,
+        }
+        
+        console.log('=== Summary value set ===', JSON.stringify(summary.value, null, 2))
+      }
+    }
 
     // Handle different response formats
     if (Array.isArray(res)) {
@@ -189,6 +231,9 @@ const fetchDeliveries = async () => {
         } else {
           total.value = res.data.length
         }
+
+        // Extract summary statistics
+        extractSummary(res.meta)
       } else if (res.data.data && Array.isArray(res.data.data)) {
         // Nested structure: { success: true, data: { data: [...], meta: {...} } }
         deliveries.value = res.data.data
@@ -196,6 +241,9 @@ const fetchDeliveries = async () => {
         const metaTotal = res.data.meta?.total
 
         total.value = Array.isArray(metaTotal) && metaTotal.length > 0 ? metaTotal[0] : (typeof metaTotal === 'number' ? metaTotal : res.data.data.length)
+        
+        // Extract summary from nested meta
+        extractSummary(res.data.meta)
       } else {
         deliveries.value = []
         total.value = 0
@@ -207,6 +255,9 @@ const fetchDeliveries = async () => {
       const metaTotal = res.meta?.total
 
       total.value = Array.isArray(metaTotal) && metaTotal.length > 0 ? metaTotal[0] : (typeof metaTotal === 'number' ? metaTotal : res.data.length)
+      
+      // Extract summary statistics
+      extractSummary(res.meta)
     } else {
       deliveries.value = []
       total.value = 0
@@ -512,6 +563,98 @@ const copyToClipboard = async (text) => {
 
 <template>
   <section>
+    <!-- Mini Dashboard Statistics -->
+    <VRow class="mb-6">
+      <!-- Total Deliveries Today -->
+      <VCol
+        cols="12"
+        md="4"
+      >
+        <VCard>
+          <VCardText class="d-flex align-center gap-4">
+            <VAvatar
+              color="primary"
+              variant="tonal"
+              size="52"
+              rounded
+            >
+              <VIcon
+                icon="tabler-truck-delivery"
+                size="32"
+              />
+            </VAvatar>
+            <div>
+              <p class="text-body-1 mb-0 text-disabled">
+                {{ $t('Total Deliveries Today') }}
+              </p>
+              <h4 class="text-h4">
+                {{ summary.today_total_deliveries }}
+              </h4>
+            </div>
+          </VCardText>
+        </VCard>
+      </VCol>
+
+      <!-- Total Amount Today -->
+      <VCol
+        cols="12"
+        md="4"
+      >
+        <VCard>
+          <VCardText class="d-flex align-center gap-4">
+            <VAvatar
+              color="success"
+              variant="tonal"
+              size="52"
+              rounded
+            >
+              <VIcon
+                icon="tabler-currency-dollar"
+                size="32"
+              />
+            </VAvatar>
+            <div>
+              <p class="text-body-1 mb-0 text-disabled">
+                {{ $t('Total Amount Today') }}
+              </p>
+              <h4 class="text-h4">
+                {{ formatPrice(summary.today_total_amount) }}
+              </h4>
+            </div>
+          </VCardText>
+        </VCard>
+      </VCol>
+
+      <!-- Delivery Rate Today -->
+      <VCol
+        cols="12"
+        md="4"
+      >
+        <VCard>
+          <VCardText class="d-flex align-center gap-4">
+            <VAvatar
+              color="warning"
+              variant="tonal"
+              size="52"
+              rounded
+            >
+              <VIcon
+                icon="tabler-percentage"
+                size="32"
+              />
+            </VAvatar>
+            <div>
+              <p class="text-body-1 mb-0 text-disabled">
+                {{ $t('Delivery Rate Today') }}
+              </p>
+              <h4 class="text-h4">
+                {{ summary.today_delivery_rate }}%
+              </h4>
+            </div>
+          </VCardText>
+        </VCard>
+      </VCol>
+    </VRow>
     <VCard class="mb-6">
       <VCardItem class="pb-2">
         <VCardTitle class="d-flex align-center justify-space-between">
@@ -826,9 +969,14 @@ const copyToClipboard = async (text) => {
 
           <!-- Created At -->
           <template #item.created_at="{ item }">
-            <span class="text-high-emphasis">
-              {{ formatDate(item?.timestamps?.created_at || item?.created_at) }}
-            </span>
+            <div class="d-flex flex-column">
+              <span class="text-high-emphasis">
+                {{ formatDate(item?.timestamps?.created_at || item?.created_at) }}
+              </span>
+              <span class="text-xs text-disabled">
+                {{ formatTime(item?.timestamps?.created_at || item?.created_at) }}
+              </span>
+            </div>
           </template>
 
           <!-- Actions -->

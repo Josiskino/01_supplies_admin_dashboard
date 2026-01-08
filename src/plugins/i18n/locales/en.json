@@ -943,5 +943,8 @@
     "dataIterator": {
       "loadingText": "Loading items..."
     }
-  }
+  },
+  "Total Deliveries Today": "Total Deliveries Today",
+  "Total Amount Today": "Total Amount Today",
+  "Delivery Rate Today": "Delivery Rate Today"
 }

@@ -948,5 +948,8 @@
     "dataIterator": {
       "loadingText": "Chargement des éléments..."
     }
-  }
+  },
+  "Total Deliveries Today": "Livraisons du jour",
+  "Total Amount Today": "Montant total du jour",
+  "Delivery Rate Today": "Taux de livraison du jour"
 }

@@ -336,10 +336,10 @@ const onSubmit = async () => {
         snackbarText.value = t('Expense created successfully') || 'Dépense créée avec succès'
         snackbarColor.value = 'success'
         snackbar.value = true
-        
-        emit('expenseSaved')
-        resetForm()
-        dialogVisible.value = false
+
+    emit('expenseSaved')
+    resetForm()
+    dialogVisible.value = false
       }
     }
   } catch (error) {
