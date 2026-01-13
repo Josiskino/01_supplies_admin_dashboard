@@ -288,8 +288,97 @@ const resetFilters = () => {
   fetchDeliveries()
 }
 
+
+import { echo } from '@/plugins/echo'
+
+
+const handleOrderUpdate = (updatedOrder, customMessage = null) => {
+  if (!updatedOrder || !updatedOrder.id) return
+  
+  const index = deliveries.value.findIndex(o => o.id === updatedOrder.id)
+  
+  let statusKey = null
+  
+  if (updatedOrder.status) {
+    if (typeof updatedOrder.status === 'object') {
+      statusKey = updatedOrder.status.status_name || updatedOrder.status.name || updatedOrder.status.label
+    } else {
+      statusKey = updatedOrder.status
+    }
+  } else {
+    statusKey = updatedOrder.delivery_status || updatedOrder.state
+  }
+  
+  const resolvedLabel = statusKey ? getStatusLabel(statusKey) : null
+  
+  let finalMessage = customMessage
+
+  if (index !== -1) {
+    const currentOrder = deliveries.value[index]
+    
+    if (!finalMessage) {
+       const oldAt = currentOrder.price_adjustment?.adjusted_at || currentOrder.price_adjusted_at
+       const newAt = updatedOrder.price_adjustment?.adjusted_at || updatedOrder.price_adjusted_at
+       
+       if (newAt && newAt !== oldAt) {
+          const formatCurrency = (value) => {
+            if (!value) return '0 F CFA'
+            return new Intl.NumberFormat('fr-FR', {
+              style: 'decimal',
+              minimumFractionDigits: 0,
+              maximumFractionDigits: 0,
+            }).format(value) + ' F CFA'
+          }
+
+          const oldPrice = formatCurrency(currentOrder.price)
+          const newPrice = formatCurrency(updatedOrder.price)
+          
+          finalMessage = `Prix de livraison ajusté : de ${oldPrice} à ${newPrice}`
+       }
+    }
+
+    deliveries.value[index] = { ...deliveries.value[index], ...updatedOrder }
+    
+    const statusText = finalMessage || resolvedLabel || 'Mise à jour'
+    successSnackText.value = `Livraison #${updatedOrder.numero || updatedOrder.id} : ${statusText}`
+    isSuccessSnackVisible.value = true
+  } else {
+    deliveries.value.unshift(updatedOrder)
+    total.value++
+    
+    summary.value.today_total_deliveries++
+    
+    const statusText = finalMessage || resolvedLabel || 'Reçue'
+    successSnackText.value = `Nouvelle livraison #${updatedOrder.numero || updatedOrder.id} : ${statusText}`
+    isSuccessSnackVisible.value = true
+  }
+}
+
 onMounted(() => {
   fetchDeliveries()
+
+  echo.channel('admin-orders')
+    .listen('.new-order', (event) => {
+      console.log('New order (List):', event)
+      handleOrderUpdate(event.order, 'Nouvelle commande reçue')
+    })
+
+    .listen('.order-assigned', (event) => handleOrderUpdate(event.order, 'Livreur assigné'))
+    .listen('.order-cancelled', (event) => handleOrderUpdate(event.order, 'Commande annulée'))
+    .listen('.order-completed', (event) => handleOrderUpdate(event.order, 'Livraison terminée'))
+    .listen('.order-registered', (event) => handleOrderUpdate(event.order, 'Commande enregistrée'))
+    .listen('.order-started', (event) => handleOrderUpdate(event.order, 'Livraison démarrée'))
+    .listen('.order-updated', (event) => handleOrderUpdate(event.order)) // Generic update
+
+    .listen('.order-status-changed', (event) => {
+      console.log('Order status update (List):', event)
+      handleOrderUpdate(event.order)
+    })
+})
+
+
+onUnmounted(() => {
+  echo.leave('admin-orders')
 })
 
 watch([searchQuery, dateFrom, dateTo, itemsPerPage], () => {
@@ -300,6 +389,8 @@ watch([searchQuery, dateFrom, dateTo, itemsPerPage], () => {
 watch(page, fetchDeliveries)
 
 // Handle delivery added
+
+
 const onDeliveryAdded = () => {
   successSnackText.value = t('Delivery created successfully') || 'Livraison créée avec succès'
   isSuccessSnackVisible.value = true
@@ -1688,7 +1779,7 @@ const copyToClipboard = async (text) => {
     <VSnackbar
       v-model="isSuccessSnackVisible"
       location="top right"
-      timeout="3000"
+      timeout="6000"
       color="success"
       variant="elevated"
     >
