@@ -3,6 +3,7 @@
 import { useI18n } from 'vue-i18n'
 import ApproveDialog from './approve-dialog.vue'
 import RejectDialog from './reject-dialog.vue'
+import { echo } from '@/plugins/echo'
 
 const { t } = useI18n()
 
@@ -25,6 +26,10 @@ const totalRequests = ref(0)
 const isApproveDialogOpen = ref(false)
 const isRejectDialogOpen = ref(false)
 const selectedRequest = ref(null)
+
+// Success notifications
+const isSuccessSnackVisible = ref(false)
+const successSnackText = ref('')
 
 // Status options
 const statusOptions = computed(() => [
@@ -126,6 +131,29 @@ const fetchRequests = async () => {
     totalRequests.value = 0
   } finally {
     isLoading.value = false
+  }
+}
+
+const handleRequestUpdate = (updatedRequest, customMessage = null) => {
+  if (!updatedRequest || !updatedRequest.id) return
+  
+  const index = requests.value.findIndex(r => r.id === updatedRequest.id)
+  
+  if (index !== -1) {
+
+    requests.value[index] = { ...requests.value[index], ...updatedRequest }
+    
+    const statusText = customMessage || getStatusInfo(updatedRequest.status)?.title || 'Mise à jour'
+    successSnackText.value = `Demande #${updatedRequest.id} : ${statusText}`
+    isSuccessSnackVisible.value = true
+  } else {
+
+    requests.value.unshift(updatedRequest)
+    totalRequests.value++
+    
+    const statusText = customMessage || 'Nouvelle demande'
+    successSnackText.value = `Nouvelle demande #${updatedRequest.id} : ${statusText}`
+    isSuccessSnackVisible.value = true
   }
 }
 
@@ -367,6 +395,21 @@ watch(isRejectDialogOpen, newVal => {
 // Load on mount
 onMounted(() => {
   fetchRequests()
+  
+  echo.channel('admin-orders')
+    .listen('.price-adjustment-request-created', (event) => {
+      handleRequestUpdate(event.price_adjustment_request, 'Nouvelle demande d\'ajustement de prix')
+    })
+    .listen('.price-adjustment-request-approved', (event) => {
+      handleRequestUpdate(event.price_adjustment_request, 'Demande approuvée')
+    })
+    .listen('.price-adjustment-request-rejected', (event) => {
+      handleRequestUpdate(event.price_adjustment_request, 'Demande rejetée')
+    })
+})
+
+onUnmounted(() => {
+  echo.leave('admin-orders')
 })
 </script>
 
@@ -754,6 +797,17 @@ onMounted(() => {
       :request="selectedRequest"
       @request-rejected="fetchRequests"
     />
+
+    <!-- Success Snackbar -->
+    <VSnackbar
+      v-model="isSuccessSnackVisible"
+      location="top end"
+      timeout="6000"
+      variant="flat"
+      color="success"
+    >
+      {{ successSnackText }}
+    </VSnackbar>
   </section>
 </template>
 
