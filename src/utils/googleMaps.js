@@ -272,7 +272,10 @@ const calculateDistanceWithOSRM = async (origin, destination) => {
     // - alternatives=true: Consider alternative routes (may give longer but more accurate distance)
     // - steps=false: Don't need step-by-step instructions
     // - geometries=geojson: Get full geometry (better for accuracy)
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&alternatives=true&steps=false&geometries=geojson`
+    // const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordinates}?overview=full&alternatives=true&steps=false&geometries=geojson`
+    
+    // Using self-hosted OSRM instance
+    const osrmUrl = `https://maps.01supplies.com/osrm/route/v1/driving/${coordinates}?overview=full&alternatives=true&steps=false&geometries=geojson`
     
     console.log('=== OSRM Request ===')
     console.log('URL:', osrmUrl)
