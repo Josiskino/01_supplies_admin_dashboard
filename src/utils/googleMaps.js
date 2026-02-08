@@ -599,27 +599,45 @@ export const calculateDeliveryPrice = (distance, pricingSettings = null) => {
   }
   /* eslint-enable camelcase */
 
+  // ROBUST ROUNDING: Round UP to the nearest integer.
+  // 1.05 km -> 2 km.
+  // This ensures consistent pricing and handles edge cases like 1.0000001
+  const roundedRange = Math.ceil(distance)
+  
   // Calculate price based on mode
   if (mode === 'standard') {
     // Standard mode: 1-10km = 500, 10.1-15km = 700, >15km = 1000
-    if (distance <= 10) {
+    // With rounding: 
+    // <= 10 (1.x to 10.0) -> range_1_10km
+    // <= 15 (10.1 to 15.0) -> range_10_1_15km
+    // > 15  (15.1+) -> range_over_15km
+    
+    if (roundedRange <= 10) {
       return standardPricing.range_1_10km
-    } else if (distance <= 15) {
+    } else if (roundedRange <= 15) {
       return standardPricing.range_10_1_15km
     } else {
       return standardPricing.range_over_15km
     }
   } else {
-    // Express mode (default): existing logic
-    if (distance <= 1) {
+    // Express mode (default)
+    // 0-1km -> range_0_1km (Technically 0.1 to 1.0)
+    // 1.1-5km -> range_1_5km (Technically 1.00001 to 5.0) -> Rounded: 2, 3, 4, 5
+    // 5.1-6km -> range_5_6km (Technically 5.00001 to 6.0) -> Rounded: 6
+    
+    if (roundedRange <= 1) {
       return expressPricing.range_0_1km
-    } else if (distance <= 5) {
+    } else if (roundedRange <= 5) {
       return expressPricing.range_1_5km
-    } else if (distance <= 6) {
+    } else if (roundedRange <= 6) {
       return expressPricing.range_5_6km
     } else {
       // For distances > 6km: base price (5.1-6km) + additional per km
-      const additionalKm = Math.ceil(distance - 6)
+      // Example: 6.1km -> 7km. 
+      // Base (6km) + 1km extra.
+      // Calculation: 7 - 6 = 1 additional unit.
+      
+      const additionalKm = roundedRange - 6
 
       return expressPricing.range_5_6km + (additionalKm * expressPricing.additional_per_km)
     }
