@@ -10,7 +10,9 @@ const allNavItems = [
   //   roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
   // },
   { heading: 'App' },
+
   // 1. Livraison (Delivery)
+
   {
     title: 'Delivery',
     icon: { icon: 'tabler-truck' },
@@ -60,7 +62,15 @@ const allNavItems = [
       { title: 'Report', to: 'financial-report' },
     ],
   },
-  // 6. Rôles et Permissions (Roles & Permissions)
+  // 6. Statistiques (Statistics)
+  {
+    title: 'Statistics',
+    icon: { icon: 'tabler-chart-bar' },
+    to: 'statistics',
+    roles: ['Business Developer'],
+  },
+  // 7. Rôles et Permissions (Roles & Permissions)
+
   { 
     title: 'Roles & Permissions',
     icon: { icon: 'tabler-lock' },

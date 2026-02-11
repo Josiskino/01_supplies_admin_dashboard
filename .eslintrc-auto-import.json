@@ -368,6 +368,7 @@
     "useStatusManagement": true,
     "useFinancialReports": true,
     "invalidateDistanceServiceCache": true,
-    "setDistanceService": true
+    "setDistanceService": true,
+    "useBusinessDeveloperStats": true
   }
 }

@@ -49,6 +49,7 @@ declare module 'vue-router/auto-routes' {
     'role': RouteRecordInfo<'role', '/role', Record<never, never>, Record<never, never>>,
     'settings': RouteRecordInfo<'settings', '/settings', Record<never, never>, Record<never, never>>,
     'shop': RouteRecordInfo<'shop', '/shop', Record<never, never>, Record<never, never>>,
+    'statistics': RouteRecordInfo<'statistics', '/statistics', Record<never, never>, Record<never, never>>,
     'template$error': RouteRecordInfo<'template$error', '/template/:error(.*)', { error: ParamValue<true> }, { error: ParamValue<false> }>,
     'template-access-control': RouteRecordInfo<'template-access-control', '/template/access-control', Record<never, never>, Record<never, never>>,
     'template-apps-academy-course-details': RouteRecordInfo<'template-apps-academy-course-details', '/template/apps/academy/course-details', Record<never, never>, Record<never, never>>,
