@@ -175,28 +175,12 @@ const headers = computed(() => [
     key: 'contact',
   },
   {
-    title: t('Activity Sector'),
-    key: 'activity_sector',
-  },
-  {
-    title: t('Engagement Type'),
-    key: 'engagement_type',
-  },
-  {
-    title: t('Interest Shown'),
-    key: 'interest_shown',
-  },
-  {
     title: t('Address'),
     key: 'address',
   },
   {
     title: t('Location'),
     key: 'location',
-  },
-  {
-    title: t('Status'),
-    key: 'status',
   },
   {
     title: t('Deliveries'),
@@ -747,6 +731,20 @@ const cancelDelete = () => {
               <h6 class="text-base font-weight-medium">
                 {{ (item.merchant_name || $t('N/A')).toUpperCase() }}
               </h6>
+              <!-- Activity Sector -->
+              <div
+                v-if="item.activity_sector"
+                class="d-flex align-center gap-x-1 mt-1"
+              >
+                <VIcon
+                  :icon="resolveBusinessSectorIcon(item.activity_sector)"
+                  size="14"
+                  color="secondary"
+                />
+                <span class="text-sm text-secondary">
+                  {{ item.activity_sector }}
+                </span>
+              </div>
             </div>
           </div>
         </template>
@@ -775,41 +773,6 @@ const cancelDelete = () => {
           </div>
         </template>
 
-        <!-- Activity Sector -->
-        <template #item.activity_sector="{ item }">
-          <div class="d-flex align-center gap-x-2">
-            <VIcon
-              :icon="resolveBusinessSectorIcon(item.activity_sector)"
-              size="20"
-              color="primary"
-            />
-            <div class="text-body-1">
-              {{ item.activity_sector || $t('N/A') }}
-            </div>
-          </div>
-        </template>
-
-        <!-- Engagement Type -->
-        <template #item.engagement_type="{ item }">
-          <VChip
-            color="info"
-            size="small"
-            variant="tonal"
-            class="text-capitalize"
-          >
-            {{ item.engagement_type || $t('N/A') }}
-          </VChip>
-        </template>
-
-        <!-- Interest Shown -->
-        <template #item.interest_shown="{ item }">
-          <div
-            class="text-body-2"
-            style="max-inline-size: 200px;"
-          >
-            {{ item.interest_shown || $t('N/A') }}
-          </div>
-        </template>
 
         <!-- Address -->
         <template #item.address="{ item }">
@@ -875,17 +838,6 @@ const cancelDelete = () => {
           </div>
         </template>
 
-        <!-- Status -->
-        <template #item.status="{ item }">
-          <VChip
-            :color="resolveStatusVariant(item.status?.name)"
-            size="small"
-            label
-            class="text-capitalize"
-          >
-            {{ item.status?.name || $t('N/A') }}
-          </VChip>
-        </template>
 
         <!-- Deliveries Count -->
         <template #item.deliveries_count="{ item }">

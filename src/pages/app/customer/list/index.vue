@@ -1,7 +1,7 @@
 <script setup>
 import CustomerAddDrawer from '@/pages/app/customer/add/index.vue'
-import CustomerDetailsDialog from './customer-details-dialog.vue'
 import { useI18n } from 'vue-i18n'
+import CustomerDetailsDialog from './customer-details-dialog.vue'
 
 const { t } = useI18n()
 
@@ -35,14 +35,6 @@ const headers = computed(() => [
   {
     title: t('Customer'),
     key: 'customer',
-  },
-  {
-    title: t('Phone'),
-    key: 'phone',
-  },
-  {
-    title: t('Email'),
-    key: 'email',
   },
   {
     title: t('Address'),
@@ -517,24 +509,20 @@ const deleteCustomer = async id => {
               <h6 class="text-base font-weight-medium">
                 {{ item.full_name || `${item.first_name || ''} ${item.last_name || ''}`.trim() || $t('N/A') }}
               </h6>
-              <div class="text-sm text-disabled">
-                {{ item.email || $t('N/A') }}
+              
+              <!-- Phone -->
+              <div class="text-body-2 mb-1">
+                {{ item.phone || $t('N/A') }}
+              </div>
+
+              <!-- Email -->
+              <div
+                v-if="item.email"
+                class="text-sm text-disabled"
+              >
+                {{ item.email }}
               </div>
             </div>
-          </div>
-        </template>
-
-        <!-- Phone -->
-        <template #item.phone="{ item }">
-          <div class="text-body-1">
-            {{ item.phone || $t('N/A') }}
-          </div>
-        </template>
-
-        <!-- Email -->
-        <template #item.email="{ item }">
-          <div class="text-body-1">
-            {{ item.email || $t('N/A') }}
           </div>
         </template>
 
