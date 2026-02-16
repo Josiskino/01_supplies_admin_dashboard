@@ -369,6 +369,7 @@
     "useFinancialReports": true,
     "invalidateDistanceServiceCache": true,
     "setDistanceService": true,
-    "useBusinessDeveloperStats": true
+    "useBusinessDeveloperStats": true,
+    "exportToExcel": true
   }
 }

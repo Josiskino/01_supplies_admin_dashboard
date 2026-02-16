@@ -1,4 +1,5 @@
 <script setup>
+import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 import PartnerAddDialog from '../add.vue'
 
@@ -564,6 +565,47 @@ const cancelDelete = () => {
   isDeleteDialogOpen.value = false
   partnerToDelete.value = null
 }
+
+const isExporting = ref(false)
+
+const exportPartners = async () => {
+  isExporting.value = true
+  try {
+    // Build query parameters for all data
+    const queryParams = {
+      per_page: 1000, // Fetch all (or a large enough number)
+    }
+
+    if (sortBy.value) queryParams.sort_by = sortBy.value
+    if (sortOrder.value) queryParams.sort_order = sortOrder.value
+    if (searchQuery.value) queryParams.search = searchQuery.value
+    if (selectedStatus.value) queryParams.status = selectedStatus.value
+    if (selectedBusinessSector.value) queryParams.activity_sector = selectedBusinessSector.value
+
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/merchants${queryString ? `?${queryString}` : ''}`
+    
+    const response = await $api(url, { method: 'GET' })
+    const allPartners = response?.data || []
+
+    const headerMap = {
+      'prospection_date': t('Prospection Date'),
+      'merchant_name': t('Merchant Name'),
+      'phone': t('Phone'),
+      'email': t('Email'),
+      'activity_sector': t('Activity Sector'),
+      'contact_name': t('Contact Name'),
+      'default_address.address': t('Address'),
+      'created_at': t('Created At'),
+    }
+
+    exportToExcel(allPartners, 'Partners', headerMap)
+  } catch (error) {
+    console.error('Error exporting partners:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -681,6 +723,8 @@ const cancelDelete = () => {
               color="secondary"
               prepend-icon="tabler-upload"
               block
+              :loading="isExporting"
+              @click="exportPartners"
             >
               {{ $t('Export') }}
             </VBtn>

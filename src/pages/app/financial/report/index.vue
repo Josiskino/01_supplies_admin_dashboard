@@ -1,9 +1,10 @@
 <script setup>
 /* eslint-disable camelcase */
-import { useI18n } from 'vue-i18n'
 import FinancialExpenseBreakdownChart from '@/components/charts/FinancialExpenseBreakdownChart.vue'
 import FinancialRevenueVsExpensesChart from '@/components/charts/FinancialRevenueVsExpensesChart.vue'
 import { useFinancialReports } from '@/composables/useFinancialReports'
+import { exportToExcel } from '@/utils/export'
+import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
@@ -79,6 +80,28 @@ const exportReport = async () => {
   }
 }
 
+const isExportingExcel = ref(false)
+
+const exportToExcelFinancial = () => {
+  isExportingExcel.value = true
+  try {
+    const headerMap = {
+      'driver.name': t('Driver Name'),
+      'deliveriesCount': t('Deliveries'),
+      'revenue': t('Revenue'),
+      'expenses': t('Expenses'),
+      'profit': t('Net Profit'),
+      'margin': t('Profit Margin'),
+    }
+
+    exportToExcel(driverStats.value, 'Financial_Performance', headerMap)
+  } catch (error) {
+    console.error('Error exporting to excel:', error)
+  } finally {
+    isExportingExcel.value = false
+  }
+}
+
 // Watch period changes
 watch(period, newPeriod => {
   if (newPeriod !== 'custom') {
@@ -112,13 +135,24 @@ onMounted(() => {
               {{ $t('Comprehensive financial analysis and reporting') }}
             </VCardSubtitle>
           </div>
-          <VBtn
-            color="primary"
-            prepend-icon="tabler-download"
-            @click="exportReport"
-          >
-            {{ $t('Export Report') }}
-          </VBtn>
+          <div class="d-flex gap-2">
+            <VBtn
+              color="secondary"
+              variant="tonal"
+              prepend-icon="tabler-file-spreadsheet"
+              @click="exportToExcelFinancial"
+              :loading="isExportingExcel"
+            >
+              {{ $t('Excel') }}
+            </VBtn>
+            <VBtn
+              color="primary"
+              prepend-icon="tabler-download"
+              @click="exportReport"
+            >
+              {{ $t('Export PDF') }}
+            </VBtn>
+          </div>
         </div>
       </VCardItem>
 

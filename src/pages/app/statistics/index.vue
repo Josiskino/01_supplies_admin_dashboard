@@ -2,6 +2,7 @@
 /* eslint-disable camelcase */
 import StatsTopZonesChart from '@/components/charts/StatsTopZonesChart.vue'
 import { useBusinessDeveloperStats } from '@/composables/useBusinessDeveloperStats'
+import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -75,6 +76,26 @@ onMounted(() => {
   fetchStats()
   fetchDrivers()
 })
+
+const isExporting = ref(false)
+
+const exportStats = () => {
+  isExporting.value = true
+  try {
+    const headerMap = {
+      'type': t('Type'),
+      'name': t('Name'),
+      'total_orders': t('Total Orders'),
+      'total_revenue': t('Total Revenue'),
+    }
+
+    exportToExcel(topConsumers.value, 'Top_Consumers_Stats', headerMap)
+  } catch (error) {
+    console.error('Error exporting stats:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -157,8 +178,19 @@ onMounted(() => {
         md="7"
       >
         <VCard>
-          <VCardItem>
+          <VCardItem class="d-flex align-center flex-wrap gap-2">
             <VCardTitle>{{ $t('Top Consumers') }}</VCardTitle>
+            <VSpacer />
+            <VBtn
+              variant="tonal"
+              color="secondary"
+              prepend-icon="tabler-file-spreadsheet"
+              density="compact"
+              :loading="isExporting"
+              @click="exportStats"
+            >
+              {{ $t('Export Excel') }}
+            </VBtn>
           </VCardItem>
           <VCardText>
             <VDataTable

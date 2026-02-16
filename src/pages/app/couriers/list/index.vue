@@ -1,6 +1,7 @@
 <script setup>
 import { useStatusManagement } from '@/composables/useStatusManagement'
 import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
+import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 
 const { getStatusOptions, getStatusColor, getStatusLabel } = useStatusManagement()
@@ -323,6 +324,45 @@ const onDriverAdded = () => {
   isSuccessSnackVisible.value = true
   fetchDrivers()
 }
+
+const isExporting = ref(false)
+
+const exportCouriers = async () => {
+  isExporting.value = true
+  try {
+    // Build query parameters for all data
+    const queryParams = {
+      per_page: 1000, // Fetch all
+    }
+
+    if (searchQuery.value) queryParams.search = searchQuery.value
+    if (selectedStatus.value) queryParams.status = selectedStatus.value
+    if (selectedVehicleType.value) queryParams.vehicle_type = selectedVehicleType.value
+
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/drivers${queryString ? `?${queryString}` : ''}`
+    
+    const response = await $api(url, { method: 'GET' })
+    const allDrivers = response?.data || []
+
+    const headerMap = {
+      'user.name': t('Driver Name'),
+      'phone': t('Phone'),
+      'vehicle_type': t('Vehicle Type'),
+      'plate_number': t('Plate Number'),
+      'neighborhood': t('Neighborhood'),
+      'current_status.name': t('Status'),
+      'deliveries_count': t('Deliveries'),
+      'created_at': t('Created At'),
+    }
+
+    exportToExcel(allDrivers, 'Drivers', headerMap)
+  } catch (error) {
+    console.error('Error exporting couriers:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -415,6 +455,8 @@ const onDriverAdded = () => {
               prepend-icon="tabler-upload"
               block
               density="compact"
+              :loading="isExporting"
+              @click="exportCouriers"
             >
               {{ $t('Export') }}
             </VBtn>

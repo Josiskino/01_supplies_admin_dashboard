@@ -1,5 +1,6 @@
 <script setup>
 import CustomerAddDrawer from '@/pages/app/customer/add/index.vue'
+import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 import CustomerDetailsDialog from './customer-details-dialog.vue'
 
@@ -423,6 +424,41 @@ const deleteCustomer = async id => {
     isSuccessSnackVisible.value = true
   }
 }
+
+const isExporting = ref(false)
+
+const exportCustomers = async () => {
+  isExporting.value = true
+  try {
+    // Build query parameters for all data
+    const queryParams = {
+      per_page: 1000, // Fetch all
+    }
+
+    if (searchQuery.value) queryParams.search = searchQuery.value
+
+    const queryString = new URLSearchParams(queryParams).toString()
+    const url = `/customers${queryString ? `?${queryString}` : ''}`
+    
+    const response = await $api(url, { method: 'GET' })
+    const allCustomers = response?.data || []
+
+    const headerMap = {
+      'first_name': t('First Name'),
+      'last_name': t('Last Name'),
+      'phone': t('Phone'),
+      'email': t('Email'),
+      'default_address.address': t('Address'),
+      'created_at': t('Created At'),
+    }
+
+    exportToExcel(allCustomers, 'Customers', headerMap)
+  } catch (error) {
+    console.error('Error exporting customers:', error)
+  } finally {
+    isExporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -465,6 +501,8 @@ const deleteCustomer = async id => {
             variant="tonal"
             color="secondary"
             prepend-icon="tabler-upload"
+            :loading="isExporting"
+            @click="exportCustomers"
           >
             {{ $t('Export') }}
           </VBtn>
