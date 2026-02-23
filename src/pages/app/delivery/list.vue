@@ -1,6 +1,7 @@
 <script setup>
 /* eslint-disable camelcase */
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
+import { generateCombinedMapLink } from '@/utils/googleMaps'
 import { useI18n } from 'vue-i18n'
 import DeliveryAddDialog from './add.vue'
 import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
@@ -41,7 +42,7 @@ const headers = computed(() => [
   { title: t('Driver'), key: 'driver' },
   { title: t('Distance'), key: 'distance_km' },
   { title: t('Price'), key: 'price' },
-  { title: t('Status'), key: 'status' },
+  { title: t('Route') || 'Itinéraire', key: 'route', sortable: false, width: '80px' },
   { title: t('Actions'), key: 'actions', sortable: false, width: '100px' },
 ])
 
@@ -570,6 +571,16 @@ const openWhatsApp = delivery => {
     // Build WhatsApp URL
     const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
 
+    // Add combined route link if possible
+    const combinedMapLink = generateCombinedMapLink(delivery?.pickup_location, delivery?.dropoff_location)
+    if (combinedMapLink && combinedMapLink !== 'https://www.google.com/maps') {
+      const extraMsg = `\n\n🛤 *Itinéraire complet:* \n${combinedMapLink}`
+      const finalEncodedMessage = encodeURIComponent(message + extraMsg)
+      const finalWhatsappUrl = `https://wa.me/${cleanPhone}?text=${finalEncodedMessage}`
+      window.open(finalWhatsappUrl, '_blank')
+      return
+    }
+
     // Open WhatsApp in new tab
     window.open(whatsappUrl, '_blank')
   } catch (error) {
@@ -649,6 +660,10 @@ const copyToClipboard = async (text) => {
     }
     document.body.removeChild(textArea)
   }
+}
+const openRoute = (pickup, dropoff) => {
+  const combinedLink = generateCombinedMapLink(pickup, dropoff)
+  window.open(combinedLink, '_blank')
 }
 </script>
 
@@ -1006,16 +1021,18 @@ const copyToClipboard = async (text) => {
             {{ formatPrice(item?.price) }}
           </template>
 
-          <!-- Status -->
-          <template #item.status="{ item }">
-            <VChip
-              size="small"
-              :color="getStatusColor(item?.status?.name || item?.status || '')"
-              label
-              class="text-capitalize"
+          <!-- Route Link -->
+          <template #item.route="{ item }">
+            <IconBtn
+              color="info"
+              variant="tonal"
+              @click.stop="openRoute(item.pickup_location, item.dropoff_location)"
             >
-              {{ item?.status?.name || getStatusLabel(item?.status?.name || item?.status || '') || item?.status || $t('Unknown') }}
-            </VChip>
+              <VIcon icon="tabler-map-2" />
+              <VTooltip activator="parent">
+                {{ $t('View Route') || 'Voir l\'itinéraire complet' }}
+              </VTooltip>
+            </IconBtn>
           </template>
 
           <!-- Start Time -->
@@ -1440,6 +1457,38 @@ const copyToClipboard = async (text) => {
                 </VAlert>
               </VCol>
 
+
+              <!-- Route Information -->
+              <VCol cols="12">
+                <VDivider class="my-4" />
+                <h3 class="mb-4">
+                  <VIcon
+                    icon="tabler-map-2"
+                    class="me-2"
+                  />
+                  {{ $t('Route Information') || 'Informations d\'itinéraire' }}
+                </h3>
+              </VCol>
+
+              <VCol
+                cols="12"
+              >
+                <div class="mb-4">
+                  <VBtn
+                    color="info"
+                    prepend-icon="tabler-map-2"
+                    @click="openRoute(
+                      (deliveryDetails || selectedDeliveryForView)?.pickup_location,
+                      (deliveryDetails || selectedDeliveryForView)?.dropoff_location
+                    )"
+                  >
+                    {{ $t('View Complete Route') || 'Voir l\'itinéraire complet' }}
+                  </VBtn>
+                  <p class="text-xs text-medium-emphasis mt-2">
+                    {{ $t('Open Google Maps showing both pickup and dropoff points') || 'Ouvrir Google Maps montrant à la fois le point de collecte et le point de livraison' }}
+                  </p>
+                </div>
+              </VCol>
 
               <!-- Partner Information -->
               <VCol cols="12">

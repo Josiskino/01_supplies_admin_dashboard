@@ -32,6 +32,7 @@ declare module 'vue-router/auto-routes' {
     'delivery-dashboard': RouteRecordInfo<'delivery-dashboard', '/delivery/dashboard', Record<never, never>, Record<never, never>>,
     'delivery-list': RouteRecordInfo<'delivery-list', '/delivery/list', Record<never, never>, Record<never, never>>,
     'delivery-price-adjustment-request-dialog': RouteRecordInfo<'delivery-price-adjustment-request-dialog', '/delivery/price-adjustment-request-dialog', Record<never, never>, Record<never, never>>,
+    'financial-driver-turnover': RouteRecordInfo<'financial-driver-turnover', '/financial/driver-turnover', Record<never, never>, Record<never, never>>,
     'financial-expenses': RouteRecordInfo<'financial-expenses', '/financial/expenses', Record<never, never>, Record<never, never>>,
     'financial-expenses-add-edit-dialog': RouteRecordInfo<'financial-expenses-add-edit-dialog', '/financial/expenses/add-edit-dialog', Record<never, never>, Record<never, never>>,
     'financial-price-adjustments': RouteRecordInfo<'financial-price-adjustments', '/financial/price-adjustments', Record<never, never>, Record<never, never>>,

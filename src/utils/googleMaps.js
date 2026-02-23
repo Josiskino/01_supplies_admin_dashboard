@@ -645,6 +645,48 @@ export const calculateDeliveryPrice = (distance, pricingSettings = null) => {
 }
 
 /**
+ * Generate a Google Maps link with multiple waypoints (pickup and dropoff)
+ * @param {string|Object} pickup - Pickup location
+ * @param {string|Object} dropoff - Dropoff location
+ * @returns {string} - Google Maps URL
+ */
+export const generateCombinedMapLink = (pickup, dropoff) => {
+  const pickupCoords = parseCoordinates(pickup)
+  const dropoffCoords = parseCoordinates(dropoff)
+
+  // Link to Google Maps Dir API
+  // https://www.google.com/maps/dir/?api=1&origin=...&destination=...&waypoints=...
+  
+  if (pickupCoords && dropoffCoords) {
+    return `https://www.google.com/maps/dir/?api=1&origin=${pickupCoords.lat},${pickupCoords.lng}&destination=${dropoffCoords.lat},${dropoffCoords.lng}`
+  }
+
+  // Fallback to simple search if we can't parse coordinates
+  if (dropoffCoords) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${dropoffCoords.lat},${dropoffCoords.lng}`
+  }
+
+  if (pickupCoords) {
+    return `https://www.google.com/maps/search/?api=1&query=${pickupCoords.lat},${pickupCoords.lng}`
+  }
+
+  // Last fallback: use strings if they look like URLs or just simple search
+  const pickupStr = typeof pickup === 'string' ? pickup : (pickup?.url || '')
+  const dropoffStr = typeof dropoff === 'string' ? dropoff : (dropoff?.url || '')
+
+  if (pickupStr && dropoffStr) {
+    return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(pickupStr)}&destination=${encodeURIComponent(dropoffStr)}`
+  }
+
+  const finalQuery = dropoffStr || pickupStr || ''
+  if (finalQuery) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(finalQuery)}`
+  }
+
+  return 'https://www.google.com/maps'
+}
+
+/**
  * Test function to validate coordinate parsing (for development/debugging)
  * @param {string} input - Input to test
  * @returns {Object} - Test result with parsed coordinates

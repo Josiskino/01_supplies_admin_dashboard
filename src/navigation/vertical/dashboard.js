@@ -59,6 +59,7 @@ const allNavItems = [
       { title: 'Transactions', to: 'financial-transactions' },
       { title: 'Price Adjustments', to: 'financial-price-adjustments' },
       { title: 'Expenses', to: 'financial-expenses' },
+      { title: 'Driver Turnover', to: 'financial-driver-turnover' },
       { title: 'Report', to: 'financial-report' },
     ],
   },

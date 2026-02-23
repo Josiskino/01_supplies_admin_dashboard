@@ -370,6 +370,8 @@
     "invalidateDistanceServiceCache": true,
     "setDistanceService": true,
     "useBusinessDeveloperStats": true,
-    "exportToExcel": true
+    "exportToExcel": true,
+    "generateCombinedMapLink": true,
+    "useDriverTurnover": true
   }
 }
