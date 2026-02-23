@@ -1,12 +1,15 @@
 <script setup>
-import { useI18n } from 'vue-i18n'
 import { invalidateDistanceServiceCache, setDistanceService } from '@/utils/googleMaps'
+import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
 const billingMode = ref('express')
 const isLoading = ref(false)
-const activeTab = ref(0) // 0 = Pricing, 1 = Distance Calculation Service
+const activeTab = ref(0) // 0 = Pricing, 1 = Distance Calculation Service, 2 = Driver Commission
+
+// Commission settings
+const commissionRate = ref(0.306) // Default 30.6%
 
 // Distance calculation service
 const distanceService = ref('google_maps') // 'google_maps', 'openstreetmap', 'haversine'
@@ -146,10 +149,37 @@ const loadDistanceServiceSettings = async () => {
   distanceService.value = 'google_maps'
 }
 
+// Load commission settings
+const loadCommissionSettings = async () => {
+  try {
+    const response = await $api('/settings/commission', {
+      method: 'GET',
+    })
+
+    if (response && response.commission_rate) {
+      commissionRate.value = parseFloat(response.commission_rate)
+      return
+    }
+  } catch (error) {
+    // Silently ignore 404
+    const status = error?.response?.status || error?.status
+    if (status !== 404 && !error?.message?.includes('404')) {
+      console.warn('Could not load commission settings:', error)
+    }
+  }
+
+  // Local storage fallback
+  const stored = localStorage.getItem('driver_commission_rate')
+  if (stored) {
+    commissionRate.value = parseFloat(stored)
+  }
+}
+
 // Load settings on component mount
 onMounted(() => {
   loadPricingSettings()
   loadDistanceServiceSettings()
+  loadCommissionSettings()
 })
 
 const savePricingSettings = async () => {
@@ -251,6 +281,28 @@ const saveDistanceServiceSettings = async () => {
   }
 }
 
+const saveCommissionSettings = async () => {
+  isLoading.value = true
+  try {
+    localStorage.setItem('driver_commission_rate', commissionRate.value.toString())
+    
+    try {
+      await $api('/settings/commission', {
+        method: 'POST',
+        body: { commission_rate: commissionRate.value },
+      })
+    } catch (e) {
+      console.log('API endpoint for commission not available, using localStorage only')
+    }
+
+    console.log('Commission settings saved successfully')
+  } catch (error) {
+    console.error('Error saving commission settings:', error)
+  } finally {
+    isLoading.value = false
+  }
+}
+
 // Computed property to get current pricing settings for examples
 const currentPricing = computed(() => {
   return billingMode.value === 'express' ? expressPricing.value : standardPricing.value
@@ -303,6 +355,10 @@ const calculateExamplePrice = (distance) => {
           <VTab>
             <VIcon icon="tabler-route" class="me-2" />
             {{ $t('Distance Calculation Service') }}
+          </VTab>
+          <VTab>
+            <VIcon icon="tabler-percentage" class="me-2" />
+            {{ $t('Driver Commission') }}
           </VTab>
         </VTabs>
 
@@ -646,6 +702,60 @@ const calculateExamplePrice = (distance) => {
               >
                 <VIcon icon="tabler-device-floppy" class="me-2" />
                 {{ $t('Save Distance Service Settings') }}
+              </VBtn>
+            </div>
+          </VWindowItem>
+
+          <!-- Driver Commission Tab -->
+          <VWindowItem>
+            <VAlert
+              type="info"
+              variant="tonal"
+              class="mb-6"
+            >
+              <VAlertTitle class="mb-2">
+                {{ $t('Driver Commission') }}
+              </VAlertTitle>
+              <p class="mb-0">
+                {{ $t('Commission percentage applied to total turnover') }}
+              </p>
+            </VAlert>
+
+            <VRow>
+              <VCol
+                cols="12"
+                md="6"
+              >
+                <AppTextField
+                  v-model="commissionRate"
+                  type="number"
+                  step="0.001"
+                  :label="$t('Commission Rate')"
+                  placeholder="0.306"
+                  suffix="%"
+                >
+                  <template #prepend-inner>
+                    <VIcon icon="tabler-percentage" />
+                  </template>
+                </AppTextField>
+                <p class="text-sm text-medium-emphasis mt-1">
+                  {{ $t('Example: 0.306 for 30.6%') }}
+                </p>
+              </VCol>
+            </VRow>
+
+            <VDivider class="my-6" />
+
+            <!-- Save Button -->
+            <div class="d-flex justify-end">
+              <VBtn
+                color="primary"
+                :loading="isLoading"
+                :disabled="isLoading"
+                @click="saveCommissionSettings"
+              >
+                <VIcon icon="tabler-device-floppy" class="me-2" />
+                {{ $t('Save Commission Settings') }}
               </VBtn>
             </div>
           </VWindowItem>

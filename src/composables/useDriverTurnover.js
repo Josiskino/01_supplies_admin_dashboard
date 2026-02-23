@@ -12,18 +12,17 @@ export const useDriverTurnover = () => {
   const totalGlobalCommission = ref(0)
   const totalGlobalDeliveries = ref(0)
 
-  const fetchDriverTurnover = async () => {
+  const fetchDriverTurnover = async (params = {}) => {
     isLoading.value = true
     try {
-      const params = {
-        filter: filter.value,
-        ...(dateFrom.value && { date_from: dateFrom.value }),
-        ...(dateTo.value && { date_to: dateTo.value }),
-      }
-
-      const queryString = new URLSearchParams(params).toString()
-      const response = await $api(`/statistics/driver-turnover?${queryString}`, {
+      const response = await $api('/statistics/driver-turnover', {
         method: 'GET',
+        params: {
+          filter: filter.value,
+          ...(dateFrom.value && { date_from: dateFrom.value }),
+          ...(dateTo.value && { date_to: dateTo.value }),
+          ...params,
+        },
       })
 
       if (response.success) {

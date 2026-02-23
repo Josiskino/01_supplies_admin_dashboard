@@ -18,6 +18,17 @@ const {
   fetchDriverTurnover,
 } = useDriverTurnover()
 
+// Commission Rate
+const commissionRate = ref(0.306)
+
+// Initialize commission rate from settings
+onMounted(() => {
+  const stored = localStorage.getItem('driver_commission_rate')
+  if (stored) {
+    commissionRate.value = parseFloat(stored)
+  }
+})
+
 // Filter options
 const filterOptions = computed(() => [
   { title: t('Today'), value: 'day' },
@@ -27,13 +38,13 @@ const filterOptions = computed(() => [
 ])
 
 // Table headers
-const tableHeaders = [
+const tableHeaders = computed(() => [
   { title: t('Driver'), key: 'driver_name' },
   { title: t('Deliveries Count'), key: 'deliveries_count', align: 'center' },
   { title: t('Settlements Count'), key: 'settlements_count', align: 'center' },
   { title: t('Total Global Turnover'), key: 'total_turnover', align: 'end' },
-  { title: t('Commission (30%)'), key: 'commission_amount', align: 'end' },
-]
+  { title: `${t('Commission')} (${(commissionRate.value * 100).toFixed(1)}%)`, key: 'commission_amount', align: 'end' },
+])
 
 // Format price helper
 const formatPrice = value => {
@@ -60,7 +71,7 @@ const exportToExcelReport = () => {
       'deliveries_count': t('Deliveries Count'),
       'settlements_count': t('Settlements Count'),
       'total_turnover': t('Total Global Turnover'),
-      'commission_amount': t('Commission (30%)'),
+      'commission_amount': `${t('Commission')} (${(commissionRate.value * 100).toFixed(1)}%)`,
     }
 
     exportToExcel(report.value, 'Driver_Turnover_Report', headerMap)
@@ -76,19 +87,19 @@ watch(filter, newFilter => {
   if (newFilter !== 'custom') {
     dateFrom.value = null
     dateTo.value = null
-    fetchDriverTurnover()
+    fetchDriverTurnover({ commission_rate: commissionRate.value })
   }
 })
 
 watch([dateFrom, dateTo], () => {
   if (filter.value === 'custom' && dateFrom.value && dateTo.value) {
-    fetchDriverTurnover()
+    fetchDriverTurnover({ commission_rate: commissionRate.value })
   }
 })
 
 // Load on mount
 onMounted(() => {
-  fetchDriverTurnover()
+  fetchDriverTurnover({ commission_rate: commissionRate.value })
 })
 </script>
 
@@ -214,7 +225,7 @@ onMounted(() => {
                   icon="tabler-trending-up"
                   size="14"
                 />
-                {{ $t('Commission (30%)') }}
+                {{ $t('Commission') }} ({{ (commissionRate * 100).toFixed(1) }}%)
               </div>
             </div>
             <VAvatar
