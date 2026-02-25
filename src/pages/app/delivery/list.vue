@@ -34,6 +34,22 @@ const isAdministrator = computed(() => {
          normalizedRole === 'super-admin'
 })
 
+// Check if user is intern (stagiaire)
+const isIntern = computed(() => {
+  const userData = useCookie('userData').value
+  if (!userData) {
+    return false
+  }
+
+  const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
+  if (!role) {
+    return false
+  }
+
+  const normalizedRole = role.toString().trim().toLowerCase()
+  return normalizedRole === 'stagiaire'
+})
+
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Created At'), key: 'created_at' },
@@ -670,7 +686,10 @@ const openRoute = (pickup, dropoff) => {
 <template>
   <section>
     <!-- Mini Dashboard Statistics -->
-    <VRow class="mb-6">
+    <VRow
+      v-if="!isIntern"
+      class="mb-6"
+    >
       <!-- Total Deliveries Today -->
       <VCol
         cols="12"

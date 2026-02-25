@@ -17,7 +17,7 @@ const allNavItems = [
     title: 'Delivery',
     icon: { icon: 'tabler-truck' },
     to: 'delivery-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur', 'Stagiaire'],
     // Commented out for future use - uncomment to restore dropdown menu
     // children: [
     //   { title: 'Dashboard', to: 'delivery-dashboard' },
@@ -29,7 +29,7 @@ const allNavItems = [
     title: 'Partners',
     icon: { icon: 'tabler-users' },
     to: 'partners-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur', 'Stagiaire'],
   },
   // 3. Livreurs (Couriers)
   { 
@@ -48,7 +48,7 @@ const allNavItems = [
     title: 'Customers',
     icon: { icon: 'tabler-users' },
     to: 'customer-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur'],
+    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur', 'Stagiaire'],
   },
   // 5. Financier (Financial)
   {
