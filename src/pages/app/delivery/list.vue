@@ -509,14 +509,14 @@ const formatLocationLink = location => {
 }
 
 // Action WhatsApp manuelle de secours (pour administrateurs)
-const isSendingWhatsApp = ref(false)
+const sendingWhatsAppId = ref(null)
 const triggerManualWhatsApp = async (delivery) => {
   try {
     if (!delivery?.driver?.id) {
       alert(t('Driver is not assigned') || 'Aucun livreur n\'est assigné à cette livraison.')
       return
     }
-    isSendingWhatsApp.value = true
+    sendingWhatsAppId.value = delivery.id
     await notifyActorsOnAssignment(delivery, t)
     successSnackText.value = t('WhatsApp messages sent successfully') || 'Messages WhatsApp de secours envoyés !'
     isSuccessSnackVisible.value = true
@@ -524,7 +524,7 @@ const triggerManualWhatsApp = async (delivery) => {
     console.error('Manual WhatsApp Error:', error)
     alert(t('Error sending WhatsApp messages.') || 'Erreur lors de l\'envoi manuel WhatsApp.')
   } finally {
-    isSendingWhatsApp.value = false
+    sendingWhatsAppId.value = null
   }
 }
 
@@ -1059,7 +1059,7 @@ const openRoute = (pickup, dropoff) => {
               <IconBtn
                 v-if="isAdministrator"
                 color="success"
-                :loading="isSendingWhatsApp"
+                :loading="sendingWhatsAppId === item.id"
                 @click.stop="triggerManualWhatsApp(item)"
               >
                 <VIcon icon="tabler-brand-whatsapp" />
