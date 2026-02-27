@@ -69,8 +69,15 @@ export async function notifyActorsOnAssignment(delivery, t) {
   }
   const price = delivery?.price ? `${formatPrice(delivery.price)} FCFA` : (t('Not specified') || 'Non spécifié')
 
-  const pickupLocation = delivery?.pickup_location?.url || delivery?.pickup_location || t('Not specified') || 'Non spécifié'
-  const dropoffLocation = delivery?.dropoff_location?.url || delivery?.dropoff_location || t('Not specified') || 'Non spécifié'
+  const formatLocation = (loc) => {
+    let locStr = loc?.url || loc?.address || loc || ''
+    if (typeof locStr !== 'string' || !locStr) return t('Not specified') || 'Non spécifié'
+    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return locStr
+    return `${locStr}\n🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
+  }
+
+  const pickupLocation = formatLocation(delivery?.pickup_location)
+  const dropoffLocation = formatLocation(delivery?.dropoff_location)
 
   const promises = []
 
@@ -104,9 +111,11 @@ export async function notifyActorsOnAssignment(delivery, t) {
 
   // 3. Message pour le Destinataire
   if (recipientPhone) {
-    let recipientMessage = `📦 *Livraison en approche*\nUn livreur est en route avec votre colis.\n`
+    const hour = new Date().getHours()
+    const greeting = hour < 18 ? 'Bonjour' : 'Bonsoir'
+    let recipientMessage = `${greeting} 👋,\n\n📦 *Prise en charge de votre colis*\nUn livreur a été assigné pour récupérer et vous apporter votre colis.\n\n`
     recipientMessage += `👤 *Livreur:* ${driverName}\n`
-    recipientMessage += `📞 *Téléphone:* ${driverPhone}`
+    recipientMessage += `📞 *Téléphone:* ${driverPhone}\n`
 
     promises.push(sendWhatsAppMessage(recipientPhone, recipientMessage))
   }
@@ -144,8 +153,15 @@ export async function notifyDriverOnAddressChange(delivery, t) {
   }
   const price = delivery?.price ? `${formatPrice(delivery.price)} FCFA` : (t('Not specified') || 'Non spécifié')
 
-  const pickupLocation = delivery?.pickup_location?.url || delivery?.pickup_location || t('Not specified') || 'Non spécifié'
-  const dropoffLocation = delivery?.dropoff_location?.url || delivery?.dropoff_location || t('Not specified') || 'Non spécifié'
+  const formatLocation = (loc) => {
+    let locStr = loc?.url || loc?.address || loc || ''
+    if (typeof locStr !== 'string' || !locStr) return t('Not specified') || 'Non spécifié'
+    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return locStr
+    return `${locStr}\n🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
+  }
+
+  const pickupLocation = formatLocation(delivery?.pickup_location)
+  const dropoffLocation = formatLocation(delivery?.dropoff_location)
 
   let driverMessage = `⚠️ *MODIFICATION D'ADRESSE DE LIVRAISON*\n`
   driverMessage += `L'adresse pour cette livraison a été modifiée. Voici les nouvelles informations :\n\n`
