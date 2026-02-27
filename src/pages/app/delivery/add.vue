@@ -1,6 +1,7 @@
 <script setup>
 /* eslint-disable camelcase */
 import { calculateDeliveryPrice, calculateDistanceFromUrls, invalidateDistanceServiceCache } from '@/utils/googleMaps'
+import { notifyActorsOnAssignment, notifyDriverOnAddressChange } from '@/utils/whatsappNotification'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -1129,8 +1130,43 @@ const onSubmit = async () => {
           const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
           alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
         },
-      })
+        async onResponse({ response }) {
+          let updatedDelivery = response._data?.data || response._data
+          
+          // Forcer le rechargement de la livraison complète depuis l'API pour récupérer les relations (ex: téléphones des utilisateurs)
+          if (updatedDelivery && updatedDelivery.id) {
+            try {
+              console.log('Fetching complete delivery info for WhatsApp...')
+              const completeRes = await $api(`/deliveries/${updatedDelivery.id}`)
+              updatedDelivery = completeRes?.data || completeRes || updatedDelivery
+            } catch (e) {
+              console.warn('Could not fetch complete delivery details', e)
+            }
+          }
 
+          // Vérifier si un nouveau livreur a été assigné (passage de null à driver_id, ou changement de driver)
+          const oldDriverId = initialDeliveryState.value.driver_id
+          const newDriverId = payload.driver_id
+
+          const isNewlyAssigned = newDriverId && oldDriverId !== newDriverId
+          
+          if (isNewlyAssigned && updatedDelivery) {
+            // Un livreur vient d'être (ré)assigné -> on prévient les 3 acteurs
+            await notifyActorsOnAssignment(updatedDelivery, t)
+          } else if (newDriverId && oldDriverId === newDriverId) {
+            // Le livreur est le même, mais on vérifie si l'adresse a changé
+            const oldPickup = initialDeliveryState.value.pickup_location
+            const newPickup = payload.pickup_location
+            const oldDropoff = initialDeliveryState.value.dropoff_location
+            const newDropoff = payload.dropoff_location
+            
+            if (oldPickup !== newPickup || oldDropoff !== newDropoff) {
+               // Seulement l'adresse a changée, notifier le livreur
+               await notifyDriverOnAddressChange(updatedDelivery, t)
+            }
+          }
+        },
+      })
       emit('deliveryUpdated')
     } else {
       // Create new delivery
@@ -1148,6 +1184,25 @@ const onSubmit = async () => {
           const errorMessage = response._data?.message || t('Error creating delivery')
           const errorDetails = response._data?.errors ? Object.values(response._data.errors).flat().join(', ') : ''
           alert(`${errorMessage}${errorDetails ? `\n${errorDetails}` : ''}`)
+        },
+        async onResponse({ response }) {
+          let newDelivery = response._data?.data || response._data
+
+          // Forcer le rechargement de la livraison complète depuis l'API pour récupérer les relations (ex: téléphones des utilisateurs)
+          if (newDelivery && newDelivery.id) {
+            try {
+              console.log('Fetching complete delivery info for WhatsApp...')
+              const completeRes = await $api(`/deliveries/${newDelivery.id}`)
+              newDelivery = completeRes?.data || completeRes || newDelivery
+            } catch (e) {
+              console.warn('Could not fetch complete delivery details', e)
+            }
+          }
+
+          // If a driver was assigned right upon creation, notify the actors
+          if (payload.driver_id && newDelivery) {
+            await notifyActorsOnAssignment(newDelivery, t)
+          }
         },
       })
 
@@ -1289,7 +1344,21 @@ const loadDeliveryData = () => {
       duration: 'N/A',
     }
   }
+
+  // Stocker l'état initial pour détecter les changements (Ex: assignation de driver ou changement d'adresse)
+  initialDeliveryState.value = {
+    driver_id: form.value.driver_id,
+    pickup_location: form.value.pickup_location,
+    dropoff_location: form.value.dropoff_location,
+  }
 }
+
+// Variable to store the initial state of the delivery being edited
+const initialDeliveryState = ref({
+  driver_id: null,
+  pickup_location: '',
+  dropoff_location: '',
+})
 
 // Helper function to normalize URL from location object
 const normalizeUrl = obj => {

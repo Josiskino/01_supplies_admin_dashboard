@@ -372,6 +372,9 @@
     "useBusinessDeveloperStats": true,
     "exportToExcel": true,
     "generateCombinedMapLink": true,
-    "useDriverTurnover": true
+    "useDriverTurnover": true,
+    "notifyActorsOnAssignment": true,
+    "notifyDriverOnAddressChange": true,
+    "sendWhatsAppMessage": true
   }
 }

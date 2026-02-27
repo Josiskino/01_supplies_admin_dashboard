@@ -2,6 +2,7 @@
 /* eslint-disable camelcase */
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
 import { generateCombinedMapLink } from '@/utils/googleMaps'
+import { notifyActorsOnAssignment } from '@/utils/whatsappNotification'
 import { useI18n } from 'vue-i18n'
 import DeliveryAddDialog from './add.vue'
 import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
@@ -507,101 +508,23 @@ const formatLocationLink = location => {
   return null
 }
 
-const openWhatsApp = delivery => {
+// Action WhatsApp manuelle de secours (pour administrateurs)
+const isSendingWhatsApp = ref(false)
+const triggerManualWhatsApp = async (delivery) => {
   try {
-    // Check if driver has a phone number
-    if (!delivery?.driver?.phone) {
-      alert(t('Driver phone number is not available') || 'Le numéro de téléphone du livreur n\'est pas disponible')
-
+    if (!delivery?.driver?.id) {
+      alert(t('Driver is not assigned') || 'Aucun livreur n\'est assigné à cette livraison.')
       return
     }
-
-    // Requester = entity who requested the delivery (partner or customer)
-    // Recipient = entity who receives the delivery (partner or customer)
-
-    // Get requester name & phone from new JSON structure (with fallback)
-    const requesterObj = delivery?.requester || delivery?.partner || delivery?.customer
-    let requesterName =
-      delivery?.requester_name ||
-      requesterObj?.full_name ||
-      requesterObj?.name ||
-      (requesterObj ? `${requesterObj.first_name || ''} ${requesterObj.last_name || ''}`.trim() : '') ||
-      '—'
-
-    let requesterPhone = requesterObj?.phone || requesterObj?.contact_phone || requesterObj?.phone_number || ''
-
-    // Get recipient name & phone from new JSON structure (with fallback)
-    const recipientObj = delivery?.recipient || delivery?.customer
-    let recipientName =
-      delivery?.recipient_name ||
-      recipientObj?.full_name ||
-      recipientObj?.name ||
-      (recipientObj ? `${recipientObj.first_name || ''} ${recipientObj.last_name || ''}`.trim() : '') ||
-      '—'
-
-    let recipientPhone = recipientObj?.phone || recipientObj?.contact_phone || recipientObj?.phone_number || ''
-
-    // Get locations and format as links
-    const pickupLocation = formatLocationLink(delivery?.pickup_location)
-    const dropoffLocation = formatLocationLink(delivery?.dropoff_location)
-
-    // Get price
-    const price = delivery?.price ? formatPrice(delivery.price) : t('Not specified') || 'Non spécifié'
-
-    // Build WhatsApp message with emojis
-    let message = `🚚 *Nouvelle livraison*\n\n`
-    message += `📍 *${t('Requester') || 'Demandeur'}:* ${requesterName}`
-    if (requesterPhone) {
-      message += `\n📞 Tél: ${requesterPhone}`
-    }
-    message += `\n`
-    message += `👤 *${t('Recipient') || 'Destinataire'}:* ${recipientName}`
-    if (recipientPhone) {
-      message += `\n📞 Tél: ${recipientPhone}`
-    }
-    message += `\n\n`
-
-    if (pickupLocation) {
-      message += `📦 *Point de collecte:*\n${pickupLocation}\n\n`
-    } else {
-      message += `📦 *Point de collecte:* ${delivery?.pickup_location || t('Not specified') || 'Non spécifié'}\n\n`
-    }
-
-    if (dropoffLocation) {
-      message += `🏠 *Point de livraison:*\n${dropoffLocation}\n\n`
-    } else {
-      message += `🏠 *Point de livraison:* ${delivery?.dropoff_location || t('Not specified') || 'Non spécifié'}\n\n`
-    }
-
-    message += `💰 *Prix:* ${price}\n`
-
-    // Clean phone number (remove spaces, dashes, etc.)
-    const phoneNumber = delivery.driver.phone.replace(/[\s\-()]/g, '')
-
-    // Remove leading + if present, WhatsApp API needs number without +
-    const cleanPhone = phoneNumber.startsWith('+') ? phoneNumber.substring(1) : phoneNumber
-
-    // Encode message for URL
-    const encodedMessage = encodeURIComponent(message)
-
-    // Build WhatsApp URL
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`
-
-    // Add combined route link if possible
-    const combinedMapLink = generateCombinedMapLink(delivery?.pickup_location, delivery?.dropoff_location)
-    if (combinedMapLink && combinedMapLink !== 'https://www.google.com/maps') {
-      const extraMsg = `\n\n🛤 *Itinéraire complet:* \n${combinedMapLink}`
-      const finalEncodedMessage = encodeURIComponent(message + extraMsg)
-      const finalWhatsappUrl = `https://wa.me/${cleanPhone}?text=${finalEncodedMessage}`
-      window.open(finalWhatsappUrl, '_blank')
-      return
-    }
-
-    // Open WhatsApp in new tab
-    window.open(whatsappUrl, '_blank')
+    isSendingWhatsApp.value = true
+    await notifyActorsOnAssignment(delivery, t)
+    successSnackText.value = t('WhatsApp messages sent successfully') || 'Messages WhatsApp de secours envoyés !'
+    isSuccessSnackVisible.value = true
   } catch (error) {
-    console.error('Error opening WhatsApp:', error)
-    alert(t('Error opening WhatsApp. Please try again.') || 'Erreur lors de l\'ouverture de WhatsApp. Veuillez réessayer.')
+    console.error('Manual WhatsApp Error:', error)
+    alert(t('Error sending WhatsApp messages.') || 'Erreur lors de l\'envoi manuel WhatsApp.')
+  } finally {
+    isSendingWhatsApp.value = false
   }
 }
 
@@ -1134,12 +1057,14 @@ const openRoute = (pickup, dropoff) => {
               </IconBtn>
 
               <IconBtn
+                v-if="isAdministrator"
                 color="success"
-                @click.stop="openWhatsApp(item)"
+                :loading="isSendingWhatsApp"
+                @click.stop="triggerManualWhatsApp(item)"
               >
                 <VIcon icon="tabler-brand-whatsapp" />
                 <VTooltip activator="parent">
-                  {{ $t('WhatsApp') || 'WhatsApp' }}
+                  {{ $t('Send WhatsApp manually') || 'Notifications WhatsApp (Manuel)' }}
                 </VTooltip>
               </IconBtn>
 
