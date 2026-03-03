@@ -51,6 +51,23 @@ const isIntern = computed(() => {
   return normalizedRole === 'stagiaire'
 })
 
+const isLogisticien = computed(() => {
+  const userData = useCookie('userData').value
+  if (!userData) {
+    return false
+  }
+
+  const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
+  if (!role) {
+    return false
+  }
+
+  const normalizedRole = role.toString().trim().toLowerCase()
+  return normalizedRole === 'logisticien'
+})
+
+const canEditDelivery = computed(() => !isIntern.value && !isLogisticien.value)
+
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Num. Comm.'), key: 'order_number', sortable: false, width: '160px' },
@@ -1047,7 +1064,10 @@ const openRoute = (pickup, dropoff) => {
                 </VTooltip>
               </IconBtn>
 
-              <IconBtn @click.stop="editDelivery(item)">
+              <IconBtn
+                v-if="canEditDelivery"
+                @click.stop="editDelivery(item)"
+              >
                 <VIcon icon="tabler-pencil" />
                 <VTooltip activator="parent">
                   {{ $t('Edit Delivery') }}
