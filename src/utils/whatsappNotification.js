@@ -79,11 +79,13 @@ export async function notifyActorsOnAssignment(delivery, t) {
   const pickupLocation = formatLocation(delivery?.pickup_location)
   const dropoffLocation = formatLocation(delivery?.dropoff_location)
 
+  const orderNumber = delivery?.order_number || null
   const promises = []
 
-  // 1. Message pour le Livreur (format complet)
+  // 1. Message pour le Livreur
   if (driverPhone) {
-    let driverMessage = `🚚 *Nouvelle livraison*\n\n`
+    let driverMessage = `🚚 *NOUVELLE LIVRAISON ASSIGNÉE*\n\n`
+    if (orderNumber) driverMessage += `🔖 *Réf:* ${orderNumber}\n\n`
     driverMessage += `📍 *${t('Requester') || 'Demandeur'}:* ${requesterName}`
     if (requesterPhone) driverMessage += `\n📞 Tél: ${requesterPhone}`
     driverMessage += `\n`
@@ -93,18 +95,21 @@ export async function notifyActorsOnAssignment(delivery, t) {
     driverMessage += `📦 *Point de collecte:*\n${pickupLocation}\n\n`
     driverMessage += `🏠 *Point de livraison:*\n${dropoffLocation}\n\n`
     driverMessage += `💰 *Prix:* ${price}\n`
-    
-    // Possibilité d'ajouter le lien map combiné si on a les coordonnées, sinon on prend l'adresse
-    
+    driverMessage += `\nMerci pour votre service ! 🚀`
+
     promises.push(sendWhatsAppMessage(driverPhone, driverMessage))
   }
 
   // 2. Message pour le Demandeur
   if (requesterPhone) {
-    let requesterMessage = `🚚 *Nouvelle livraison validée*\nVotre livraison a été assignée.\n`
-    requesterMessage += `👤 *Livreur:* ${driverName}\n`
-    requesterMessage += `📞 *Téléphone:* ${driverPhone}\n`
-    requesterMessage += `💰 *Prix:* ${price}`
+    let requesterMessage = `✅ *VOTRE LIVRAISON EST CONFIRMÉE*\n\n`
+    if (orderNumber) requesterMessage += `🔖 *Votre numéro de commande:* ${orderNumber}\n\n`
+    requesterMessage += `🚚 *Livreur assigné:* ${driverName}\n`
+    if (driverPhone) requesterMessage += `📞 *Téléphone:* ${driverPhone}\n`
+    requesterMessage += `\n📍 *Ramassage:* ${pickupLocation}\n`
+    requesterMessage += `🎯 *Destination:* ${dropoffLocation}\n`
+    requesterMessage += `\n💰 *Prix:* ${price}\n`
+    requesterMessage += `\nConservez votre numéro de commande pour tout suivi. 📋`
 
     promises.push(sendWhatsAppMessage(requesterPhone, requesterMessage))
   }
@@ -113,9 +118,11 @@ export async function notifyActorsOnAssignment(delivery, t) {
   if (recipientPhone) {
     const hour = new Date().getHours()
     const greeting = hour < 18 ? 'Bonjour' : 'Bonsoir'
-    let recipientMessage = `${greeting} 👋,\n\n📦 *Prise en charge de votre colis*\nUn livreur a été assigné pour récupérer et vous apporter votre colis.\n\n`
-    recipientMessage += `👤 *Livreur:* ${driverName}\n`
-    recipientMessage += `📞 *Téléphone:* ${driverPhone}\n`
+    let recipientMessage = `${greeting} 👋\n\n`
+    recipientMessage += `📦 *UNE LIVRAISON A ÉTÉ ENREGISTRÉE POUR VOUS*\n\n`
+    if (orderNumber) recipientMessage += `🔖 *Numéro de commande:* ${orderNumber}\n\n`
+    if (requesterName && requesterName !== '—') recipientMessage += `📍 *Expédié par:* ${requesterName}\n`
+    recipientMessage += `\nUn livreur passera vous déposer votre commande prochainement. 🙏`
 
     promises.push(sendWhatsAppMessage(recipientPhone, recipientMessage))
   }
