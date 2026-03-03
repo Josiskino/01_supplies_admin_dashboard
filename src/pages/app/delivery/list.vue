@@ -66,7 +66,7 @@ const isLogisticien = computed(() => {
   return normalizedRole === 'logisticien'
 })
 
-const canEditDelivery = computed(() => !isIntern.value && !isLogisticien.value)
+const canEditDelivery = computed(() => !isIntern.value)
 
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
