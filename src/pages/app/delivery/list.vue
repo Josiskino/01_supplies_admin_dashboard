@@ -53,6 +53,7 @@ const isIntern = computed(() => {
 
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
+  { title: t('Num. Comm.'), key: 'order_number', sortable: false, width: '160px' },
   { title: t('Created At'), key: 'created_at' },
   { title: t('Requester'), key: 'requester' },
   { title: t('Recipient'), key: 'recipient' },
@@ -824,6 +825,13 @@ const openRoute = (pickup, dropoff) => {
           <template #item.index="{ index }">
             <span class="text-high-emphasis font-weight-medium">
               {{ (page - 1) * itemsPerPage + index + 1 }}
+            </span>
+          </template>
+
+          <!-- Order Number -->
+          <template #item.order_number="{ item }">
+            <span class="text-mono text-sm text-medium-emphasis">
+              {{ item.order_number ?? '—' }}
             </span>
           </template>
 
