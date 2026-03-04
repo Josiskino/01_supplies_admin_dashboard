@@ -4,6 +4,20 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
+const ability = useAbility()
+const isAdministrator = computed(() => {
+  const userData = useCookie('userData').value
+  if (!userData) return false
+  const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
+  if (!role) return false
+  const normalizedRole = role.toString().trim().toLowerCase()
+  return ['administrator', 'admin', 'super admin', 'superadmin', 'super-admin'].includes(normalizedRole)
+})
+
+const canViewBusinessStats = computed(() => {
+  return isAdministrator.value || ability.can('view', 'business')
+})
+
 const selectedDriverId = ref(null)
 const selectedDate = ref(new Date().toISOString().slice(0, 10)) // Today by default
 const isLoading = ref(false)
@@ -286,6 +300,7 @@ onMounted(() => {
       </VCol>
 
       <VCol
+        v-if="canViewBusinessStats"
         cols="12"
         sm="6"
         md="3"

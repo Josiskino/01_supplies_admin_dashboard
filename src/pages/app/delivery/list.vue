@@ -68,6 +68,11 @@ const isLogisticien = computed(() => {
 
 const canEditDelivery = computed(() => !isIntern.value)
 
+const ability = useAbility()
+const canViewBusinessStats = computed(() => {
+  return isAdministrator.value || ability.can('view', 'business')
+})
+
 const headers = computed(() => [
   { title: '#', key: 'index', sortable: false, width: '60px' },
   { title: t('Num. Comm.'), key: 'order_number', sortable: false, width: '160px' },
@@ -663,6 +668,7 @@ const openRoute = (pickup, dropoff) => {
 
       <!-- Total Amount Today -->
       <VCol
+        v-if="canViewBusinessStats"
         cols="12"
         md="4"
       >

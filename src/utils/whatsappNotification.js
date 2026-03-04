@@ -72,8 +72,8 @@ export async function notifyActorsOnAssignment(delivery, t) {
   const formatLocation = (loc) => {
     let locStr = loc?.url || loc?.address || loc || ''
     if (typeof locStr !== 'string' || !locStr) return t('Not specified') || 'Non spécifié'
-    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return locStr
-    return `${locStr}\n🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
+    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return `🗺️ ${locStr}`
+    return `🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
   }
 
   const pickupLocation = formatLocation(delivery?.pickup_location)
@@ -106,10 +106,7 @@ export async function notifyActorsOnAssignment(delivery, t) {
     if (orderNumber) requesterMessage += `🔖 *Votre numéro de commande:* ${orderNumber}\n\n`
     requesterMessage += `🚚 *Livreur assigné:* ${driverName}\n`
     if (driverPhone) requesterMessage += `📞 *Téléphone:* ${driverPhone}\n`
-    requesterMessage += `\n📍 *Ramassage:* ${pickupLocation}\n`
-    requesterMessage += `🎯 *Destination:* ${dropoffLocation}\n`
     requesterMessage += `\n💰 *Prix:* ${price}\n`
-    requesterMessage += `\nConservez votre numéro de commande pour tout suivi. 📋`
 
     promises.push(sendWhatsAppMessage(requesterPhone, requesterMessage))
   }
@@ -163,8 +160,8 @@ export async function notifyDriverOnAddressChange(delivery, t) {
   const formatLocation = (loc) => {
     let locStr = loc?.url || loc?.address || loc || ''
     if (typeof locStr !== 'string' || !locStr) return t('Not specified') || 'Non spécifié'
-    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return locStr
-    return `${locStr}\n🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
+    if (locStr.startsWith('http://') || locStr.startsWith('https://')) return `🗺️ ${locStr}`
+    return `🗺️ https://www.google.com/maps?q=${encodeURIComponent(locStr)}`
   }
 
   const pickupLocation = formatLocation(delivery?.pickup_location)
