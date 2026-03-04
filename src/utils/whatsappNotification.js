@@ -118,7 +118,9 @@ export async function notifyActorsOnAssignment(delivery, t) {
     let recipientMessage = `${greeting} 👋\n\n`
     recipientMessage += `📦 *UNE LIVRAISON A ÉTÉ ENREGISTRÉE POUR VOUS*\n\n`
     if (orderNumber) recipientMessage += `🔖 *Numéro de commande:* ${orderNumber}\n\n`
-    if (requesterName && requesterName !== '—') recipientMessage += `📍 *Expédié par:* ${requesterName}\n`
+    if (requesterName && requesterName !== '—') recipientMessage += `📍 *Expédié par:* ${requesterName}\n\n`
+    recipientMessage += `🚚 *Livreur assigné:* ${driverName}\n`
+    if (driverPhone) recipientMessage += `📞 *Téléphone:* ${driverPhone}\n`
     recipientMessage += `\nUn livreur passera vous déposer votre commande prochainement. 🙏`
 
     promises.push(sendWhatsAppMessage(recipientPhone, recipientMessage))
