@@ -106,6 +106,8 @@ export async function notifyActorsOnAssignment(delivery, t) {
     if (orderNumber) requesterMessage += `🔖 *Votre numéro de commande:* ${orderNumber}\n\n`
     requesterMessage += `🚚 *Livreur assigné:* ${driverName}\n`
     if (driverPhone) requesterMessage += `📞 *Téléphone:* ${driverPhone}\n`
+    requesterMessage += `\n👤 *Destinataire:* ${recipientName}\n`
+    if (recipientPhone) requesterMessage += `📞 *Téléphone:* ${recipientPhone}\n`
     requesterMessage += `\n💰 *Prix:* ${price}\n`
 
     promises.push(sendWhatsAppMessage(requesterPhone, requesterMessage))
