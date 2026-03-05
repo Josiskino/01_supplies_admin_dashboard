@@ -70,7 +70,7 @@ const canEditDelivery = computed(() => !isIntern.value)
 
 const ability = useAbility()
 const canViewBusinessStats = computed(() => {
-  return isAdministrator.value || ability.can('view', 'business')
+  return isAdministrator.value || isLogisticien.value || ability.can('view', 'business')
 })
 
 const headers = computed(() => [
