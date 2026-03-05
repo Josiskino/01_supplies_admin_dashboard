@@ -44,7 +44,17 @@ const tableHeaders = computed(() => [
   { title: t('Settlements Count'), key: 'settlements_count', align: 'center' },
   { title: t('Total Global Turnover'), key: 'total_turnover', align: 'end' },
   { title: `${t('Commission')} (${(commissionRate.value * 100).toFixed(1)}%)`, key: 'commission_amount', align: 'end' },
+  { title: 'Carb.', key: 'fuel_expense', align: 'end' },
 ])
+
+// Color for fuel expense based on ratio to turnover
+// ≤ 30% → success (green), 30-40% → warning (orange), > 40% → error (red)
+const fuelColor = (item) => {
+  if (!item.fuel_ratio) return 'default'
+  if (item.fuel_ratio <= 0.30) return 'success'
+  if (item.fuel_ratio <= 0.40) return 'warning'
+  return 'error'
+}
 
 // Format price helper
 const formatPrice = value => {
@@ -339,6 +349,24 @@ onMounted(() => {
           >
             {{ formatPrice(item.commission_amount) }}
           </VChip>
+        </template>
+
+        <!-- Fuel Expense Column -->
+        <template #item.fuel_expense="{ item }">
+          <VChip
+            :color="fuelColor(item)"
+            variant="tonal"
+            size="small"
+            class="font-weight-bold"
+          >
+            {{ formatPrice(item.fuel_expense) }}
+          </VChip>
+          <div
+            v-if="item.fuel_ratio != null"
+            class="text-xs text-medium-emphasis text-right mt-1"
+          >
+            {{ (item.fuel_ratio * 100).toFixed(1) }}%
+          </div>
         </template>
 
         <!-- No Data -->
