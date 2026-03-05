@@ -5,12 +5,10 @@ import AddEditExpenseDialog from './add-edit-dialog.vue'
 
 const { t } = useI18n()
 
-// Selected driver or 'company' for company expenses
-const selectedView = ref('company') // 'company' or driver ID
-
 // Filters
 const selectedCategoryId = ref('')
 const searchQuery = ref('')
+const driverNameSearch = ref('')
 const dateFrom = ref(null)
 const dateTo = ref(null)
 
@@ -33,7 +31,6 @@ const selectedExpense = ref(null)
 // Categories and drivers for filters
 const categories = ref([])
 const drivers = ref([])
-const isLoadingDrivers = ref(false)
 
 // Headers for expenses table
 const headers = computed(() => [
@@ -47,7 +44,7 @@ const headers = computed(() => [
   { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '120px' },
 ])
 
-// Statistics - Current view (filtered by selected driver/company and dates)
+// Statistics - Total of current filtered results
 const currentViewTotal = computed(() => {
   return expenses.value.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
 })
@@ -59,25 +56,9 @@ const companyExpensesTotal = computed(() => {
     .reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
 })
 
-// Statistics - All driver expenses for selected driver (without date filters)
-const selectedDriverExpensesTotal = computed(() => {
-  if (selectedView.value === 'company') return 0
-  const driverId = parseInt(selectedView.value)
-  return allExpenses.value
-    .filter(e => e.expense_type === 'driver' && e.driver?.id === driverId)
-    .reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
-})
-
 // Statistics - Global total (all expenses)
 const globalTotal = computed(() => {
   return allExpenses.value.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
-})
-
-// Get selected driver name
-const selectedDriverName = computed(() => {
-  if (selectedView.value === 'company') return null
-  const driver = drivers.value.find(d => d.value === parseInt(selectedView.value))
-  return driver?.title || t('Unknown') || 'Inconnu'
 })
 
 // Fetch all expenses for statistics (without filters)
@@ -109,12 +90,8 @@ const fetchExpenses = async () => {
       page: page.value,
     }
 
-    // Filter by expense type based on selected view
-    if (selectedView.value === 'company') {
-      queryParams.expense_type = 'general'
-    } else {
-      queryParams.expense_type = 'driver'
-      queryParams.driver_id = selectedView.value
+    if (driverNameSearch.value) {
+      queryParams.driver_name = driverNameSearch.value
     }
 
     if (selectedCategoryId.value) {
@@ -187,9 +164,8 @@ const fetchCategories = async () => {
   }
 }
 
-// Fetch drivers
+// Fetch drivers (needed for add/edit dialog)
 const fetchDrivers = async () => {
-  isLoadingDrivers.value = true
   try {
     const response = await $api('/drivers?per_page=100', {
       method: 'GET',
@@ -205,21 +181,11 @@ const fetchDrivers = async () => {
     drivers.value = driversList.map(driver => ({
       title: `${driver.first_name || ''} ${driver.last_name || ''}`.trim() || t('N/A'),
       value: driver.id,
-      driver: driver, // Keep full driver object for statistics
     }))
   } catch (error) {
     console.error('Error fetching drivers:', error)
     drivers.value = []
-  } finally {
-    isLoadingDrivers.value = false
   }
-}
-
-// Select view (driver or company)
-const selectView = (view) => {
-  selectedView.value = view
-  page.value = 1
-  fetchExpenses()
 }
 
 // Format price
@@ -258,14 +224,6 @@ const formatDate = value => {
   }
 }
 
-// Get driver expenses total for a specific driver
-const getDriverExpensesTotal = (driverId) => {
-  const id = typeof driverId === 'string' ? parseInt(driverId) : driverId
-  return allExpenses.value
-    .filter(e => e.expense_type === 'driver' && e.driver?.id === id)
-    .reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
-}
-
 // Open add dialog
 const openAddDialog = () => {
   selectedExpense.value = null
@@ -299,7 +257,7 @@ const deleteExpense = async expense => {
 }
 
 // Watch for changes and refetch
-watch([selectedCategoryId, searchQuery, dateFrom, dateTo, itemsPerPage, selectedView], () => {
+watch([selectedCategoryId, searchQuery, driverNameSearch, dateFrom, dateTo, itemsPerPage], () => {
   page.value = 1
   fetchExpenses()
 })
@@ -351,44 +309,37 @@ onMounted(() => {
       <VCardText>
         <!-- Statistics -->
         <VRow class="mb-6">
-          <!-- Selected Driver/Company Expenses (Current View) -->
+          <!-- Filtered Results Total -->
           <VCol
             cols="12"
             md="4"
           >
             <VCard
-              :color="selectedView === 'company' ? 'secondary' : 'primary'"
+              color="primary"
               variant="tonal"
               class="h-100"
             >
               <VCardText class="d-flex align-center justify-space-between h-100">
                 <div class="flex-grow-1">
                   <div class="text-sm text-medium-emphasis">
-                    {{ selectedView === 'company' 
-                      ? ($t('Company Expenses') || 'Dépenses société')
-                      : ($t('Driver Expenses') || 'Dépenses livreur') + ': ' + selectedDriverName }}
+                    {{ $t('Filtered Results') || 'Résultats filtrés' }}
                   </div>
                   <div class="text-h4 font-weight-medium mt-1">
                     {{ formatPrice(currentViewTotal) }}
                   </div>
-                  <div
-                    class="text-xs text-medium-emphasis mt-1"
-                    :style="{ minHeight: '16px' }"
-                  >
-                    <span v-if="dateFrom || dateTo">
-                      {{ $t('Filtered period') || 'Période filtrée' }}
-                    </span>
-                    <span v-else>&nbsp;</span>
+                  <div class="text-xs text-medium-emphasis mt-1">
+                    <span v-if="dateFrom || dateTo">{{ $t('Filtered period') || 'Période filtrée' }}</span>
+                    <span v-else>{{ $t('Current page') || 'Page actuelle' }}</span>
                   </div>
                 </div>
                 <VAvatar
-                  :color="selectedView === 'company' ? 'secondary' : 'primary'"
+                  color="primary"
                   variant="tonal"
                   size="56"
                   class="ms-2"
                 >
                   <VIcon
-                    :icon="selectedView === 'company' ? 'tabler-building' : 'tabler-user'"
+                    icon="tabler-receipt"
                     size="28"
                   />
                 </VAvatar>
@@ -471,58 +422,22 @@ onMounted(() => {
           </VCol>
         </VRow>
 
-        <!-- Drivers List -->
-        <VCard
-          variant="outlined"
-          class="mb-4"
-        >
-          <VCardTitle class="text-sm pb-2">
-            {{ $t('Select View') || 'Sélectionner une vue' }}
-          </VCardTitle>
-          <VCardText>
-            <div class="d-flex flex-wrap gap-2">
-              <!-- Company Button -->
-              <VBtn
-                :color="selectedView === 'company' ? 'primary' : 'default'"
-                :variant="selectedView === 'company' ? 'flat' : 'outlined'"
-                prepend-icon="tabler-building"
-                @click="selectView('company')"
-              >
-                {{ $t('Company Expenses') || 'Dépenses société' }}
-                <VChip
-                  v-if="companyExpensesTotal > 0"
-                  size="x-small"
-                  class="ms-2"
-                >
-                  {{ formatPrice(companyExpensesTotal) }}
-                </VChip>
-              </VBtn>
-
-              <!-- Drivers Buttons -->
-              <VBtn
-                v-for="driver in drivers"
-                :key="driver.value"
-                :color="selectedView === String(driver.value) ? 'primary' : 'default'"
-                :variant="selectedView === String(driver.value) ? 'flat' : 'outlined'"
-                :loading="isLoadingDrivers"
-                prepend-icon="tabler-user"
-                @click="selectView(String(driver.value))"
-              >
-                {{ driver.title }}
-                <VChip
-                  v-if="getDriverExpensesTotal(driver.value) > 0"
-                  size="x-small"
-                  class="ms-2"
-                >
-                  {{ formatPrice(getDriverExpensesTotal(driver.value)) }}
-                </VChip>
-              </VBtn>
-            </div>
-          </VCardText>
-        </VCard>
-
         <!-- Filters -->
         <VRow class="mb-4">
+          <VCol
+            cols="12"
+            sm="6"
+            md="3"
+          >
+            <AppTextField
+              v-model="driverNameSearch"
+              :label="$t('Driver') || 'Livreur'"
+              :placeholder="$t('Filter by driver name') || 'Filtrer par nom de livreur'"
+              clearable
+              prepend-inner-icon="tabler-user"
+            />
+          </VCol>
+
           <VCol
             cols="12"
             sm="6"
@@ -563,20 +478,6 @@ onMounted(() => {
               :placeholder="$t('Date to')"
               :config="{ dateFormat: 'Y-m-d' }"
               clearable
-            />
-          </VCol>
-
-          <VCol
-            cols="12"
-            sm="6"
-            md="3"
-          >
-            <AppTextField
-              v-model="searchQuery"
-              :label="$t('Search')"
-              :placeholder="($t('Search...') || 'Rechercher...')"
-              clearable
-              prepend-inner-icon="tabler-search"
             />
           </VCol>
         </VRow>
