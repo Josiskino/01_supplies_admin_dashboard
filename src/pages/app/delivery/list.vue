@@ -388,7 +388,8 @@ const handleOrderUpdate = (updatedOrder, customMessage = null) => {
     total.value++
     
     summary.value.today_total_deliveries++
-    
+    summary.value.today_total_amount += parseFloat(updatedOrder.price || 0)
+
     const statusText = finalMessage || resolvedLabel || 'Reçue'
     successSnackText.value = `Nouvelle livraison #${updatedOrder.numero || updatedOrder.id} : ${statusText}`
     isSuccessSnackVisible.value = true
