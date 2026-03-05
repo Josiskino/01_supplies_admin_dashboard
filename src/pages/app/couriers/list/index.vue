@@ -1,6 +1,7 @@
 <script setup>
 import { useStatusManagement } from '@/composables/useStatusManagement'
 import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
+import { echo } from '@/plugins/echo'
 import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 
@@ -164,6 +165,24 @@ watch(page, () => {
 // Call on mount
 onMounted(() => {
   fetchDrivers()
+
+  echo.channel('driver-turnover')
+    .listen('.DriverTurnoverUpdated', (event) => {
+      console.log('Driver turnover update (List):', event)
+      if (drivers.value && event.driver_id) {
+        const driverIndex = drivers.value.findIndex(d => d.id === event.driver_id)
+        if (driverIndex !== -1 && event.data) {
+          // Update deliveries count and potentially other data if added later
+          if (event.data.deliveries_count !== undefined) {
+            drivers.value[driverIndex].deliveries_count = event.data.deliveries_count
+          }
+        }
+      }
+    })
+})
+
+onUnmounted(() => {
+  echo.leave('driver-turnover')
 })
 
 // 👉 search filters

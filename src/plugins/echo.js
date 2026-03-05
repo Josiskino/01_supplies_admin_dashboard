@@ -8,7 +8,6 @@ export const echo = new Echo({
   key: import.meta.env.VITE_PUSHER_APP_KEY,
   cluster: import.meta.env.VITE_PUSHER_APP_CLUSTER,
   forceTLS: import.meta.env.VITE_PUSHER_SCHEME === 'https',
-  encrypted: true,
 })
 
 export default function (app) {

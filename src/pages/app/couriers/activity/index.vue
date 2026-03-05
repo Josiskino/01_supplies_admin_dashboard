@@ -1,5 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
+import { echo } from '@/plugins/echo'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -217,6 +218,19 @@ watch([selectedDriverId, selectedDate], () => {
 // Load on mount
 onMounted(() => {
   fetchDrivers()
+
+  echo.channel('driver-turnover')
+    .listen('.DriverTurnoverUpdated', (event) => {
+      console.log('Driver turnover update (Activity):', event)
+      // If the update concerns the currently selected driver, refetch activity
+      if (event.driver_id && selectedDriverId.value === event.driver_id) {
+        fetchDriverActivity()
+      }
+    })
+})
+
+onUnmounted(() => {
+  echo.leave('driver-turnover')
 })
 </script>
 
