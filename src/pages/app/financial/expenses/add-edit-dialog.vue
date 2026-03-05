@@ -167,6 +167,14 @@ const expenseTypeOptions = computed(() => [
   { title: t('Driver Expense') || 'Dépense livreur', value: 'driver' },
 ])
 
+// For driver expenses, only show the "Carburant" category
+const availableCategories = computed(() => {
+  if (form.value.expense_type !== 'driver') return expenseCategories.value
+  return expenseCategories.value.filter(c =>
+    (c.title || '').toLowerCase().includes('carburant')
+  )
+})
+
 // Filtered drivers based on search
 const filteredDrivers = computed(() => {
   if (!driverSearch.value) {
@@ -235,11 +243,17 @@ watch(() => props.expense, (newExpense, oldExpense) => {
   }
 }, { immediate: false })
 
-// Reset driver_id when expense_type changes to general
+// Reset driver_id when expense_type changes to general; auto-select Carburant for driver
 watch(() => form.value.expense_type, newType => {
   if (newType === 'general') {
     form.value.driver_id = null
     driverSearch.value = ''
+    form.value.category_id = null
+  } else if (newType === 'driver') {
+    const carburant = expenseCategories.value.find(c =>
+      (c.title || '').toLowerCase().includes('carburant')
+    )
+    form.value.category_id = carburant?.value ?? null
   }
 })
 
@@ -513,7 +527,7 @@ watch(dialogVisible, newVal => {
             >
               <AppSelect
                 v-model="form.category_id"
-                :items="expenseCategories"
+                :items="availableCategories"
                 :loading="isLoadingCategories"
                 :label="$t('Category') || 'Catégorie'"
                 :placeholder="$t('Select category (optional)') || 'Sélectionner une catégorie (optionnel)'"
