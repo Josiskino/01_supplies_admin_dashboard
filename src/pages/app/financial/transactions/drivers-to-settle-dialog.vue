@@ -19,7 +19,14 @@ const dialogVisible = computed({
   set: val => emit('update:isDialogVisible', val),
 })
 
-const selectedDate = ref(new Date().toISOString().slice(0, 10))
+// Utiliser la date locale (pas UTC) pour éviter le décalage d'un jour en UTC+1
+const getLocalDateString = () => {
+  const today = new Date()
+
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+const selectedDate = ref(getLocalDateString())
 const isLoading = ref(false)
 const isSettlementDialogOpen = ref(false)
 const selectedDriverForSettlement = ref(null)
@@ -128,7 +135,7 @@ watch([selectedDate], () => {
 watch(dialogVisible, newVal => {
   if (newVal) {
     // Reset date to today's date
-    selectedDate.value = new Date().toISOString().slice(0, 10)
+    selectedDate.value = getLocalDateString()
     // Fetch drivers to settle with today's date
     fetchDriversToSettle()
   }

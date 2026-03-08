@@ -17,6 +17,13 @@ const props = defineProps({
 
 const emit = defineEmits(['update:isDialogVisible', 'settlementUpdated'])
 
+// Utiliser la date locale (pas UTC) pour éviter le décalage d'un jour en UTC+1
+const getLocalDateString = () => {
+  const today = new Date()
+
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
 const dialogVisible = computed({
   get: () => props.isDialogVisible,
   set: val => emit('update:isDialogVisible', val),
@@ -176,7 +183,7 @@ const addExpense = () => {
     description: newExpense.value.description || '',
     amount: parseFloat(newExpense.value.amount),
     category_id: newExpense.value.category_id,
-    expense_date: newExpense.value.expense_date || new Date().toISOString().slice(0, 10),
+    expense_date: newExpense.value.expense_date || getLocalDateString(),
   })
 
   // Reset new expense form

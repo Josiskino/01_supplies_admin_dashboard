@@ -15,7 +15,12 @@ const props = defineProps({
   },
   paymentDate: {
     type: String,
-    default: () => new Date().toISOString().slice(0, 10),
+    // Utiliser la date locale (pas UTC) pour éviter le décalage d'un jour en UTC+1
+    default: () => {
+      const today = new Date()
+
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    },
   },
 })
 
