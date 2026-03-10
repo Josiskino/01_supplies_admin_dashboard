@@ -70,9 +70,16 @@ const allNavItems = [
     to: 'statistics',
     roles: ['Business Developer'],
   },
-  // 7. Rôles et Permissions (Roles & Permissions)
+  // 7. Exclusions de notifications
+  {
+    title: 'Notification Opt-outs',
+    icon: { icon: 'tabler-bell-off' },
+    to: 'notification-opt-outs-list',
+    roles: [], // Admin & Super Admin uniquement (roles vide = admin only)
+  },
+  // 8. Rôles et Permissions (Roles & Permissions)
 
-  { 
+  {
     title: 'Roles & Permissions',
     icon: { icon: 'tabler-lock' },
     to: 'role',
