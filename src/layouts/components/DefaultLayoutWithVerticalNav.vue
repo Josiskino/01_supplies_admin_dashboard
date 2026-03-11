@@ -1,25 +1,7 @@
 <script setup>
 import { getFilteredNavigation } from '@/navigation/vertical/dashboard'
+import { echo } from '@/plugins/echo'
 import { themeConfig } from '@themeConfig'
-
-// Watch for userData changes to update navigation
-const userDataCookie = useCookie('userData')
-const navItemsKey = ref(0)
-
-// Force navigation update when userData changes
-watch(userDataCookie, () => {
-  console.log('[Layout] UserData changed, updating navigation')
-  navItemsKey.value++
-}, { deep: true })
-
-// Filter navigation based on user role (reactive)
-const navItems = computed(() => {
-  // Use navItemsKey to force reactivity
-  navItemsKey.value
-  const filtered = getFilteredNavigation()
-  console.log('[Layout] Computed navItems:', filtered)
-  return filtered
-})
 
 // Components
 import Footer from '@/layouts/components/Footer.vue'
@@ -32,6 +14,50 @@ import NavBarI18n from '@core/components/I18n.vue'
 
 // @layouts plugin
 import { VerticalNavLayout } from '@layouts'
+
+// ─── Navigation ────────────────────────────────────────────────────────────
+
+const userDataCookie = useCookie('userData')
+const navItemsKey    = ref(0)
+
+watch(userDataCookie, () => { navItemsKey.value++ }, { deep: true })
+
+const navItems = computed(() => {
+  navItemsKey.value
+  return getFilteredNavigation()
+})
+
+// ─── Toast global : opt-out notifications ──────────────────────────────────
+
+const optOutToast        = ref(false)
+const optOutToastText    = ref('')
+const optOutToastColor   = ref('info')
+
+const handleOptOutChange = ({ action, opt_out }) => {
+  const phone = opt_out?.phone ?? ''
+
+  if (action === 'added') {
+    optOutToastText.value  = `🔕 ${phone} ne recevra plus de notifications WhatsApp`
+    optOutToastColor.value = 'warning'
+  } else if (action === 'updated') {
+    optOutToastText.value  = `✏️ Exclusion mise à jour pour ${phone}`
+    optOutToastColor.value = 'info'
+  } else if (action === 'removed') {
+    optOutToastText.value  = `🔔 ${phone} recevra de nouveau les notifications WhatsApp`
+    optOutToastColor.value = 'success'
+  }
+
+  optOutToast.value = true
+}
+
+onMounted(() => {
+  echo.channel('notification-opt-outs')
+    .listen('.notification-opt-out-changed', handleOptOutChange)
+})
+
+onUnmounted(() => {
+  echo.leave('notification-opt-outs')
+})
 </script>
 
 <template>
@@ -76,4 +102,15 @@ import { VerticalNavLayout } from '@layouts'
     <!-- 👉 Customizer -->
     <TheCustomizer />
   </VerticalNavLayout>
+
+  <!-- 👉 Toast global opt-out notifications -->
+  <VSnackbar
+    v-model="optOutToast"
+    :color="optOutToastColor"
+    :timeout="5000"
+    location="bottom end"
+    min-width="320"
+  >
+    {{ optOutToastText }}
+  </VSnackbar>
 </template>

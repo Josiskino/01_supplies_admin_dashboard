@@ -1,4 +1,6 @@
 <script setup>
+import { echo } from '@/plugins/echo'
+
 definePage({ meta: { requiresAuth: true } })
 
 // ─── State ─────────────────────────────────────────────────────────────────
@@ -257,7 +259,17 @@ const onSearch = () => {
 watch([channelFilter, itemsPerPage], () => { page.value = 1; fetchOptOuts() })
 watch(page, fetchOptOuts)
 
-onMounted(fetchOptOuts)
+onMounted(() => {
+  fetchOptOuts()
+
+  // Auto-refresh si un autre utilisateur modifie la liste
+  echo.channel('notification-opt-outs')
+    .listen('.notification-opt-out-changed', () => fetchOptOuts())
+})
+
+onUnmounted(() => {
+  echo.leave('notification-opt-outs')
+})
 </script>
 
 <template>

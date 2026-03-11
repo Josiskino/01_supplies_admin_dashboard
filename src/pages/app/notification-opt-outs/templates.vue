@@ -54,12 +54,13 @@ const variableDescriptions = {
   '{{recipient_phone}}': 'Téléphone du destinataire',
   '{{driver_name}}':     'Nom du livreur',
   '{{driver_phone}}':    'Téléphone du livreur',
-  '{{pickup_location}}': 'Adresse de ramassage',
-  '{{dropoff_location}}':'Adresse de livraison',
-  '{{distance_km}}':     'Distance en km',
-  '{{price}}':           'Prix de la livraison (FCFA)',
-  '{{maps_url}}':        'Lien Google Maps vers la destination',
-  '{{start_url}}':       'Lien pour démarrer la course',
+  '{{pickup_location}}':  'Adresse de ramassage (texte brut)',
+  '{{dropoff_location}}': 'Adresse de livraison (texte brut)',
+  '{{pickup_maps_url}}':  'Lien Google Maps — lieu de ramassage (cliquable)',
+  '{{dropoff_maps_url}}': 'Lien Google Maps — lieu de livraison (cliquable)',
+  '{{distance_km}}':      'Distance en km',
+  '{{price}}':            'Prix de la livraison (FCFA)',
+  '{{start_url}}':        'Lien pour démarrer la course',
 }
 
 // ─── Computed ──────────────────────────────────────────────────────────────
@@ -74,7 +75,8 @@ const currentVariables = computed(() =>
 
 const isDirty = actor => {
   const original = templates.value.find(t => t.actor === actor)
-  return original ? drafts.value[actor] !== original.content : false
+  if (!original) return drafts.value[actor]?.trim().length > 0
+  return drafts.value[actor] !== original.content
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -128,12 +130,13 @@ const exampleValues = {
   '{{recipient_phone}}': '2250759000001',
   '{{driver_name}}':     'Koffi Mensah',
   '{{driver_phone}}':    '2280123456',
-  '{{pickup_location}}': 'Cocody Riviera 3, Abidjan',
-  '{{dropoff_location}}':'Plateau, Abidjan',
-  '{{distance_km}}':     '12.5',
-  '{{price}}':           '2 500',
-  '{{maps_url}}':        'https://maps.google.com/?q=5.3544,-3.9990',
-  '{{start_url}}':       'https://app.example.com/start/abc123',
+  '{{pickup_location}}':  'Cocody Riviera 3, Abidjan',
+  '{{dropoff_location}}': 'Plateau, Abidjan',
+  '{{pickup_maps_url}}':  'https://maps.google.com/?q=5.3600,-3.9800',
+  '{{dropoff_maps_url}}': 'https://maps.google.com/?q=5.3544,-3.9990',
+  '{{distance_km}}':      '12.5',
+  '{{price}}':            '2 500',
+  '{{start_url}}':        'https://app.example.com/start/abc123',
 }
 
 const previewText = computed(() => {
@@ -172,6 +175,7 @@ const saveTemplate = async () => {
     const idx = templates.value.findIndex(t => t.actor === actor)
     if (idx !== -1) templates.value[idx] = res.data
     else templates.value.push(res.data)
+    drafts.value[actor] = res.data.content
     showSnackbar('Template enregistré avec succès')
   } catch (e) {
     showSnackbar(e._data?.message ?? 'Erreur lors de la sauvegarde', 'error')
