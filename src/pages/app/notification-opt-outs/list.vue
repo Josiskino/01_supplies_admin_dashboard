@@ -134,6 +134,12 @@ const resetAddForm = () => {
   entityItems.value    = []
 }
 
+// Supprimer automatiquement les espaces du numéro en temps réel
+watch(() => addForm.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) addForm.value.phone = value
+})
+
 let entitySearchTimeout
 watch(entitySearch, val => {
   clearTimeout(entitySearchTimeout)
@@ -164,12 +170,18 @@ const fetchOptOuts = async () => {
 
 const addOptOut = async () => {
   if (!addForm.value.phone || !addForm.value.channels.length) return
+
+  const phoneError = phoneRules.map(r => r(addForm.value.phone)).find(r => r !== true)
+  if (phoneError) {
+    showSnackbar(phoneError, 'error')
+    return
+  }
   isAddLoading.value = true
   try {
     await $api('/notification-opt-outs', {
       method: 'POST',
       body: {
-        phone:           addForm.value.phone,
+        phone:           normalizePhone(addForm.value.phone),
         channels:        addForm.value.channels,
         reason:          addForm.value.reason || undefined,
         notifiable_type: addForm.value.notifiable_type || undefined,
@@ -442,6 +454,7 @@ onMounted(fetchOptOuts)
               label="Numéro de téléphone"
               placeholder="22890000000"
               prepend-inner-icon="tabler-phone"
+              :rules="phoneRules"
               :hint="selectedEntity ? 'Auto-rempli depuis l\'entité sélectionnée' : 'Saisissez manuellement si le contact n\'est pas en base'"
               persistent-hint
             />

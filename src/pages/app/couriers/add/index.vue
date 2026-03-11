@@ -122,6 +122,12 @@ const loadDriverData = () => {
   console.log('================================')
 }
 
+// Supprimer automatiquement les espaces du numéro en temps réel
+watch(() => form.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) form.value.phone = value
+})
+
 // Watch for drawer visibility and driverToEdit changes
 watch([() => props.isDrawerOpen, () => props.driverToEdit], ([isOpen, driver]) => {
   console.log('=== Drawer/watch triggered ===')
@@ -160,6 +166,14 @@ const onClose = () => {
 const onSubmit = async () => {
   if (props.driverToEdit && !hasChanges.value) return
 
+  if (form.value.phone) {
+    const phoneError = phoneRules.map(r => r(form.value.phone)).find(r => r !== true)
+    if (phoneError) {
+      console.error('Phone validation error:', phoneError)
+      return
+    }
+  }
+
   isSubmitting.value = true
   try {
     // Construct payload with all required fields
@@ -169,13 +183,13 @@ const onSubmit = async () => {
         user_name: `${form.value.first_name} ${form.value.last_name}`.trim(),
         user_email: form.value.user_email,
         user_password: form.value.user_password,
-        user_phone: form.value.phone,
+        user_phone: normalizePhone(form.value.phone),
       }),
 
       // Driver fields
       first_name: form.value.first_name,
       last_name: form.value.last_name,
-      phone: form.value.phone,
+      phone: normalizePhone(form.value.phone),
       vehicle_type: form.value.vehicle_type || undefined,
       plate_number: form.value.plate_number || undefined,
       neighborhood: form.value.neighborhood || undefined,
@@ -326,7 +340,8 @@ const onSubmit = async () => {
             <AppTextField
               v-model="form.phone"
               :label="$t('Phone')"
-              placeholder="+228 91 23 45 67"
+              placeholder="22891234567"
+              :rules="phoneRules"
               dense
               required
             />

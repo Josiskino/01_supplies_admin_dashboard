@@ -73,9 +73,47 @@ const recipientForm = ref({
   address: '',
 })
 
+// Supprimer automatiquement les espaces des numéros en temps réel
+watch(() => requesterCustomerForm.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) requesterCustomerForm.value.phone = value
+})
+
 // Recipient search and creation
 const isCreatingRecipientCustomer = ref(false)
 const selectedRecipientEntity = ref(null)
+
+// Notification toggles — active by default (true = notification IS sent)
+const notifyRequester = ref(true)
+const notifyRecipient = ref(true)
+
+// Global opt-out status (locks the toggle when true)
+const requesterOptedOut = ref(false)
+const recipientOptedOut = ref(false)
+const isCheckingRequesterOptOut = ref(false)
+const isCheckingRecipientOptOut = ref(false)
+
+// Check if a phone is in the global opt-out list
+const checkOptOutStatus = async (phone, target) => {
+  if (!phone) return
+  const isChecking = target === 'requester' ? isCheckingRequesterOptOut : isCheckingRecipientOptOut
+  const optedOut = target === 'requester' ? requesterOptedOut : recipientOptedOut
+  const notify = target === 'requester' ? notifyRequester : notifyRecipient
+
+  isChecking.value = true
+  try {
+    const res = await $api(`/notification-opt-outs/check?phone=${encodeURIComponent(phone)}`)
+    const isOptedOut = res?.data?.opted_out === true
+    optedOut.value = isOptedOut
+    if (isOptedOut) {
+      notify.value = false
+    }
+  } catch {
+    // silently ignore (endpoint may return 404 for unknown phones)
+  } finally {
+    isChecking.value = false
+  }
+}
 
 // Snackbar for notifications
 const snackbar = ref(false)
@@ -335,13 +373,23 @@ const onRecipientSelect = async (value) => {
         console.error('Error fetching entity details:', error)
       }
     }
-    
+
+    // Check global opt-out for this recipient
+    const phone = recipientForm.value.phone || null
+    recipientOptedOut.value = false
+    notifyRecipient.value = true
+    if (phone) {
+      checkOptOutStatus(phone, 'recipient')
+    }
+
     console.log('Auto-filled dropoff_location (address):', form.value.dropoff_location)
   } else {
     // Recipient deselected - clear fields
     form.value.dropoff_location = ''
     recipientForm.value.address_label = ''
     recipientForm.value.phone = ''
+    recipientOptedOut.value = false
+    notifyRecipient.value = true
     console.log('Recipient deselected, cleared fields')
   }
   console.log('=========================')
@@ -366,11 +414,19 @@ const createRequesterCustomer = async () => {
     snackbar.value = true
     return
   }
-  
+
+  const requesterPhoneError = phoneRules.map(r => r(customerForm.value.phone)).find(r => r !== true)
+  if (requesterPhoneError) {
+    snackbarText.value = requesterPhoneError
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+
   try {
     const payload = {
       last_name: customerForm.value.last_name.trim(),
-      phone: customerForm.value.phone.trim(),
+      phone: normalizePhone(customerForm.value.phone),
     }
     
     if (customerForm.value.location && customerForm.value.location.trim()) {
@@ -473,6 +529,11 @@ const recipientCustomerForm = ref({
   address_label: '',
 })
 
+watch(() => recipientCustomerForm.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) recipientCustomerForm.value.phone = value
+})
+
 // Create customer function for recipient
 const createRecipientCustomer = async () => {
   // Utiliser les données du formulaire de création
@@ -493,11 +554,19 @@ const createRecipientCustomer = async () => {
     snackbar.value = true
     return
   }
-  
+
+  const recipientPhoneError = phoneRules.map(r => r(customerPhone)).find(r => r !== true)
+  if (recipientPhoneError) {
+    snackbarText.value = recipientPhoneError
+    snackbarColor.value = 'error'
+    snackbar.value = true
+    return
+  }
+
   try {
     const payload = {
       last_name: customerName.trim(),
-      phone: customerPhone.trim(),
+      phone: normalizePhone(customerPhone),
     }
     
     // Note: address field is not sent (commented out in customer form)
@@ -680,9 +749,19 @@ const onRequesterSelect = async (value) => {
     } else {
       console.log('Location not available for this entity')
     }
+
+    // Check global opt-out for this requester
+    const phone = foundEntity?.phone || null
+    requesterOptedOut.value = false
+    notifyRequester.value = true
+    if (phone) {
+      checkOptOutStatus(phone, 'requester')
+    }
   } else {
     // Requester deselected - clear pickup location
     form.value.pickup_location = ''
+    requesterOptedOut.value = false
+    notifyRequester.value = true
     console.log('Requester deselected, cleared pickup_location')
   }
   console.log('========================')
@@ -1097,7 +1176,13 @@ const onSubmit = async () => {
     payload.dropoff_location = dropoff
     payload.distance_km = Number(form.value.distance_km) // Always include, required by API
     payload.price = form.value.price ? Number(form.value.price) : undefined
-    
+
+    // Build excluded_from_notifications from toggle states
+    const excluded = []
+    if (!notifyRequester.value) excluded.push('requester')
+    if (!notifyRecipient.value) excluded.push('recipient')
+    if (excluded.length > 0) payload.excluded_from_notifications = excluded
+
     // Remove undefined and empty string fields (but keep distance_km even if 0)
     Object.keys(payload).forEach(key => {
       if (key !== 'distance_km' && (payload[key] === undefined || payload[key] === '' || payload[key] === null)) {
@@ -1258,6 +1343,12 @@ const resetForm = () => {
     address_label: '',
   }
   selectedRecipientEntity.value = null
+
+  // Reset notification toggles
+  notifyRequester.value = true
+  notifyRecipient.value = true
+  requesterOptedOut.value = false
+  recipientOptedOut.value = false
 }
 
 // Close dialog
@@ -1344,6 +1435,13 @@ const loadDeliveryData = () => {
       duration: 'N/A',
     }
   }
+
+  // Load notification exclusions
+  const excluded = delivery.excluded_from_notifications || []
+  notifyRequester.value = !excluded.includes('requester')
+  notifyRecipient.value = !excluded.includes('recipient')
+  requesterOptedOut.value = false
+  recipientOptedOut.value = false
 
   // Stocker l'état initial pour détecter les changements (Ex: assignation de driver ou changement d'adresse)
   initialDeliveryState.value = {
@@ -1521,6 +1619,36 @@ watch(() => props.delivery, () => {
                         :hint="$t('Location coordinates (auto-filled if requester selected)')"
                       />
                     </VCol>
+                    <VCol cols="12">
+                      <VTooltip
+                        :text="requesterOptedOut ? $t('This contact has opted out of notifications globally') : ''"
+                        :disabled="!requesterOptedOut"
+                        location="bottom"
+                      >
+                        <template #activator="{ props: tooltipProps }">
+                          <div
+                            v-bind="tooltipProps"
+                            class="d-inline-flex align-center gap-2"
+                          >
+                            <VSwitch
+                              v-model="notifyRequester"
+                              :disabled="requesterOptedOut"
+                              :loading="isCheckingRequesterOptOut"
+                              color="success"
+                              density="compact"
+                              hide-details
+                              :label="notifyRequester ? ($t('Notify requester') || 'Notifier le demandeur') : ($t('Don\'t notify requester') || 'Ne pas notifier le demandeur')"
+                            />
+                            <VIcon
+                              v-if="requesterOptedOut"
+                              icon="tabler-bell-off"
+                              color="error"
+                              size="16"
+                            />
+                          </div>
+                        </template>
+                      </VTooltip>
+                    </VCol>
                   </VRow>
                 </VCardText>
               </VCard>
@@ -1599,6 +1727,36 @@ watch(() => props.delivery, () => {
                           :hint="$t('Location coordinates (auto-filled if recipient selected)')"
                         />
                       </VCol>
+                      <VCol cols="12">
+                        <VTooltip
+                          :text="recipientOptedOut ? $t('This contact has opted out of notifications globally') : ''"
+                          :disabled="!recipientOptedOut"
+                          location="bottom"
+                        >
+                          <template #activator="{ props: tooltipProps }">
+                            <div
+                              v-bind="tooltipProps"
+                              class="d-inline-flex align-center gap-2"
+                            >
+                              <VSwitch
+                                v-model="notifyRecipient"
+                                :disabled="recipientOptedOut"
+                                :loading="isCheckingRecipientOptOut"
+                                color="success"
+                                density="compact"
+                                hide-details
+                                :label="notifyRecipient ? ($t('Notify recipient') || 'Notifier le destinataire') : ($t('Don\'t notify recipient') || 'Ne pas notifier le destinataire')"
+                              />
+                              <VIcon
+                                v-if="recipientOptedOut"
+                                icon="tabler-bell-off"
+                                color="error"
+                                size="16"
+                              />
+                            </div>
+                          </template>
+                        </VTooltip>
+                      </VCol>
                     </template>
 
                     <!-- Mode création de client -->
@@ -1632,7 +1790,8 @@ watch(() => props.delivery, () => {
                         <AppTextField
                           v-model="recipientCustomerForm.phone"
                           :label="$t('Phone') || 'Téléphone'"
-                          placeholder="+228 92 34 56 78"
+                          placeholder="22892345678"
+                          :rules="phoneRules"
                           dense
                           required
                         />

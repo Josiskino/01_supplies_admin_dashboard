@@ -105,6 +105,12 @@ const hasChanges = computed(() => {
   return JSON.stringify(form.value) !== JSON.stringify(originalFormData.value)
 })
 
+// Supprimer automatiquement les espaces du numéro en temps réel
+watch(() => form.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) form.value.phone = value
+})
+
 // Load partner data for editing
 const loadPartnerData = () => {
   console.log('=== Loading partner data ===')
@@ -168,13 +174,21 @@ onMounted(() => {
 const onSubmit = async () => {
   if (!hasChanges.value) return
 
+  if (form.value.phone) {
+    const phoneError = phoneRules.map(r => r(form.value.phone)).find(r => r !== true)
+    if (phoneError) {
+      console.error('Phone validation error:', phoneError)
+      return
+    }
+  }
+
   isSubmitting.value = true
   try {
     const payload = {
       prospection_date: form.value.prospection_date,
       merchant_name: form.value.merchant_name,
       contact_name: form.value.contact_name,
-      phone: form.value.phone,
+      phone: form.value.phone ? normalizePhone(form.value.phone) : undefined,
       activity_sector: form.value.activity_sector,
       engagement_type: form.value.engagement_type,
       interest_shown: form.value.interest_shown,
@@ -293,7 +307,8 @@ const onClose = () => {
               <AppTextField
                 v-model="form.phone"
                 :label="$t('Phone')"
-                placeholder="+228 90 12 34 56"
+                placeholder="22890123456"
+                :rules="phoneRules"
               />
             </VCol>
 

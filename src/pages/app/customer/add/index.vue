@@ -122,6 +122,12 @@ const onClose = () => {
   emit('resetCustomerToEdit')
 }
 
+// Supprimer automatiquement les espaces du numéro en temps réel
+watch(() => form.value.phone, val => {
+  const { value, warned } = stripSpaces(val)
+  if (warned) form.value.phone = value
+})
+
 const onSubmit = async () => {
   console.log('=== onSubmit called ===')
   console.log('isSubmitting:', isSubmitting.value)
@@ -148,7 +154,13 @@ const onSubmit = async () => {
     
     // Phone is required for create, optional for update
     if (form.value.phone && form.value.phone.trim()) {
-      payload.phone = form.value.phone.trim()
+      const phoneError = phoneRules.map(r => r(form.value.phone)).find(r => r !== true)
+      if (phoneError) {
+        emit('submit', { error: phoneError })
+        isSubmitting.value = false
+        return
+      }
+      payload.phone = normalizePhone(form.value.phone)
     }
     
     // Optional fields - only include if they have a value
@@ -300,7 +312,8 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
             <AppTextField
               v-model="form.phone"
               label="Téléphone"
-              placeholder="+228 92 34 56 78"
+              placeholder="22892345678"
+              :rules="phoneRules"
               dense
               required
             />
