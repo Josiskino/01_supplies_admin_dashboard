@@ -47,6 +47,7 @@ declare module 'vue-router/auto-routes' {
     'financial-transactions-settlement-edit': RouteRecordInfo<'financial-transactions-settlement-edit', '/financial/transactions/settlement-edit', Record<never, never>, Record<never, never>>,
     'notification-opt-outs-delivery-exclusions': RouteRecordInfo<'notification-opt-outs-delivery-exclusions', '/notification-opt-outs/delivery-exclusions', Record<never, never>, Record<never, never>>,
     'notification-opt-outs-list': RouteRecordInfo<'notification-opt-outs-list', '/notification-opt-outs/list', Record<never, never>, Record<never, never>>,
+    'notification-opt-outs-templates': RouteRecordInfo<'notification-opt-outs-templates', '/notification-opt-outs/templates', Record<never, never>, Record<never, never>>,
     'partners-add': RouteRecordInfo<'partners-add', '/partners/add', Record<never, never>, Record<never, never>>,
     'partners-list': RouteRecordInfo<'partners-list', '/partners/list', Record<never, never>, Record<never, never>>,
     'role': RouteRecordInfo<'role', '/role', Record<never, never>, Record<never, never>>,

@@ -78,6 +78,7 @@ const allNavItems = [
     children: [
       { title: 'Opt-outs globaux', to: 'notification-opt-outs-list' },
       { title: 'Exclusions par livraison', to: 'notification-opt-outs-delivery-exclusions' },
+      { title: 'Templates de messages', to: 'notification-opt-outs-templates' },
     ],
   },
   // 8. Rôles et Permissions (Roles & Permissions)

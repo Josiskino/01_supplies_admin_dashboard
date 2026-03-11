@@ -375,6 +375,10 @@
     "useDriverTurnover": true,
     "notifyActorsOnAssignment": true,
     "notifyDriverOnAddressChange": true,
-    "sendWhatsAppMessage": true
+    "sendWhatsAppMessage": true,
+    "normalizePhone": true,
+    "phoneRules": true,
+    "stripSpaces": true,
+    "usePhoneValidation": true
   }
 }
