@@ -72,10 +72,13 @@ const allNavItems = [
   },
   // 7. Exclusions de notifications
   {
-    title: 'Notification Opt-outs',
+    title: 'Notifications',
     icon: { icon: 'tabler-bell-off' },
-    to: 'notification-opt-outs-list',
     roles: [], // Admin & Super Admin uniquement (roles vide = admin only)
+    children: [
+      { title: 'Opt-outs globaux', to: 'notification-opt-outs-list' },
+      { title: 'Exclusions par livraison', to: 'notification-opt-outs-delivery-exclusions' },
+    ],
   },
   // 8. Rôles et Permissions (Roles & Permissions)
 
