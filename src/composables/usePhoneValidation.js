@@ -1,44 +1,41 @@
 /**
  * usePhoneValidation
  *
- * Validation et normalisation des numéros de téléphone togolais.
+ * Validation et normalisation des numéros de téléphone internationaux.
  *
  * Formats acceptés :
- *   - 228XXXXXXXX  (11 chiffres, indicatif inclus)
- *   - XXXXXXXX     (8 chiffres, indicatif 228 ajouté automatiquement à la soumission)
+ *   - Tout numéro international avec indicatif : 228XXXXXXXX, 229XXXXXXXX, 225XXXXXXXX, etc.
+ *   - Entre 8 et 15 chiffres après suppression des caractères non numériques
+ *   - L'indicatif pays doit toujours être inclus
  *
  * Règles :
  *   - Aucun espace autorisé
- *   - Chiffres uniquement
- *   - Longueur : 8 ou 11 chiffres (11 doit commencer par 228)
+ *   - Chiffres uniquement (pas de +, pas de tirets)
+ *   - Longueur : 8 à 15 chiffres
  */
 
 // ─── Règles Vuetify (:rules sur AppTextField / VTextField) ──────────────────
 
 export const phoneRules = [
-  v => !v || !/\s/.test(v)    || 'Supprimez les espaces du numéro',
-  v => !v || /^\d+$/.test(v)  || 'Le numéro ne doit contenir que des chiffres',
+  v => !v || !/\s/.test(v)   || 'Supprimez les espaces du numéro',
+  v => !v || /^\d+$/.test(v) || 'Le numéro ne doit contenir que des chiffres (ex: 22890000000)',
   v => {
     if (!v) return true
     const d = v.replace(/\D/g, '')
-    if (d.length === 8) return true
-    if (d.length === 11 && d.startsWith('228')) return true
-    return 'Format invalide : 228XXXXXXXX (11 chiffres) ou XXXXXXXX (8 chiffres sans indicatif)'
+    if (d.length >= 8 && d.length <= 15) return true
+    return 'Format invalide : saisissez le numéro complet avec indicatif (ex: 22890000000)'
   },
 ]
 
 // ─── Normalisation avant soumission ─────────────────────────────────────────
 
 /**
- * Retire les espaces, ajoute l'indicatif 228 si 8 chiffres.
- * Retourne null si le format final est invalide.
+ * Retire tous les caractères non numériques.
+ * L'indicatif doit être fourni par l'utilisateur.
  */
 export const normalizePhone = phone => {
   if (!phone) return phone
-  const digits = phone.replace(/\D/g, '')
-  if (digits.length === 8)                        return '228' + digits
-  if (digits.length === 11 && digits.startsWith('228')) return digits
-  return phone // laisser passer (la validation Vuetify aura déjà bloqué)
+  return phone.replace(/\D/g, '')
 }
 
 /**
