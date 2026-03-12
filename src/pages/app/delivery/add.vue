@@ -24,8 +24,28 @@ const dialogVisible = computed({
   set: val => emit('update:isDialogVisible', val),
 })
 
-// Billing mode for price calculation
-const billingMode = ref('express') // 'express' or 'standard'
+// Calculation configs (chargés depuis l'API)
+const calculationConfigs  = ref([])
+const selectedConfigId    = ref(null)
+
+const loadCalculationConfigs = async () => {
+  try {
+    const res = await $api('/calculation-configs')
+    calculationConfigs.value = res.data ?? []
+    // Sélectionner la config par défaut
+    const defaultConfig = calculationConfigs.value.find(c => c.is_default) ?? calculationConfigs.value[0]
+    if (defaultConfig && !selectedConfigId.value) {
+      selectedConfigId.value          = defaultConfig.id
+      form.value.calculation_config_id = defaultConfig.id
+    }
+  } catch (e) {
+    console.warn('Could not load calculation configs:', e)
+  }
+}
+
+const selectedConfig = computed(() =>
+  calculationConfigs.value.find(c => c.id === selectedConfigId.value) ?? null,
+)
 
 // Form data - new unified structure
 const form = ref({
@@ -37,6 +57,7 @@ const form = ref({
   pickup_location: '',
   dropoff_location: '',
   distance_km: null,
+  calculation_config_id: null,
   price: 0,
 })
 
@@ -1047,11 +1068,12 @@ const calculatePrice = async () => {
     const result = await calculateDistanceFromUrls(pickup, dropoff, service)
     
     // Calcul du prix via le backend (source de vérité)
-    const priceResult = await calculateDeliveryPrice(result.distance, form.value.calculation_config_id || null)
+    const priceResult = await calculateDeliveryPrice(result.distance, selectedConfigId.value || null)
 
-    form.value.price = priceResult.price
-    form.value.distance_km = Number(result.distance.toFixed(2))
-    form.value.calculation_config_id = priceResult.config_id
+    form.value.price                  = priceResult.price
+    form.value.distance_km            = Number(result.distance.toFixed(2))
+    form.value.calculation_config_id  = priceResult.config_id
+    selectedConfigId.value            = priceResult.config_id
     distanceInfo.value = {
       distance: result.distance,
       distanceText: result.distanceText,
@@ -1090,7 +1112,7 @@ watch([
   () => form.value.dropoff_location,
   () => form.value.partner_location,
   () => form.value.customer_location,
-  () => billingMode.value,
+  () => selectedConfigId.value,
 ], () => {
   // Clear previous timeout
   if (priceCalculationTimeout) {
@@ -1311,7 +1333,8 @@ const onSubmit = async () => {
 
 // Reset form
 const resetForm = () => {
-  billingMode.value = 'express'
+  const defaultConfig = calculationConfigs.value.find(c => c.is_default) ?? calculationConfigs.value[0]
+  selectedConfigId.value = defaultConfig?.id ?? null
   form.value = {
     requester: null,
     recipient: null,
@@ -1319,6 +1342,7 @@ const resetForm = () => {
     pickup_location: '',
     dropoff_location: '',
     distance_km: null,
+    calculation_config_id: defaultConfig?.id ?? null,
     price: 0,
   }
   requesterSearch.value = ''
@@ -1481,6 +1505,7 @@ watch(dialogVisible, newVal => {
     fetchDrivers()
     fetchDeliveryEntities('', 'requester')
     fetchDeliveryEntities('', 'recipient')
+    loadCalculationConfigs()
     
     // Load delivery data if in edit mode
     if (isEditMode.value) {
@@ -1518,8 +1543,8 @@ watch(() => props.delivery, () => {
 
       <VCardText class="dialog-content">
         <VForm @submit.prevent="onSubmit">
-          <!-- Billing Mode Selection - Compact container aligned left -->
-          <div class="mb-4 d-flex align-center">
+          <!-- Config tarifaire (chargée depuis l'API) -->
+          <div class="mb-4 d-flex align-center gap-3">
             <VMenu>
               <template #activator="{ props: menuProps }">
                 <VBtn
@@ -1529,36 +1554,46 @@ watch(() => props.delivery, () => {
                   class="text-capitalize"
                   prepend-icon="tabler-settings"
                 >
-                  {{ billingMode === 'express' ? $t('Express Mode') : $t('Standard Mode') }}
-                  <VIcon
-                    icon="tabler-chevron-down"
-                    class="ms-2"
-                  />
+                  {{ selectedConfig?.name ?? $t('Select config') }}
+                  <VIcon icon="tabler-chevron-down" class="ms-2" />
                 </VBtn>
               </template>
               <VList>
                 <VListItem
-                  :value="'express'"
-                  :active="billingMode === 'express'"
-                  @click="billingMode = 'express'"
+                  v-for="config in calculationConfigs"
+                  :key="config.id"
+                  :value="config.id"
+                  :active="selectedConfigId === config.id"
+                  @click="selectedConfigId = config.id; form.calculation_config_id = config.id"
                 >
-                  <VListItemTitle>{{ $t('Express Mode') }}</VListItemTitle>
-                  <VListItemSubtitle class="text-xs">
-                    {{ $t('Express mode: Detailed pricing with multiple distance ranges') }}
+                  <VListItemTitle>
+                    {{ config.name }}
+                    <VChip v-if="config.is_default" size="x-small" color="primary" class="ms-2">{{ $t('Default') }}</VChip>
+                  </VListItemTitle>
+                  <VListItemSubtitle v-if="config.description" class="text-xs">
+                    {{ config.description }}
                   </VListItemSubtitle>
-                </VListItem>
-                <VListItem
-                  :value="'standard'"
-                  :active="billingMode === 'standard'"
-                  @click="billingMode = 'standard'"
-                >
-                  <VListItemTitle>{{ $t('Standard Mode') }}</VListItemTitle>
-                  <VListItemSubtitle class="text-xs">
-                    {{ $t('Standard mode: Simplified pricing with three distance ranges') }}
+                  <VListItemSubtitle v-else class="text-xs">
+                    {{ (config.pricing_tiers ?? []).length }} {{ $t('tiers') }} · {{ config.rounding_mode }}
                   </VListItemSubtitle>
                 </VListItem>
               </VList>
             </VMenu>
+
+            <!-- Aperçu des tranches tarifaires de la config sélectionnée -->
+            <VTooltip v-if="selectedConfig">
+              <template #activator="{ props: tipProps }">
+                <VIcon v-bind="tipProps" icon="tabler-info-circle" color="primary" size="20" style="cursor:pointer" />
+              </template>
+              <div>
+                <p class="font-weight-bold mb-1">{{ selectedConfig.name }}</p>
+                <div v-for="(tier, i) in selectedConfig.pricing_tiers" :key="i" class="text-xs">
+                  {{ tier.min_km }}–{{ tier.max_km ?? '∞' }} km :
+                  {{ tier.price }} FCFA
+                  <span v-if="tier.price_per_km">+ {{ tier.price_per_km }} FCFA/km</span>
+                </div>
+              </div>
+            </VTooltip>
           </div>
 
           <!-- Requester and Recipient Sections - Unified (Partners + Customers) -->
