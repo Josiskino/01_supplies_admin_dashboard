@@ -1046,21 +1046,24 @@ const calculatePrice = async () => {
     // Calculate distance using the selected service (pass service explicitly)
     const result = await calculateDistanceFromUrls(pickup, dropoff, service)
     
-    // Calculate price based on distance and billing mode
-    const price = calculateDeliveryPrice(result.distance, billingMode.value)
-    
-    form.value.price = price
+    // Calcul du prix via le backend (source de vérité)
+    const priceResult = await calculateDeliveryPrice(result.distance, form.value.calculation_config_id || null)
+
+    form.value.price = priceResult.price
     form.value.distance_km = Number(result.distance.toFixed(2))
+    form.value.calculation_config_id = priceResult.config_id
     distanceInfo.value = {
       distance: result.distance,
       distanceText: result.distanceText,
       duration: result.duration,
-      service: service, // Store service in distanceInfo
+      service: service,
     }
-    
+
     console.log('Distance calculation result:', {
       distance: result.distance + ' km',
-      price: price + ' FCFA',
+      rounded_km: priceResult.rounded_km + ' km',
+      price: priceResult.price + ' FCFA',
+      config: priceResult.config_name,
       duration: result.duration,
       service: service,
     })

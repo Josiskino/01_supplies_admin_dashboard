@@ -556,92 +556,23 @@ export const calculateDistanceFromUrls = async (pickupInput, dropoffInput, servi
 }
 
 /**
- * Calculate delivery price based on distance and pricing settings
- * @param {number} distance - Distance in kilometers
- * @param {Object|string} pricingSettings - Pricing configuration object with mode and pricing, or mode string ('express' or 'standard')
- * @returns {number} - Price in FCFA
+ * Calculer le prix d'une livraison via le backend (source de vérité).
+ * Le calcul n'est plus fait côté frontend — les tarifs sont en base de données.
+ *
+ * @param {number} distanceKm   - Distance réelle en km (ex: 1.08)
+ * @param {number|null} configId - ID de la config tarifaire (null = config par défaut)
+ * @returns {Promise<{price: number, rounded_km: number, config_id: number, config_name: string}>}
  */
-export const calculateDeliveryPrice = (distance, pricingSettings = null) => {
-  // Default to express mode if not provided
-  let mode = 'express'
-  let pricing = null
+export const calculateDeliveryPrice = async (distanceKm, configId = null) => {
+  const body = { distance_km: distanceKm }
+  if (configId) body.config_id = configId
 
-  // Handle different input formats
-  if (pricingSettings) {
-    if (typeof pricingSettings === 'string') {
-      // If it's just a string, use it as mode
-      mode = pricingSettings
-    } else if (pricingSettings.mode) {
-      // If it's an object with mode property
-      mode = pricingSettings.mode
-      pricing = pricingSettings.pricing || pricingSettings
-    } else {
-      // Legacy format: assume express mode with pricing object
-      mode = 'express'
-      pricing = pricingSettings
-    }
-  }
+  const response = await $api('/calculation-configs/calculate', {
+    method: 'POST',
+    body,
+  })
 
-  // Default pricing for express mode
-  /* eslint-disable camelcase */
-  const expressPricing = pricing && mode === 'express' ? pricing : {
-    range_0_1km: 375,
-    range_1_5km: 500,
-    range_5_6km: 600,
-    additional_per_km: 100,
-  }
-
-  // Default pricing for standard mode
-  const standardPricing = pricing && mode === 'standard' ? pricing : {
-    range_1_10km: 500,
-    range_10_1_15km: 700,
-    range_over_15km: 1000,
-  }
-  /* eslint-enable camelcase */
-
-  // ROBUST ROUNDING: Round UP to the nearest integer.
-  // 1.05 km -> 2 km.
-  // This ensures consistent pricing and handles edge cases like 1.0000001
-  const roundedRange = Math.ceil(distance)
-  
-  // Calculate price based on mode
-  if (mode === 'standard') {
-    // Standard mode: 1-10km = 500, 10.1-15km = 700, >15km = 1000
-    // With rounding: 
-    // <= 10 (1.x to 10.0) -> range_1_10km
-    // <= 15 (10.1 to 15.0) -> range_10_1_15km
-    // > 15  (15.1+) -> range_over_15km
-    
-    if (roundedRange <= 10) {
-      return standardPricing.range_1_10km
-    } else if (roundedRange <= 15) {
-      return standardPricing.range_10_1_15km
-    } else {
-      return standardPricing.range_over_15km
-    }
-  } else {
-    // Express mode (default)
-    // 0-1km -> range_0_1km (Technically 0.1 to 1.0)
-    // 1.1-5km -> range_1_5km (Technically 1.00001 to 5.0) -> Rounded: 2, 3, 4, 5
-    // 5.1-6km -> range_5_6km (Technically 5.00001 to 6.0) -> Rounded: 6
-    
-    if (roundedRange <= 1) {
-      return expressPricing.range_0_1km
-    } else if (roundedRange <= 5) {
-      return expressPricing.range_1_5km
-    } else if (roundedRange <= 6) {
-      return expressPricing.range_5_6km
-    } else {
-      // For distances > 6km: base price (5.1-6km) + additional per km
-      // Example: 6.1km -> 7km. 
-      // Base (6km) + 1km extra.
-      // Calculation: 7 - 6 = 1 additional unit.
-      
-      const additionalKm = roundedRange - 6
-
-      return expressPricing.range_5_6km + (additionalKm * expressPricing.additional_per_km)
-    }
-  }
+  return response.data
 }
 
 /**
