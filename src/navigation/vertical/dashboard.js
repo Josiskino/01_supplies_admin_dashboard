@@ -81,7 +81,15 @@ const allNavItems = [
       { title: 'Templates de messages', to: 'notification-opt-outs-templates' },
     ],
   },
-  // 8. Rôles et Permissions (Roles & Permissions)
+  // 8. Journal d'activité (Activity Logs)
+  {
+    title: 'Journal d\'activité',
+    icon: { icon: 'tabler-activity' },
+    to: 'activity-logs',
+    roles: [], // Admin & Super Admin uniquement
+    superAdminOnly: true,
+  },
+  // 9. Rôles et Permissions (Roles & Permissions)
 
   {
     title: 'Roles & Permissions',
@@ -149,16 +157,17 @@ export const getFilteredNavigation = () => {
 
   // If user is admin, show all items
   // Check for: "Super Admin", "super admin", "SuperAdmin", "admin", etc.
-  const isAdmin = normalizedUserRole === 'admin' || 
-                  normalizedUserRole === 'super admin' || 
-                  normalizedUserRole === 'superadmin' ||
-                  normalizedUserRole === 'super-admin'
+  const isSuperAdmin = normalizedUserRole === 'super admin' ||
+                       normalizedUserRole === 'superadmin' ||
+                       normalizedUserRole === 'super-admin'
+
+  const isAdmin = normalizedUserRole === 'admin' || isSuperAdmin
 
   if (isAdmin) {
     console.log('[Navigation] Admin role detected, showing all items')
 
-    // Return all items for admin
-    return allNavItems
+    // Return all items for admin, but filter out superAdminOnly items for non-super admins
+    return allNavItems.filter(item => !item.superAdminOnly || isSuperAdmin)
   }
 
   const filtered = allNavItems.filter(item => {
