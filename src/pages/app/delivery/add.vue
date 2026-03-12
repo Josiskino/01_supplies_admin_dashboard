@@ -1098,8 +1098,10 @@ const calculatePrice = async () => {
     distanceInfo.value = null
     distanceServiceUsed.value = null
 
-    // Show error message to user
-    alert(t('Error calculating distance. Please verify that the coordinates are valid.'))
+    // Show the actual error message from the backend if available
+    const backendMessage = error?.response?._data?.message || error?.data?.message
+    const displayMessage = backendMessage || t('Error calculating distance. Please verify that the coordinates are valid.')
+    alert(displayMessage)
   } finally {
     isCalculatingPrice.value = false
   }
