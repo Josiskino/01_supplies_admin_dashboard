@@ -6,80 +6,101 @@ definePage({ meta: { requiresAuth: true } })
 
 // ─── State ──────────────────────────────────────────────────────────────────
 
-const logs         = ref([])
-const totalLogs    = ref(0)
-const isLoading    = ref(false)
-const isLive       = ref(true)
-const newCount     = ref(0)        // Nouvelles entrées depuis la dernière lecture
-const latestId     = ref(0)        // Dernier ID vu — base du polling
-const lastPollAt   = ref(null)
-const pollTimer    = ref(null)
-const POLL_INTERVAL = 5000         // 5 secondes
+const logs          = ref([])
+const totalLogs     = ref(0)
+const isLoading     = ref(false)
+const isLive        = ref(true)
+const newCount      = ref(0)
+const latestId      = ref(0)
+const lastPollAt    = ref(null)
+const pollTimer     = ref(null)
+const POLL_INTERVAL = 5000
+const expandedRows  = ref([])
 
-// Filtres
+// Filtres & pagination
 const searchQuery   = ref('')
 const actionFilter  = ref('')
-const userFilter    = ref('')
+const dateFrom      = ref('')
+const dateTo        = ref('')
 const page          = ref(1)
-const perPage       = ref(30)
+const perPage       = ref(25)
+const sortBy        = ref([{ key: 'created_at', order: 'desc' }])
 
 // Stats
 const todayCount    = ref(0)
 const hourCount     = ref(0)
+const totalCount    = ref(0)
 const actionCounts  = ref({})
-
-// Snackbar
-const snackbar      = ref({ visible: false, text: '', color: 'success' })
 
 // ─── Config visuelle ─────────────────────────────────────────────────────────
 
 const actionConfig = {
-  create:   { color: 'success',  icon: 'ri-add-circle-line',     label: 'Création'     },
-  created:  { color: 'success',  icon: 'ri-add-circle-line',     label: 'Création'     },
-  update:   { color: 'info',     icon: 'ri-edit-line',           label: 'Modification' },
-  updated:  { color: 'info',     icon: 'ri-edit-line',           label: 'Modification' },
-  delete:   { color: 'error',    icon: 'ri-delete-bin-line',     label: 'Suppression'  },
-  deleted:  { color: 'error',    icon: 'ri-delete-bin-line',     label: 'Suppression'  },
-  login:    { color: 'purple',   icon: 'ri-login-circle-line',   label: 'Connexion'    },
-  logout:   { color: 'warning',  icon: 'ri-logout-circle-line',  label: 'Déconnexion'  },
-  assign:   { color: 'orange',   icon: 'ri-user-add-line',       label: 'Attribution'  },
-  view:     { color: 'secondary',icon: 'ri-eye-line',            label: 'Consultation' },
-  import:   { color: 'teal',     icon: 'ri-upload-line',         label: 'Import'       },
-  export:   { color: 'teal',     icon: 'ri-download-line',       label: 'Export'       },
-  approve:  { color: 'success',  icon: 'ri-checkbox-circle-line',label: 'Approbation'  },
-  reject:   { color: 'error',    icon: 'ri-close-circle-line',   label: 'Rejet'        },
+  create:   { color: 'success',  icon: 'tabler-plus-circle',    label: 'Création'     },
+  created:  { color: 'success',  icon: 'tabler-plus-circle',    label: 'Création'     },
+  update:   { color: 'info',     icon: 'tabler-edit',           label: 'Modification' },
+  updated:  { color: 'info',     icon: 'tabler-edit',           label: 'Modification' },
+  delete:   { color: 'error',    icon: 'tabler-trash',          label: 'Suppression'  },
+  deleted:  { color: 'error',    icon: 'tabler-trash',          label: 'Suppression'  },
+  login:    { color: 'purple',   icon: 'tabler-login',          label: 'Connexion'    },
+  logout:   { color: 'warning',  icon: 'tabler-logout',         label: 'Déconnexion'  },
+  assign:   { color: 'orange',   icon: 'tabler-user-plus',      label: 'Attribution'  },
+  view:     { color: 'secondary',icon: 'tabler-eye',            label: 'Consultation' },
+  import:   { color: 'teal',     icon: 'tabler-upload',         label: 'Import'       },
+  export:   { color: 'teal',     icon: 'tabler-download',       label: 'Export'       },
+  approve:  { color: 'success',  icon: 'tabler-circle-check',   label: 'Approbation'  },
+  reject:   { color: 'error',    icon: 'tabler-circle-x',       label: 'Rejet'        },
 }
 
 const targetConfig = {
-  'App\\Models\\Delivery':  { icon: 'ri-truck-line',         label: 'Livraison'   },
-  'App\\Models\\Customer':  { icon: 'ri-user-line',          label: 'Client'      },
-  'App\\Models\\Merchant':  { icon: 'ri-store-2-line',       label: 'Partenaire'  },
-  'App\\Models\\Driver':    { icon: 'ri-motorbike-line',     label: 'Livreur'     },
-  'App\\Models\\User':      { icon: 'ri-account-circle-line',label: 'Utilisateur' },
-  'App\\Models\\Expense':   { icon: 'ri-money-dollar-circle-line', label: 'Dépense' },
+  'App\\Models\\Delivery': { icon: 'tabler-truck',          label: 'Livraison'   },
+  'App\\Models\\Customer': { icon: 'tabler-user',           label: 'Client'      },
+  'App\\Models\\Merchant': { icon: 'tabler-building-store', label: 'Partenaire'  },
+  'App\\Models\\Driver':   { icon: 'tabler-motorbike',      label: 'Livreur'     },
+  'App\\Models\\User':     { icon: 'tabler-user-circle',    label: 'Utilisateur' },
+  'App\\Models\\Expense':  { icon: 'tabler-receipt',        label: 'Dépense'     },
 }
 
 const getAction = key => {
   const k = (key || '').toLowerCase().split('_')[0]
-  return actionConfig[k] ?? { color: 'secondary', icon: 'ri-information-line', label: key }
+  return actionConfig[k] ?? { color: 'secondary', icon: 'tabler-info-circle', label: key }
 }
 
-const getTarget = type => targetConfig[type] ?? { icon: 'ri-file-list-line', label: type?.split('\\').at(-1) ?? '—' }
+const getTarget = type => targetConfig[type] ?? {
+  icon: 'tabler-file',
+  label: type?.split('\\').at(-1) ?? '—',
+}
 
-// ─── Chargement initial ──────────────────────────────────────────────────────
+// ─── Colonnes du tableau ──────────────────────────────────────────────────────
+
+const headers = [
+  { title: '#',          key: 'id',          width: '80px',  sortable: true  },
+  { title: 'Date',       key: 'created_at',  width: '170px', sortable: true  },
+  { title: 'Utilisateur',key: 'user',        width: '160px', sortable: false },
+  { title: 'Action',     key: 'action',      width: '140px', sortable: true  },
+  { title: 'Cible',      key: 'target',      width: '160px', sortable: false },
+  { title: 'Description',key: 'description', sortable: false },
+  { title: 'IP',         key: 'ip_address',  width: '130px', sortable: false },
+  { title: 'Détails',    key: 'expand',      width: '60px',  sortable: false },
+]
+
+// ─── Chargement ──────────────────────────────────────────────────────────────
 
 const loadLogs = async () => {
   isLoading.value = true
   try {
-    const params = new URLSearchParams({ per_page: perPage.value, page: page.value })
-    if (searchQuery.value) params.set('search', searchQuery.value)
+    const params = new URLSearchParams({
+      per_page: perPage.value,
+      page: page.value,
+    })
+    if (searchQuery.value)  params.set('search', searchQuery.value)
     if (actionFilter.value) params.set('action', actionFilter.value)
-    if (userFilter.value)   params.set('user_id', userFilter.value)
+    if (dateFrom.value)     params.set('date_from', dateFrom.value)
+    if (dateTo.value)       params.set('date_to', dateTo.value)
 
-    const res = await $api(`/activity-logs?${params}`)
+    const res   = await $api(`/activity-logs?${params}`)
     const items = res.data ?? []
 
-    logs.value   = items
+    logs.value      = items
     totalLogs.value = res.meta?.total ?? items.length
 
     if (items.length > 0) {
@@ -92,50 +113,39 @@ const loadLogs = async () => {
   }
 }
 
-// ─── Polling — récupère uniquement les nouveaux logs ─────────────────────────
+// ─── Polling — nouveaux logs seulement ───────────────────────────────────────
 
 const pollNewLogs = async () => {
   if (!isLive.value || latestId.value === 0) return
-
   try {
-    const params = new URLSearchParams({ after_id: latestId.value, per_page: 50 })
-    if (actionFilter.value) params.set('action', actionFilter.value)
-
-    const res = await $api(`/activity-logs?${params}`)
+    const res      = await $api(`/activity-logs?after_id=${latestId.value}&per_page=50`)
     const newItems = res.data ?? []
 
-    if (newItems.length > 0) {
-      // Prépend les nouvelles entrées en haut
-      logs.value = [...newItems, ...logs.value].slice(0, 200) // Limiter à 200 en mémoire
+    if (newItems.length > 0 && page.value === 1) {
+      logs.value      = [...newItems, ...logs.value].slice(0, perPage.value)
       totalLogs.value += newItems.length
-      latestId.value = Math.max(latestId.value, newItems[0].id)
-
-      // Incrémenter le badge de nouveautés
-      newCount.value += newItems.length
-
-      // Rafraîchir les stats
+      latestId.value  = Math.max(latestId.value, newItems[0].id)
+      newCount.value  += newItems.length
       await loadStats()
     }
-
     lastPollAt.value = new Date()
-  } catch {
-    // Silencieux — on réessaiera au prochain tick
-  }
+  } catch { /* silencieux */ }
 }
 
 // ─── Stats ───────────────────────────────────────────────────────────────────
 
 const loadStats = async () => {
   try {
-    const res = await $api('/activity-logs/stats')
-    const data = res.data ?? {}
-    todayCount.value  = data.today_count  ?? 0
-    hourCount.value   = data.hour_count   ?? data.last_hour_count ?? 0
+    const res         = await $api('/activity-logs/stats')
+    const data        = res.data ?? {}
+    todayCount.value  = data.today_count   ?? 0
+    hourCount.value   = data.hour_count    ?? data.last_hour_count ?? 0
+    totalCount.value  = data.total_count   ?? totalLogs.value
     actionCounts.value = data.action_counts ?? {}
   } catch { /* ignoré */ }
 }
 
-// ─── Live toggle ─────────────────────────────────────────────────────────────
+// ─── Live ─────────────────────────────────────────────────────────────────────
 
 const startPolling = () => {
   if (pollTimer.value) clearInterval(pollTimer.value)
@@ -143,23 +153,15 @@ const startPolling = () => {
 }
 
 const stopPolling = () => {
-  if (pollTimer.value) {
-    clearInterval(pollTimer.value)
-    pollTimer.value = null
-  }
+  if (pollTimer.value) { clearInterval(pollTimer.value); pollTimer.value = null }
 }
 
 const toggleLive = () => {
   isLive.value = !isLive.value
-  if (isLive.value) startPolling()
-  else stopPolling()
+  isLive.value ? startPolling() : stopPolling()
 }
 
-const markAllRead = () => {
-  newCount.value = 0
-}
-
-// ─── Filtres — relancer le chargement ────────────────────────────────────────
+// ─── Filtres ──────────────────────────────────────────────────────────────────
 
 const applyFilters = () => {
   page.value     = 1
@@ -171,11 +173,22 @@ const applyFilters = () => {
 const clearFilters = () => {
   searchQuery.value  = ''
   actionFilter.value = ''
-  userFilter.value   = ''
+  dateFrom.value     = ''
+  dateTo.value       = ''
   applyFilters()
 }
 
-// ─── Formatage dates ─────────────────────────────────────────────────────────
+// ─── Expand / collapse ────────────────────────────────────────────────────────
+
+const toggleExpand = id => {
+  const idx = expandedRows.value.indexOf(id)
+  if (idx === -1) expandedRows.value.push(id)
+  else expandedRows.value.splice(idx, 1)
+}
+
+const isExpanded = id => expandedRows.value.includes(id)
+
+// ─── Formatage ────────────────────────────────────────────────────────────────
 
 const formatRelative = iso => {
   if (!iso) return '—'
@@ -186,45 +199,18 @@ const formatRelative = iso => {
   if (m < 60)  return `il y a ${m}min`
   const h = Math.floor(m / 60)
   if (h < 24)  return `il y a ${h}h`
-  return new Date(iso).toLocaleDateString('fr-FR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })
+  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 const formatFull = iso => {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('fr-FR', {
+  return new Date(iso).toLocaleString('fr-FR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
   })
 }
 
-const formatUser = log => log.user?.name ?? `#${log.user?.id ?? '?'}`
-
-// ─── Lifecycle ───────────────────────────────────────────────────────────────
-
-onMounted(async () => {
-  await loadLogs()
-  startPolling()
-
-  // Écoute Echo (Pusher) si disponible — mise à jour instantanée
-  try {
-    echo.channel('activity-logs').listen('.ActivityLogCreated', event => {
-      const item = event
-      logs.value   = [item, ...logs.value].slice(0, 200)
-      latestId.value = Math.max(latestId.value, item.id)
-      totalLogs.value += 1
-      newCount.value  += 1
-      todayCount.value += 1
-      hourCount.value  += 1
-    })
-  } catch { /* Echo non configuré — le polling prend le relais */ }
-})
-
-onUnmounted(() => {
-  stopPolling()
-  try { echo.leave('activity-logs') } catch { /* ignoré */ }
-})
-
-// ─── Computed ────────────────────────────────────────────────────────────────
+// ─── Computed ─────────────────────────────────────────────────────────────────
 
 const topAction = computed(() => {
   const entries = Object.entries(actionCounts.value)
@@ -232,129 +218,128 @@ const topAction = computed(() => {
   const [key, count] = entries.sort((a, b) => b[1] - a[1])[0]
   return { key, count }
 })
+
+const pageCount = computed(() => Math.ceil(totalLogs.value / perPage.value))
+
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
+
+onMounted(async () => {
+  await loadLogs()
+  startPolling()
+
+  try {
+    echo.channel('activity-logs').listen('.ActivityLogCreated', event => {
+      if (page.value === 1) {
+        logs.value      = [event, ...logs.value].slice(0, perPage.value)
+        totalLogs.value += 1
+        latestId.value  = Math.max(latestId.value, event.id)
+        newCount.value  += 1
+      }
+      todayCount.value += 1
+      hourCount.value  += 1
+    })
+  } catch { /* Echo non configuré */ }
+})
+
+onUnmounted(() => {
+  stopPolling()
+  try { echo.leave('activity-logs') } catch { /* ignoré */ }
+})
 </script>
 
 <template>
   <VRow>
-    <!-- ── En-tête ──────────────────────────────────────────────────────── -->
+    <!-- ── En-tête ─────────────────────────────────────────────────────── -->
     <VCol cols="12">
-      <div class="d-flex align-center justify-space-between flex-wrap gap-3 mb-4">
+      <div class="d-flex align-center justify-space-between flex-wrap gap-3 mb-2">
         <div class="d-flex align-center gap-3">
           <h4 class="text-h4">Journal d'activité</h4>
 
-          <!-- Indicateur LIVE -->
-          <VChip
-            :color="isLive ? 'success' : 'secondary'"
-            size="small"
-            class="font-weight-bold"
-          >
-            <span
-              v-if="isLive"
-              class="live-dot mr-1"
-            />
+          <VChip :color="isLive ? 'success' : 'secondary'" size="small" class="font-weight-bold">
+            <span v-if="isLive" class="live-dot me-1" />
             {{ isLive ? 'EN DIRECT' : 'EN PAUSE' }}
           </VChip>
 
-          <!-- Badge nouvelles entrées -->
-          <VBadge
-            v-if="newCount > 0"
-            :content="newCount > 99 ? '99+' : newCount"
-            color="error"
-            inline
-          >
-            <VBtn
-              size="small"
-              variant="tonal"
-              color="error"
-              @click="markAllRead"
-            >
+          <VBadge v-if="newCount > 0" :content="newCount > 99 ? '99+' : newCount" color="error" inline>
+            <VBtn size="small" variant="tonal" color="error" @click="newCount = 0">
               {{ newCount }} nouvelle{{ newCount > 1 ? 's' : '' }}
             </VBtn>
           </VBadge>
         </div>
 
         <div class="d-flex align-center gap-2">
-          <!-- Dernière mise à jour -->
-          <span
-            v-if="lastPollAt"
-            class="text-caption text-disabled"
-          >
+          <span v-if="lastPollAt" class="text-caption text-disabled">
             Actualisé {{ formatRelative(lastPollAt.toISOString()) }}
           </span>
-
-          <!-- Bouton pause / lecture -->
           <VBtn
             :color="isLive ? 'warning' : 'success'"
-            :prepend-icon="isLive ? 'ri-pause-circle-line' : 'ri-play-circle-line'"
+            :prepend-icon="isLive ? 'tabler-player-pause' : 'tabler-player-play'"
             size="small"
             variant="tonal"
             @click="toggleLive"
           >
             {{ isLive ? 'Pause' : 'Reprendre' }}
           </VBtn>
-
-          <!-- Bouton refresh manuel -->
-          <VBtn
-            icon="ri-refresh-line"
-            size="small"
-            variant="text"
-            :loading="isLoading"
-            @click="loadLogs"
-          />
+          <VBtn icon="tabler-refresh" size="small" variant="text" :loading="isLoading" @click="loadLogs" />
         </div>
       </div>
     </VCol>
 
     <!-- ── Stats ────────────────────────────────────────────────────────── -->
-    <VCol
-      cols="12"
-      sm="4"
-    >
-      <VCard variant="tonal" color="primary">
-        <VCardText class="d-flex align-center gap-3 py-3">
-          <VAvatar color="primary" variant="tonal" size="40">
-            <VIcon icon="ri-calendar-check-line" />
+    <VCol cols="6" sm="3" class="d-flex">
+      <VCard variant="tonal" color="primary" class="flex-grow-1">
+        <VCardText class="d-flex align-center gap-3 py-4">
+          <VAvatar color="primary" variant="tonal" size="38">
+            <VIcon icon="tabler-database" size="20" />
+          </VAvatar>
+          <div>
+            <div class="text-h5 font-weight-bold">{{ totalCount || totalLogs }}</div>
+            <div class="text-caption">Total des logs</div>
+          </div>
+        </VCardText>
+      </VCard>
+    </VCol>
+
+    <VCol cols="6" sm="3" class="d-flex">
+      <VCard variant="tonal" color="success" class="flex-grow-1">
+        <VCardText class="d-flex align-center gap-3 py-4">
+          <VAvatar color="success" variant="tonal" size="38">
+            <VIcon icon="tabler-calendar-check" size="20" />
           </VAvatar>
           <div>
             <div class="text-h5 font-weight-bold">{{ todayCount }}</div>
-            <div class="text-caption text-disabled">Actions aujourd'hui</div>
+            <div class="text-caption">Aujourd'hui</div>
           </div>
         </VCardText>
       </VCard>
     </VCol>
 
-    <VCol
-      cols="12"
-      sm="4"
-    >
-      <VCard variant="tonal" color="info">
-        <VCardText class="d-flex align-center gap-3 py-3">
-          <VAvatar color="info" variant="tonal" size="40">
-            <VIcon icon="ri-time-line" />
+    <VCol cols="6" sm="3" class="d-flex">
+      <VCard variant="tonal" color="info" class="flex-grow-1">
+        <VCardText class="d-flex align-center gap-3 py-4">
+          <VAvatar color="info" variant="tonal" size="38">
+            <VIcon icon="tabler-clock" size="20" />
           </VAvatar>
           <div>
             <div class="text-h5 font-weight-bold">{{ hourCount }}</div>
-            <div class="text-caption text-disabled">Cette dernière heure</div>
+            <div class="text-caption">Cette heure</div>
           </div>
         </VCardText>
       </VCard>
     </VCol>
 
-    <VCol
-      cols="12"
-      sm="4"
-    >
-      <VCard variant="tonal" color="warning">
-        <VCardText class="d-flex align-center gap-3 py-3">
-          <VAvatar color="warning" variant="tonal" size="40">
-            <VIcon icon="ri-bar-chart-line" />
+    <VCol cols="6" sm="3" class="d-flex">
+      <VCard variant="tonal" color="warning" class="flex-grow-1">
+        <VCardText class="d-flex align-center gap-3 py-4">
+          <VAvatar color="warning" variant="tonal" size="38">
+            <VIcon icon="tabler-chart-bar" size="20" />
           </VAvatar>
           <div>
-            <div class="text-h5 font-weight-bold text-capitalize">
+            <div class="text-h5 font-weight-bold text-capitalize" style="font-size:0.95rem!important">
               {{ topAction ? getAction(topAction.key).label : '—' }}
             </div>
-            <div class="text-caption text-disabled">
-              Action la plus fréquente{{ topAction ? ` (${topAction.count}×)` : '' }}
+            <div class="text-caption">
+              Action principale{{ topAction ? ` (${topAction.count}×)` : '' }}
             </div>
           </div>
         </VCardText>
@@ -364,212 +349,247 @@ const topAction = computed(() => {
     <!-- ── Filtres ───────────────────────────────────────────────────────── -->
     <VCol cols="12">
       <VCard>
-        <VCardText>
+        <VCardText class="pb-2">
           <VRow dense>
-            <VCol
-              cols="12"
-              sm="5"
-            >
+            <VCol cols="12" sm="4">
               <VTextField
                 v-model="searchQuery"
                 placeholder="Rechercher (action, description, utilisateur…)"
-                prepend-inner-icon="ri-search-line"
+                prepend-inner-icon="tabler-search"
                 density="compact"
                 hide-details
                 clearable
-                @update:model-value="applyFilters"
+                @keyup.enter="applyFilters"
+                @click:clear="clearFilters"
               />
             </VCol>
 
-            <VCol
-              cols="12"
-              sm="4"
-            >
+            <VCol cols="12" sm="2">
               <VTextField
                 v-model="actionFilter"
-                placeholder="Filtrer par action (ex: create)"
-                prepend-inner-icon="ri-filter-line"
+                placeholder="Action (ex: create)"
+                prepend-inner-icon="tabler-filter"
                 density="compact"
                 hide-details
                 clearable
-                @update:model-value="applyFilters"
+                @keyup.enter="applyFilters"
               />
             </VCol>
 
-            <VCol
-              cols="12"
-              sm="3"
-              class="d-flex align-center"
-            >
-              <VBtn
-                variant="tonal"
-                color="secondary"
-                prepend-icon="ri-close-line"
-                size="small"
-                @click="clearFilters"
-              >
-                Effacer
+            <VCol cols="6" sm="2">
+              <VTextField
+                v-model="dateFrom"
+                type="date"
+                label="Du"
+                density="compact"
+                hide-details
+              />
+            </VCol>
+
+            <VCol cols="6" sm="2">
+              <VTextField
+                v-model="dateTo"
+                type="date"
+                label="Au"
+                density="compact"
+                hide-details
+              />
+            </VCol>
+
+            <VCol cols="12" sm="2" class="d-flex gap-2">
+              <VBtn color="primary" size="small" prepend-icon="tabler-search" @click="applyFilters">
+                Filtrer
               </VBtn>
+              <VBtn variant="tonal" color="secondary" size="small" icon="tabler-x" @click="clearFilters" />
             </VCol>
           </VRow>
         </VCardText>
       </VCard>
     </VCol>
 
-    <!-- ── Feed temps réel ──────────────────────────────────────────────── -->
+    <!-- ── Tableau ───────────────────────────────────────────────────────── -->
     <VCol cols="12">
       <VCard>
-        <VCardTitle class="d-flex align-center justify-space-between px-4 pt-4">
+        <VCardTitle class="d-flex align-center justify-space-between px-4 pt-4 pb-2">
           <span>
-            <VIcon icon="ri-pulse-line" class="mr-1" />
-            Flux en temps réel
+            <VIcon icon="tabler-list-details" class="me-2" />
+            Historique complet
           </span>
           <span class="text-caption text-disabled">
-            {{ totalLogs }} entrée{{ totalLogs > 1 ? 's' : '' }} au total
+            {{ totalLogs.toLocaleString('fr-FR') }} entrée{{ totalLogs > 1 ? 's' : '' }}
           </span>
         </VCardTitle>
 
-        <!-- Loader initial -->
-        <div
-          v-if="isLoading && logs.length === 0"
-          class="d-flex justify-center py-12"
-        >
-          <VProgressCircular indeterminate color="primary" />
-        </div>
+        <!-- Loader -->
+        <VProgressLinear v-if="isLoading" indeterminate color="primary" height="2" />
 
-        <!-- Feed vide -->
-        <VCardText
-          v-else-if="!isLoading && logs.length === 0"
-          class="text-center py-12"
-        >
-          <VIcon icon="ri-inbox-line" size="48" class="text-disabled mb-3" />
+        <!-- Vide -->
+        <VCardText v-if="!isLoading && logs.length === 0" class="text-center py-12">
+          <VIcon icon="tabler-inbox" size="48" class="text-disabled mb-3" />
           <p class="text-body-1 text-disabled">Aucune activité enregistrée</p>
         </VCardText>
 
-        <!-- Timeline -->
-        <VList
-          v-else
-          lines="two"
-          class="activity-feed pa-0"
-        >
-          <template
-            v-for="(log, index) in logs"
-            :key="log.id"
-          >
-            <VListItem
-              :class="['activity-item', index === 0 && newCount > 0 ? 'activity-item--new' : '']"
-            >
-              <template #prepend>
-                <VAvatar
-                  :color="getAction(log.action).color"
-                  variant="tonal"
-                  size="36"
-                  class="mr-3"
-                >
-                  <VIcon
-                    :icon="getAction(log.action).icon"
-                    size="18"
-                  />
-                </VAvatar>
-              </template>
+        <!-- Tableau -->
+        <VTable v-else fixed-header height="600px" class="activity-table">
+          <thead>
+            <tr>
+              <th v-for="h in headers" :key="h.key" :style="h.width ? `width:${h.width}` : ''">
+                {{ h.title }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="log in logs" :key="log.id">
+              <!-- Ligne principale -->
+              <tr :class="{ 'row--new': newCount > 0 && log.id === logs[0]?.id }">
+                <!-- ID -->
+                <td class="text-caption text-disabled font-weight-medium">#{{ log.id }}</td>
 
-              <VListItemTitle class="d-flex align-center flex-wrap gap-2 mb-1">
-                <!-- Badge action -->
-                <VChip
-                  :color="getAction(log.action).color"
-                  size="x-small"
-                  label
-                  class="font-weight-bold"
-                >
-                  {{ getAction(log.action).label }}
-                </VChip>
-
-                <!-- Cible -->
-                <template v-if="log.target?.type || log.target_type">
-                  <VIcon
-                    :icon="getTarget(log.target?.type ?? log.target_type).icon"
-                    size="14"
-                    class="text-disabled"
-                  />
-                  <span class="text-caption text-disabled">
-                    {{ getTarget(log.target?.type ?? log.target_type).label }}
-                    <span v-if="log.target?.id ?? log.target_id"> #{{ log.target?.id ?? log.target_id }}</span>
-                  </span>
-                </template>
-
-                <!-- IP -->
-                <VChip
-                  v-if="log.ip_address"
-                  size="x-small"
-                  variant="outlined"
-                  class="text-disabled"
-                >
-                  <VIcon icon="ri-global-line" size="10" class="mr-1" />
-                  {{ log.ip_address }}
-                </VChip>
-              </VListItemTitle>
-
-              <VListItemSubtitle class="text-body-2">
-                {{ log.description || log.action }}
-              </VListItemSubtitle>
-
-              <template #append>
-                <div class="d-flex flex-column align-end gap-1">
-                  <!-- Utilisateur -->
-                  <span class="text-caption font-weight-medium">
-                    <VIcon icon="ri-user-line" size="12" class="mr-1" />
-                    {{ formatUser(log) }}
-                  </span>
-
-                  <!-- Horodatage -->
+                <!-- Date -->
+                <td>
                   <VTooltip :text="formatFull(log.timestamps?.created_at)">
                     <template #activator="{ props }">
-                      <span
-                        v-bind="props"
-                        class="text-caption text-disabled cursor-pointer"
-                      >
-                        {{ formatRelative(log.timestamps?.created_at) }}
+                      <span v-bind="props" class="text-caption cursor-pointer text-no-wrap">
+                        {{ formatFull(log.timestamps?.created_at) }}
                       </span>
                     </template>
                   </VTooltip>
-                </div>
-              </template>
-            </VListItem>
+                </td>
 
-            <VDivider v-if="index < logs.length - 1" />
-          </template>
-        </VList>
+                <!-- Utilisateur -->
+                <td>
+                  <div v-if="log.user" class="d-flex flex-column">
+                    <span class="text-body-2 font-weight-medium text-no-wrap">{{ log.user.name }}</span>
+                    <span class="text-caption text-disabled">{{ log.user.email }}</span>
+                  </div>
+                  <span v-else class="text-caption text-disabled">—</span>
+                </td>
+
+                <!-- Action -->
+                <td>
+                  <VChip
+                    :color="getAction(log.action).color"
+                    size="small"
+                    label
+                    class="font-weight-bold"
+                  >
+                    <VIcon :icon="getAction(log.action).icon" size="12" class="me-1" />
+                    {{ getAction(log.action).label }}
+                  </VChip>
+                  <div class="text-caption text-disabled mt-1">{{ log.action }}</div>
+                </td>
+
+                <!-- Cible -->
+                <td>
+                  <div v-if="log.target_type" class="d-flex align-center gap-1">
+                    <VIcon :icon="getTarget(log.target_type).icon" size="14" color="primary" />
+                    <div class="d-flex flex-column">
+                      <span class="text-caption font-weight-medium">{{ getTarget(log.target_type).label }}</span>
+                      <span v-if="log.target_id" class="text-caption text-disabled">#{{ log.target_id }}</span>
+                    </div>
+                  </div>
+                  <span v-else class="text-caption text-disabled">—</span>
+                </td>
+
+                <!-- Description -->
+                <td>
+                  <span class="text-body-2" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">
+                    {{ log.description || '—' }}
+                  </span>
+                </td>
+
+                <!-- IP -->
+                <td>
+                  <VChip v-if="log.ip_address" size="x-small" variant="outlined" class="font-mono">
+                    {{ log.ip_address }}
+                  </VChip>
+                  <span v-else class="text-caption text-disabled">—</span>
+                </td>
+
+                <!-- Expand -->
+                <td class="text-center">
+                  <VBtn
+                    v-if="log.properties && Object.keys(log.properties).length > 0"
+                    :icon="isExpanded(log.id) ? 'tabler-chevron-up' : 'tabler-chevron-down'"
+                    size="x-small"
+                    variant="text"
+                    @click="toggleExpand(log.id)"
+                  />
+                  <span v-else class="text-caption text-disabled">—</span>
+                </td>
+              </tr>
+
+              <!-- Ligne expandée — propriétés -->
+              <tr v-if="isExpanded(log.id)" class="expand-row">
+                <td colspan="8" class="pa-0">
+                  <VExpandTransition>
+                    <div class="pa-4 bg-surface-variant">
+                      <p class="text-caption font-weight-bold mb-2 text-uppercase text-disabled">
+                        <VIcon icon="tabler-code" size="14" class="me-1" />
+                        Données associées (properties)
+                      </p>
+                      <VTable density="compact" class="properties-table">
+                        <thead>
+                          <tr>
+                            <th style="width:30%">Champ</th>
+                            <th style="width:35%">Avant</th>
+                            <th style="width:35%">Après</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <template v-if="log.properties?.old || log.properties?.new">
+                            <tr
+                              v-for="field in [...new Set([...Object.keys(log.properties?.old ?? {}), ...Object.keys(log.properties?.new ?? {})])]"
+                              :key="field"
+                            >
+                              <td class="text-caption font-weight-medium font-mono">{{ field }}</td>
+                              <td class="text-caption text-error">{{ log.properties?.old?.[field] ?? '—' }}</td>
+                              <td class="text-caption text-success">{{ log.properties?.new?.[field] ?? '—' }}</td>
+                            </tr>
+                          </template>
+                          <template v-else>
+                            <tr v-for="(val, key) in log.properties" :key="key">
+                              <td class="text-caption font-weight-medium font-mono">{{ key }}</td>
+                              <td colspan="2" class="text-caption">{{ typeof val === 'object' ? JSON.stringify(val) : val }}</td>
+                            </tr>
+                          </template>
+                        </tbody>
+                      </VTable>
+                    </div>
+                  </VExpandTransition>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </VTable>
 
         <!-- Pagination -->
-        <VCardText
-          v-if="totalLogs > perPage"
-          class="d-flex justify-center pt-0"
-        >
+        <VCardText v-if="pageCount > 1" class="d-flex align-center justify-space-between pt-2">
+          <span class="text-caption text-disabled">
+            Page {{ page }} sur {{ pageCount }} · {{ totalLogs.toLocaleString('fr-FR') }} entrées
+          </span>
           <VPagination
             v-model="page"
-            :length="Math.ceil(totalLogs / perPage)"
-            :total-visible="5"
+            :length="pageCount"
+            :total-visible="7"
             density="compact"
             @update:model-value="loadLogs"
+          />
+          <VSelect
+            v-model="perPage"
+            :items="[10, 25, 50, 100]"
+            density="compact"
+            hide-details
+            style="max-width:90px"
+            @update:model-value="applyFilters"
           />
         </VCardText>
       </VCard>
     </VCol>
   </VRow>
-
-  <!-- Snackbar -->
-  <VSnackbar
-    v-model="snackbar.visible"
-    :color="snackbar.color"
-    :timeout="3000"
-    location="bottom end"
-  >
-    {{ snackbar.text }}
-  </VSnackbar>
 </template>
 
 <style scoped>
-/* Point pulsant pour indicateur LIVE */
 .live-dot {
   display: inline-block;
   width: 8px;
@@ -584,20 +604,33 @@ const topAction = computed(() => {
   50%       { opacity: 0.4; transform: scale(0.8); }
 }
 
-/* Animation entrée pour les nouvelles lignes */
-.activity-item--new {
-  animation: slide-in 0.35s ease-out;
-  background: rgba(var(--v-theme-success), 0.05);
+.row--new {
+  animation: slide-in 0.4s ease-out;
+  background: rgba(var(--v-theme-success), 0.06);
 }
 
 @keyframes slide-in {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-.activity-feed {
-  max-block-size: 70vh;
-  overflow-y: auto;
-  scroll-behavior: smooth;
+.activity-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.expand-row td {
+  padding: 0 !important;
+}
+
+.properties-table {
+  background: transparent !important;
+}
+
+.font-mono {
+  font-family: 'Courier New', monospace;
 }
 </style>
