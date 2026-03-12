@@ -1,4 +1,6 @@
 <script setup>
+defineOptions({ inheritAttrs: false })
+
 import { getFilteredNavigation } from '@/navigation/vertical/dashboard'
 import { echo } from '@/plugins/echo'
 import { themeConfig } from '@themeConfig'
