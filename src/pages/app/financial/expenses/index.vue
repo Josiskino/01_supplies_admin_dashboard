@@ -7,6 +7,7 @@ const { t } = useI18n()
 
 // Filters
 const selectedCategoryId = ref('')
+const selectedExpenseType = ref('')
 const searchQuery = ref('')
 const driverNameSearch = ref('')
 const dateFrom = ref(null)
@@ -88,6 +89,10 @@ const fetchExpenses = async () => {
     const queryParams = {
       per_page: itemsPerPage.value,
       page: page.value,
+    }
+
+    if (selectedExpenseType.value) {
+      queryParams.expense_type = selectedExpenseType.value
     }
 
     if (driverNameSearch.value) {
@@ -257,7 +262,7 @@ const deleteExpense = async expense => {
 }
 
 // Watch for changes and refetch
-watch([selectedCategoryId, searchQuery, driverNameSearch, dateFrom, dateTo, itemsPerPage], () => {
+watch([selectedCategoryId, selectedExpenseType, searchQuery, driverNameSearch, dateFrom, dateTo, itemsPerPage], () => {
   page.value = 1
   fetchExpenses()
 })
@@ -424,6 +429,25 @@ onMounted(() => {
 
         <!-- Filters -->
         <VRow class="mb-4">
+          <VCol
+            cols="12"
+            sm="6"
+            md="3"
+          >
+            <AppSelect
+              v-model="selectedExpenseType"
+              :items="[
+                { title: $t('Company Expense') || 'Dépense société', value: 'general' },
+                { title: $t('Driver Expense') || 'Dépense livreur', value: 'driver' },
+              ]"
+              :label="$t('Expense Type') || 'Type de dépense'"
+              :placeholder="$t('All types') || 'Tous les types'"
+              clearable
+              clear-icon="tabler-x"
+              prepend-inner-icon="tabler-building"
+            />
+          </VCol>
+
           <VCol
             cols="12"
             sm="6"
