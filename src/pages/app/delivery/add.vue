@@ -1,6 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
-import { calculateDeliveryPrice, calculateDistanceFromUrls, invalidateDistanceServiceCache } from '@/utils/googleMaps'
+import { calculateDeliveryPrice, calculateDistanceFromUrls } from '@/utils/googleMaps'
 import { notifyActorsOnAssignment, notifyDriverOnAddressChange } from '@/utils/whatsappNotification'
 import { useI18n } from 'vue-i18n'
 
@@ -938,106 +938,6 @@ const isCalculatingPrice = ref(false)
 const distanceInfo = ref(null)
 const distanceServiceUsed = ref(null) // Store which service was used for calculation
 
-// Cache for distance service to avoid multiple API calls
-const cachedDistanceService = ref(null)
-const distanceServiceCacheTime = ref(null)
-const CACHE_DURATION = 30 * 1000 // 30 seconds cache (short to ensure fresh data)
-
-// Get distance service from settings - TEMPORARILY FIXED TO OPENSTREETMAP
-// TODO: Remove this hardcoding when backend table is ready
-const getDistanceService = async () => {
-  // TEMPORARILY FIXED: Always return OpenStreetMap
-  const FIXED_SERVICE = 'openstreetmap'
-  console.log('Using fixed distance service:', FIXED_SERVICE)
-  return FIXED_SERVICE
-  
-  /* COMMENTED OUT - Will be re-enabled when backend table is ready
-  // Return cached value if still valid
-  if (cachedDistanceService.value && distanceServiceCacheTime.value) {
-    const cacheAge = Date.now() - distanceServiceCacheTime.value
-    if (cacheAge < CACHE_DURATION) {
-      console.log('Using cached distance service:', cachedDistanceService.value)
-      return cachedDistanceService.value
-    }
-  }
-
-  try {
-    const response = await $api('/settings/distance-service', {
-      method: 'GET',
-    })
-    const service = response?.distance_service || 'google_maps'
-    
-    // Cache the service
-    cachedDistanceService.value = service
-    distanceServiceCacheTime.value = Date.now()
-    
-    // Also save to localStorage
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('distance_service_setting', service)
-      }
-    } catch (e) {
-      console.warn('Error saving to localStorage:', e)
-    }
-    
-    console.log('=== Distance Service Retrieved ===')
-    console.log('Service from API:', service)
-    console.log('Full response:', response)
-    console.log('Cached for 30 seconds')
-    console.log('=================================')
-    return service
-  } catch (error) {
-    // Silently ignore 404 errors (endpoint may not exist yet)
-    const status = error?.response?.status || error?.status
-    const is404 = status === 404 || error?.message?.includes('404')
-    
-    if (!is404) {
-      console.warn('Could not load distance service from API, trying localStorage:', error)
-    }
-    
-    // Try to get from localStorage if API fails
-    try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const storedService = localStorage.getItem('distance_service_setting')
-        if (storedService && ['google_maps', 'openstreetmap', 'haversine'].includes(storedService)) {
-          console.log('Using distance service from localStorage:', storedService)
-          cachedDistanceService.value = storedService
-          distanceServiceCacheTime.value = Date.now()
-          return storedService
-        }
-      }
-    } catch (e) {
-      console.warn('Error reading from localStorage:', e)
-    }
-    
-    // Cache default value
-    const defaultService = 'google_maps'
-    cachedDistanceService.value = defaultService
-    distanceServiceCacheTime.value = Date.now()
-    
-    return defaultService
-  }
-  */
-}
-
-// Force refresh distance service cache
-const refreshDistanceService = async () => {
-  cachedDistanceService.value = null
-  distanceServiceCacheTime.value = null
-  return await getDistanceService()
-}
-
-// Load distance service when dialog opens
-watch(dialogVisible, async newVal => {
-  if (newVal) {
-    // Invalidate all caches to ensure fresh data
-    invalidateDistanceServiceCache()
-    cachedDistanceService.value = null
-    distanceServiceCacheTime.value = null
-    // Pre-load the distance service (force refresh to get latest)
-    await refreshDistanceService()
-  }
-})
 
 // Calculate price based on real distance
 const calculatePrice = async () => {
@@ -1055,17 +955,8 @@ const calculatePrice = async () => {
 
   isCalculatingPrice.value = true
   try {
-    // Get the distance service being used
-    const service = await getDistanceService()
-    distanceServiceUsed.value = service
-    
-    console.log('=== calculatePrice ===')
-    console.log('Service retrieved:', service)
-    console.log('Will pass to calculateDistanceFromUrls')
-    console.log('======================')
-    
-    // Calculate distance using the selected service (pass service explicitly)
-    const result = await calculateDistanceFromUrls(pickup, dropoff, service)
+    // Le service de calcul est géré côté backend
+    const result = await calculateDistanceFromUrls(pickup, dropoff)
     
     // Calcul du prix via le backend (source de vérité)
     const priceResult = await calculateDeliveryPrice(result.distance, selectedConfigId.value || null)
@@ -1078,7 +969,7 @@ const calculatePrice = async () => {
       distance: result.distance,
       distanceText: result.distanceText,
       duration: result.duration,
-      service: service,
+      service: result.source ?? 'osrm',
     }
 
     console.log('Distance calculation result:', {
@@ -1087,7 +978,6 @@ const calculatePrice = async () => {
       price: priceResult.price + ' FCFA',
       config: priceResult.config_name,
       duration: result.duration,
-      service: service,
     })
   } catch (error) {
     console.error('Error calculating price:', error)
