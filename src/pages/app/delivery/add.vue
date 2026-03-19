@@ -1153,18 +1153,18 @@ const onSubmit = async () => {
           const isNewlyAssigned = newDriverId && oldDriverId !== newDriverId
           
           if (isNewlyAssigned && updatedDelivery) {
-            // Un livreur vient d'être (ré)assigné -> on prévient les 3 acteurs
-            await notifyActorsOnAssignment(updatedDelivery, t)
+            // Un livreur vient d'être (ré)assigné -> on prévient les 3 acteurs (fire-and-forget)
+            notifyActorsOnAssignment(updatedDelivery, t)
           } else if (newDriverId && oldDriverId === newDriverId) {
             // Le livreur est le même, mais on vérifie si l'adresse a changé
             const oldPickup = initialDeliveryState.value.pickup_location
             const newPickup = payload.pickup_location
             const oldDropoff = initialDeliveryState.value.dropoff_location
             const newDropoff = payload.dropoff_location
-            
+
             if (oldPickup !== newPickup || oldDropoff !== newDropoff) {
-               // Seulement l'adresse a changée, notifier le livreur
-               await notifyDriverOnAddressChange(updatedDelivery, t)
+               // Seulement l'adresse a changée, notifier le livreur (fire-and-forget)
+               notifyDriverOnAddressChange(updatedDelivery, t)
             }
           }
         },
@@ -1201,9 +1201,9 @@ const onSubmit = async () => {
             }
           }
 
-          // If a driver was assigned right upon creation, notify the actors
+          // If a driver was assigned right upon creation, notify the actors (fire-and-forget)
           if (payload.driver_id && newDelivery) {
-            await notifyActorsOnAssignment(newDelivery, t)
+            notifyActorsOnAssignment(newDelivery, t)
           }
         },
       })

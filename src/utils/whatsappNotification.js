@@ -12,6 +12,9 @@ export async function sendWhatsAppMessage(phone, message) {
 
     console.log(`Sending WhatsApp message to ${formattedPhone}`)
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s timeout
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -22,7 +25,9 @@ export async function sendWhatsAppMessage(phone, message) {
         phone: formattedPhone,
         message: message,
       }),
+      signal: controller.signal,
     })
+    clearTimeout(timeoutId)
 
     const data = await response.json()
     if (!response.ok) {
