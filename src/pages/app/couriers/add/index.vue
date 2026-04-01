@@ -340,8 +340,10 @@ const onSubmit = async () => {
             <AppTextField
               v-model="form.phone"
               :label="$t('Phone')"
-              placeholder="22891234567"
+              placeholder="+22891234567"
               :rules="phoneRules"
+              hint="Incluez l'indicatif pays : +228 Togo, +229 Bénin, +33 France…"
+              persistent-hint
               dense
               required
             />

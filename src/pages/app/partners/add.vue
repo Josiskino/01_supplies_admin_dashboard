@@ -307,8 +307,10 @@ const onClose = () => {
               <AppTextField
                 v-model="form.phone"
                 :label="$t('Phone')"
-                placeholder="22890123456"
+                placeholder="+22890123456"
                 :rules="phoneRules"
+                hint="Incluez l'indicatif pays : +228 Togo, +229 Bénin, +33 France…"
+                persistent-hint
               />
             </VCol>
 

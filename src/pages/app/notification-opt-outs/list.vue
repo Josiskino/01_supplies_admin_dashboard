@@ -464,10 +464,10 @@ onUnmounted(() => {
             <AppTextField
               v-model="addForm.phone"
               label="Numéro de téléphone"
-              placeholder="22890000000"
+              placeholder="+22890000000"
               prepend-inner-icon="tabler-phone"
               :rules="phoneRules"
-              :hint="selectedEntity ? 'Auto-rempli depuis l\'entité sélectionnée' : 'Saisissez manuellement si le contact n\'est pas en base'"
+              :hint="selectedEntity ? 'Auto-rempli depuis l\'entité sélectionnée' : 'Incluez l\'indicatif pays : +228 Togo, +229 Bénin, +33 France…'"
               persistent-hint
             />
 

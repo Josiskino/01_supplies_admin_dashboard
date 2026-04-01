@@ -1,7 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
 import { calculateDeliveryPrice, calculateDistanceFromUrls } from '@/utils/googleMaps'
-import { notifyActorsOnAssignment, notifyDriverOnAddressChange } from '@/utils/whatsappNotification'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
@@ -1152,21 +1151,7 @@ const onSubmit = async () => {
 
           const isNewlyAssigned = newDriverId && oldDriverId !== newDriverId
           
-          if (isNewlyAssigned && updatedDelivery) {
-            // Un livreur vient d'être (ré)assigné -> on prévient les 3 acteurs (fire-and-forget)
-            notifyActorsOnAssignment(updatedDelivery, t)
-          } else if (newDriverId && oldDriverId === newDriverId) {
-            // Le livreur est le même, mais on vérifie si l'adresse a changé
-            const oldPickup = initialDeliveryState.value.pickup_location
-            const newPickup = payload.pickup_location
-            const oldDropoff = initialDeliveryState.value.dropoff_location
-            const newDropoff = payload.dropoff_location
-
-            if (oldPickup !== newPickup || oldDropoff !== newDropoff) {
-               // Seulement l'adresse a changée, notifier le livreur (fire-and-forget)
-               notifyDriverOnAddressChange(updatedDelivery, t)
-            }
-          }
+          // Les notifications WhatsApp sont désormais gérées par le backend
         },
       })
       emit('deliveryUpdated')
@@ -1202,9 +1187,7 @@ const onSubmit = async () => {
           }
 
           // If a driver was assigned right upon creation, notify the actors (fire-and-forget)
-          if (payload.driver_id && newDelivery) {
-            notifyActorsOnAssignment(newDelivery, t)
-          }
+          // Les notifications WhatsApp sont désormais gérées par le backend
         },
       })
 
@@ -1720,8 +1703,10 @@ watch(() => props.delivery, () => {
                         <AppTextField
                           v-model="recipientCustomerForm.phone"
                           :label="$t('Phone') || 'Téléphone'"
-                          placeholder="22892345678"
+                          placeholder="+22890123456"
                           :rules="phoneRules"
+                          hint="Incluez l'indicatif pays : +228 Togo, +229 Bénin, +33 France…"
+                          persistent-hint
                           dense
                           required
                         />

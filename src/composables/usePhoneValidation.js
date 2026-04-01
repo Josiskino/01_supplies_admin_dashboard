@@ -5,21 +5,19 @@
  *
  * Formats acceptés :
  *   - Avec préfixe international : +22890000000, 0022890000000
- *   - Sans préfixe explicite     : 22890000000
- *   - Tout pays : Togo (228), Bénin (229), France (33), etc.
+ *   - Tout pays : Togo (+228), Bénin (+229), France (+33), etc.
  *
  * Règles :
  *   - Aucun espace autorisé
- *   - Débute par +, 00, ou des chiffres uniquement
+ *   - L'indicatif pays (+XXX ou 00XXX) est obligatoire
  *   - Longueur : 8 à 15 chiffres (après suppression de + ou 00)
- *   - L'indicatif pays doit toujours être inclus
  */
 
 // ─── Règles Vuetify (:rules sur AppTextField / VTextField) ──────────────────
 
 export const phoneRules = [
   v => !v || !/\s/.test(v) || 'Supprimez les espaces du numéro',
-  v => !v || /^(\+|00)?\d+$/.test(v) || 'Format invalide : utilisez uniquement des chiffres, avec + ou 00 en préfixe optionnel (ex: +22890000000)',
+  v => !v || /^(\+|00)\d+$/.test(v) || 'Incluez l\'indicatif pays (ex: +228 pour le Togo, +229 pour le Bénin, +33 pour la France)',
   v => {
     if (!v) return true
     const d = v.replace(/^\+|^00/, '').replace(/\D/g, '')
@@ -31,12 +29,14 @@ export const phoneRules = [
 // ─── Normalisation avant soumission ─────────────────────────────────────────
 
 /**
- * Normalise le numéro en format E.164 sans le +.
- * Convertit le préfixe 00 en chiffres bruts.
+ * Normalise le numéro en format E.164 avec le + (conservé pour le backend).
+ * Convertit le préfixe 00 en +.
  */
 export const normalizePhone = phone => {
   if (!phone) return phone
-  return phone.replace(/^\+|^00/, '').replace(/\D/g, '')
+  const stripped = phone.replace(/[\s\-\.\(\)]/g, '')
+  if (stripped.startsWith('00')) return '+' + stripped.slice(2)
+  return stripped
 }
 
 /**

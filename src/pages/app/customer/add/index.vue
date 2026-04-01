@@ -312,8 +312,10 @@ watch([() => props.isDrawerOpen, () => props.customerToEdit], ([isOpen, customer
             <AppTextField
               v-model="form.phone"
               label="Téléphone"
-              placeholder="22892345678"
+              placeholder="+22890123456"
               :rules="phoneRules"
+              hint="Incluez l'indicatif pays : +228 Togo, +229 Bénin, +33 France…"
+              persistent-hint
               dense
               required
             />

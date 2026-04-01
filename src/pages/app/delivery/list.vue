@@ -2,7 +2,6 @@
 /* eslint-disable camelcase */
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
 import { generateCombinedMapLink } from '@/utils/googleMaps'
-import { notifyActorsOnAssignment } from '@/utils/whatsappNotification'
 import { useI18n } from 'vue-i18n'
 import DeliveryAddDialog from './add.vue'
 import PriceAdjustmentRequestDialog from './price-adjustment-request-dialog.vue'
@@ -541,8 +540,8 @@ const triggerManualWhatsApp = async (delivery) => {
       return
     }
     sendingWhatsAppId.value = delivery.id
-    await notifyActorsOnAssignment(delivery, t)
-    successSnackText.value = t('WhatsApp messages sent successfully') || 'Messages WhatsApp de secours envoyés !'
+    await $api(`/deliveries/${delivery.id}/notify`, { method: 'POST' })
+    successSnackText.value = t('WhatsApp messages sent successfully') || 'Messages WhatsApp renvoyés avec succès !'
     isSuccessSnackVisible.value = true
   } catch (error) {
     console.error('Manual WhatsApp Error:', error)
