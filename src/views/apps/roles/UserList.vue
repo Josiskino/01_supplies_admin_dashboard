@@ -119,13 +119,9 @@ const fetchRoles = async () => {
       method: 'GET',
     })
     
-    if (response && response.data && Array.isArray(response.data)) {
-      roles.value = response.data.map(role => ({
-        title: role.name,
-        value: role.id,
-      }))
-    } else if (Array.isArray(response)) {
-      roles.value = response.map(role => ({
+    const rolesArray = response?.data?.roles ?? response?.data ?? response
+    if (Array.isArray(rolesArray)) {
+      roles.value = rolesArray.map(role => ({
         title: role.name,
         value: role.id,
       }))

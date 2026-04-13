@@ -42,7 +42,7 @@ const fetchRoles = async () => {
   isLoading.value = true
   try {
     const res = await $api('/roles', { method: 'GET' })
-    roles.value = res?.data ?? (Array.isArray(res) ? res : [])
+    roles.value = res?.data?.roles ?? res?.data ?? (Array.isArray(res) ? res : [])
   } catch (e) {
     console.error('fetchRoles:', e)
   } finally {
