@@ -101,16 +101,6 @@ const allNavItems = [
 
   { heading: 'Administration' },
 
-  // 7. Utilisateurs
-  {
-    title: 'Users',
-    icon: { icon: 'tabler-users-group' },
-    to: 'users-list',
-    adminOnly: true,
-    action: 'view',
-    subject: 'user',
-  },
-
   // 8. Notifications (opt-outs)
   {
     title: 'Notifications',
@@ -137,12 +127,25 @@ const allNavItems = [
 
   // 10. Rôles & Permissions
   {
-    title: 'Roles & Permissions',
+    title: 'Roles & Autorisation',
     icon: { icon: 'tabler-lock' },
-    to: 'role',
     adminOnly: true,
     action: 'view',
     subject: 'roles-permissions',
+    children: [
+      {
+        title: 'Rôles',
+        to: 'role',
+        action: 'view',
+        subject: 'roles-permissions',
+      },
+      {
+        title: 'Utilisateurs',
+        to: 'users-list',
+        action: 'view',
+        subject: 'user',
+      },
+    ],
   },
 
   // 11. Paramètres
