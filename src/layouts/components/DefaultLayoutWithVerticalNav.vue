@@ -85,8 +85,18 @@ onMounted(() => {
   // Écouter les changements de permissions sur le canal privé de l'utilisateur
   const userData = useCookie('userData').value
   if (userData?.id) {
+    console.log('[Pusher] Subscribing to private channel:', `user.${userData.id}`)
+
     echo.private(`user.${userData.id}`)
-      .listen('.UserPermissionsUpdated', handlePermissionsUpdated)
+      .listen('.UserPermissionsUpdated', (payload) => {
+        console.log('[Pusher] UserPermissionsUpdated received:', payload)
+        handlePermissionsUpdated(payload)
+      })
+      .error(err => {
+        console.error('[Pusher] Private channel error:', err)
+      })
+  } else {
+    console.warn('[Pusher] No userData.id found, skipping private channel subscription')
   }
 })
 
