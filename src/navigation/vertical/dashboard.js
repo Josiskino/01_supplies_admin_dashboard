@@ -57,7 +57,7 @@ const allNavItems = [
     roles: ['Comptable', 'Superviseur'],
     children: [
       { title: 'Transactions', to: 'financial-transactions' },
-      { title: 'Price Adjustments', to: 'financial-price-adjustments' },
+      { title: 'Price Adjustments', to: 'financial-price-adjustments', roles: ['Superviseur'] },
       { title: 'Expenses', to: 'financial-expenses' },
       { title: 'Driver Turnover', to: 'financial-driver-turnover' },
       { title: 'Report', to: 'financial-report' },
@@ -192,6 +192,16 @@ export const getFilteredNavigation = () => {
     console.log(`  - User role: "${normalizedUserRole}"`)
     console.log(`  - Allowed roles: [${normalizedItemRoles.join(', ')}]`)
     console.log(`  - Match: ${isAllowed}`)
+
+    // Filter children that have their own roles restriction
+    if (isAllowed && item.children) {
+      item.children = item.children.filter(child => {
+        if (!child.roles || child.roles.length === 0) return true
+        const normalizedChildRoles = child.roles.map(r => r?.toString().trim().toLowerCase())
+
+        return normalizedChildRoles.includes(normalizedUserRole)
+      })
+    }
 
     return isAllowed
   })
