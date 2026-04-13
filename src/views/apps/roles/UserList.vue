@@ -269,19 +269,22 @@ const SCREENS = [
 ]
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'validate', 'assign']
 
-// allPermissions vient déjà du fetch existant (roles.value),
-// on recharge les permissions disponibles depuis l'API
-const allAvailablePermissions = ref([])
-const fetchAvailablePermissions = async () => {
-  if (allAvailablePermissions.value.length) return
-  try {
-    const res = await $api('/permissions', { method: 'GET' })
-    allAvailablePermissions.value = (res?.data ?? res ?? []).map(p => p.name ?? p)
-  } catch (e) { console.error('fetchPermissions:', e) }
-}
+// Liste statique des permissions existantes (synchronisée avec RolePermissionSeeder)
+const KNOWN_PERMISSIONS = new Set([
+  'view-delivery', 'create-delivery', 'edit-delivery', 'delete-delivery', 'assign-delivery',
+  'view-partner', 'create-partner', 'edit-partner', 'delete-partner',
+  'view-driver', 'create-driver', 'edit-driver', 'delete-driver',
+  'view-customer', 'create-customer', 'edit-customer', 'delete-customer',
+  'view-financial', 'view-price-adjustment', 'approve-price-adjustment',
+  'view-payment', 'create-payment', 'edit-payment', 'delete-payment', 'validate-payment',
+  'view-expense', 'create-expense', 'edit-expense', 'delete-expense',
+  'view-business-stats',
+  'view-user', 'create-user', 'edit-user', 'delete-user', 'assign-roles',
+  'view-notifications-admin', 'view-activity-logs', 'view-roles-permissions', 'view-settings',
+])
 
 const permissionExists = (action, subject) =>
-  allAvailablePermissions.value.includes(`${action}-${subject}`)
+  KNOWN_PERMISSIONS.has(`${action}-${subject}`)
 
 // Matrice : permissions directes de l'utilisateur (pas celles héritées du rôle)
 const userPermMatrix = ref({})
@@ -295,8 +298,6 @@ const openEditDialog = async user => {
   editErrors.value     = {}
   editSelectedRole.value = user.roles?.[0]?.id ?? user.roles?.[0] ?? null
   isEditDialogOpen.value = true
-
-  await fetchAvailablePermissions()
 
   // Récupérer les détails complets de l'user pour avoir ses permissions directes
   try {

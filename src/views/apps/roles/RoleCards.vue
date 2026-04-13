@@ -94,8 +94,21 @@ const deleteRole = async role => {
 }
 
 // ─── Permissions ─────────────────────────────────────────────────────────────
+const KNOWN_PERMISSIONS = new Set([
+  'view-delivery', 'create-delivery', 'edit-delivery', 'delete-delivery', 'assign-delivery',
+  'view-partner', 'create-partner', 'edit-partner', 'delete-partner',
+  'view-driver', 'create-driver', 'edit-driver', 'delete-driver',
+  'view-customer', 'create-customer', 'edit-customer', 'delete-customer',
+  'view-financial', 'view-price-adjustment', 'approve-price-adjustment',
+  'view-payment', 'create-payment', 'edit-payment', 'delete-payment', 'validate-payment',
+  'view-expense', 'create-expense', 'edit-expense', 'delete-expense',
+  'view-business-stats',
+  'view-user', 'create-user', 'edit-user', 'delete-user', 'assign-roles',
+  'view-notifications-admin', 'view-activity-logs', 'view-roles-permissions', 'view-settings',
+])
+
 const permissionExists = (action, subject) =>
-  permissions.value.some(p => (p.name ?? p) === `${action}-${subject}`)
+  KNOWN_PERMISSIONS.has(`${action}-${subject}`)
 
 const openPermissionDialog = role => {
   selectedRole.value = role
