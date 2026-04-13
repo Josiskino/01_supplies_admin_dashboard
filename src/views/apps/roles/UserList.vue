@@ -239,22 +239,89 @@ const getStatusName = status => {
 
 const isAddNewUserDrawerVisible = ref(false)
 
-// Edit user dialog
+// Edit user dialog — onglets : Infos / Rôle / Permissions
 const isEditDialogOpen = ref(false)
-const editingUser = ref(null)
-const isSavingEdit = ref(false)
-const editErrors = ref({})
-const editForm = reactive({ name: '', email: '', phone: '' })
+const editingUser      = ref(null)
+const editTab          = ref('info')
+const isSavingEdit     = ref(false)
+const editErrors       = ref({})
+const editForm         = reactive({ name: '', email: '', phone: '' })
 
-const openEditDialog = user => {
-  editingUser.value = user
-  editForm.name  = user.name ?? ''
-  editForm.email = user.email ?? ''
-  editForm.phone = user.phone ?? ''
-  editErrors.value = {}
-  isEditDialogOpen.value = true
+// Rôle
+const editSelectedRole = ref(null)
+
+// Permissions individuelles (matrice)
+const SCREENS = [
+  { subject: 'delivery',            label: 'Livraisons' },
+  { subject: 'partner',             label: 'Partenaires' },
+  { subject: 'driver',              label: 'Livreurs' },
+  { subject: 'customer',            label: 'Clients' },
+  { subject: 'financial',           label: 'Financier (accès section)' },
+  { subject: 'payment',             label: 'Transactions / Paiements' },
+  { subject: 'price-adjustment',    label: 'Ajustements de prix' },
+  { subject: 'expense',             label: 'Dépenses' },
+  { subject: 'business-stats',      label: 'Statistiques' },
+  { subject: 'user',                label: 'Utilisateurs' },
+  { subject: 'notifications-admin', label: 'Notifications (admin)' },
+  { subject: 'activity-logs',       label: 'Journal d\'activité' },
+  { subject: 'roles-permissions',   label: 'Rôles & Permissions' },
+  { subject: 'settings',            label: 'Paramètres' },
+]
+const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'validate', 'assign']
+
+// allPermissions vient déjà du fetch existant (roles.value),
+// on recharge les permissions disponibles depuis l'API
+const allAvailablePermissions = ref([])
+const fetchAvailablePermissions = async () => {
+  if (allAvailablePermissions.value.length) return
+  try {
+    const res = await $api('/permissions', { method: 'GET' })
+    allAvailablePermissions.value = (res?.data ?? res ?? []).map(p => p.name ?? p)
+  } catch (e) { console.error('fetchPermissions:', e) }
 }
 
+const permissionExists = (action, subject) =>
+  allAvailablePermissions.value.includes(`${action}-${subject}`)
+
+// Matrice : permissions directes de l'utilisateur (pas celles héritées du rôle)
+const userPermMatrix = ref({})
+
+const openEditDialog = async user => {
+  editingUser.value    = user
+  editTab.value        = 'info'
+  editForm.name        = user.name ?? ''
+  editForm.email       = user.email ?? ''
+  editForm.phone       = user.phone ?? ''
+  editErrors.value     = {}
+  editSelectedRole.value = user.roles?.[0]?.id ?? user.roles?.[0] ?? null
+  isEditDialogOpen.value = true
+
+  await fetchAvailablePermissions()
+
+  // Récupérer les détails complets de l'user pour avoir ses permissions directes
+  try {
+    const res = await $api(`/users/${user.id}`, { method: 'GET' })
+    const fullUser = res?.data ?? res
+    // permissions directes = permissions sur l'user lui-même (pas celles du rôle)
+    const directPerms = fullUser?.direct_permissions ?? fullUser?.permissions ?? []
+
+    const matrix = {}
+    SCREENS.forEach(s => {
+      matrix[s.subject] = {}
+      ACTIONS.forEach(a => {
+        matrix[s.subject][a] = directPerms.includes(`${a}-${s.subject}`)
+      })
+    })
+    userPermMatrix.value = matrix
+  } catch (e) {
+    // Initialiser matrice vide si erreur
+    const matrix = {}
+    SCREENS.forEach(s => { matrix[s.subject] = {}; ACTIONS.forEach(a => { matrix[s.subject][a] = false }) })
+    userPermMatrix.value = matrix
+  }
+}
+
+// Sauvegarde onglet Infos
 const saveEdit = async () => {
   isSavingEdit.value = true
   editErrors.value = {}
@@ -267,6 +334,57 @@ const saveEdit = async () => {
   } finally {
     isSavingEdit.value = false
   }
+}
+
+// Sauvegarde onglet Rôle
+const saveRole = async () => {
+  if (!editSelectedRole.value) return
+  isSavingEdit.value = true
+  try {
+    const roleName = roles.value.find(r => r.value === editSelectedRole.value)?.title
+      ?? editSelectedRole.value
+    await $api(`/users/${editingUser.value.id}/roles`, {
+      method: 'POST',
+      body: { role: roleName },
+    })
+    fetchUsers()
+  } catch (e) { console.error('saveRole:', e) }
+  finally { isSavingEdit.value = false }
+}
+
+// Sauvegarde onglet Permissions individuelles
+const saveUserPermissions = async () => {
+  isSavingEdit.value = true
+  try {
+    const toAssign = []
+    const toRevoke = []
+    const prevDirectPerms = (() => {
+      const arr = []
+      SCREENS.forEach(s => ACTIONS.forEach(a => {
+        // On récupère l'état initial depuis editingUser si dispo
+      }))
+      return arr
+    })()
+
+    SCREENS.forEach(s => {
+      ACTIONS.forEach(a => {
+        if (!permissionExists(a, s.subject)) return
+        const perm = `${a}-${s.subject}`
+        if (userPermMatrix.value[s.subject]?.[a]) toAssign.push(perm)
+        else toRevoke.push(perm)
+      })
+    })
+
+    // Toujours envoyer l'état complet : assigner les cochés, révoquer les décochés
+    if (toAssign.length)
+      await $api(`/users/${editingUser.value.id}/permissions`, { method: 'POST', body: { permissions: toAssign } })
+    if (toRevoke.length)
+      await $api(`/users/${editingUser.value.id}/permissions`, { method: 'DELETE', body: { permissions: toRevoke } })
+
+    isEditDialogOpen.value = false
+    fetchUsers()
+  } catch (e) { console.error('saveUserPermissions:', e) }
+  finally { isSavingEdit.value = false }
 }
 
 // User details dialog
@@ -798,48 +916,141 @@ const getUserPermissions = (user) => {
       </VCard>
     </VDialog>
 
-    <!-- 👉 Edit User Dialog -->
-    <VDialog v-model="isEditDialogOpen" max-width="480">
+    <!-- 👉 Edit User Dialog (3 onglets) -->
+    <VDialog v-model="isEditDialogOpen" max-width="680" scrollable>
       <VCard>
         <VCardTitle class="d-flex align-center pa-4">
           <VIcon icon="tabler-user-edit" class="me-2" />
-          {{ $t('Edit User') }} — {{ editingUser?.name }}
+          Modifier — {{ editingUser?.name }}
+          <VSpacer />
+          <IconBtn @click="isEditDialogOpen = false"><VIcon icon="tabler-x" /></IconBtn>
         </VCardTitle>
         <VDivider />
-        <VCardText class="pa-4">
-          <VRow>
-            <VCol cols="12">
-              <AppTextField
-                v-model="editForm.name"
-                :label="$t('Full Name')"
-                :error-messages="editErrors.name"
-              />
-            </VCol>
-            <VCol cols="12">
-              <AppTextField
-                v-model="editForm.email"
-                :label="$t('Email')"
-                type="email"
-                :error-messages="editErrors.email"
-              />
-            </VCol>
-            <VCol cols="12">
-              <AppTextField
-                v-model="editForm.phone"
-                :label="$t('Phone')"
-                :error-messages="editErrors.phone"
-              />
-            </VCol>
-          </VRow>
+
+        <!-- Onglets -->
+        <VTabs v-model="editTab" grow>
+          <VTab value="info">
+            <VIcon icon="tabler-user" size="16" class="me-1" />
+            Informations
+          </VTab>
+          <VTab value="role">
+            <VIcon icon="tabler-shield-half" size="16" class="me-1" />
+            Rôle
+          </VTab>
+          <VTab value="permissions">
+            <VIcon icon="tabler-lock-cog" size="16" class="me-1" />
+            Permissions
+          </VTab>
+        </VTabs>
+        <VDivider />
+
+        <VCardText class="pa-4" style="min-height: 260px;">
+          <VWindow v-model="editTab">
+
+            <!-- Onglet Infos -->
+            <VWindowItem value="info">
+              <VRow class="mt-1">
+                <VCol cols="12">
+                  <AppTextField v-model="editForm.name" label="Nom complet" :error-messages="editErrors.name" />
+                </VCol>
+                <VCol cols="12" sm="6">
+                  <AppTextField v-model="editForm.email" label="Email" type="email" :error-messages="editErrors.email" />
+                </VCol>
+                <VCol cols="12" sm="6">
+                  <AppTextField v-model="editForm.phone" label="Téléphone" :error-messages="editErrors.phone" />
+                </VCol>
+              </VRow>
+            </VWindowItem>
+
+            <!-- Onglet Rôle -->
+            <VWindowItem value="role">
+              <div class="mt-3">
+                <p class="text-body-2 text-medium-emphasis mb-4">
+                  Sélectionner le rôle de l'utilisateur. Cela lui accordera toutes les permissions associées à ce rôle.
+                </p>
+                <AppSelect
+                  v-model="editSelectedRole"
+                  :items="roles"
+                  label="Rôle"
+                  clearable
+                />
+                <div v-if="editingUser?.roles?.length" class="mt-3">
+                  <span class="text-body-2 text-medium-emphasis">Rôle actuel : </span>
+                  <VChip size="small" color="primary" class="ms-1">
+                    {{ editingUser.roles[0]?.name ?? editingUser.roles[0] }}
+                  </VChip>
+                </div>
+              </div>
+            </VWindowItem>
+
+            <!-- Onglet Permissions individuelles -->
+            <VWindowItem value="permissions">
+              <p class="text-body-2 text-medium-emphasis mt-2 mb-3">
+                Permissions supplémentaires accordées directement à cet utilisateur, indépendamment de son rôle.
+              </p>
+              <div style="overflow-x: auto;">
+                <table style="border-collapse: collapse; width: 100%;">
+                  <thead>
+                    <tr style="background: rgba(var(--v-theme-surface-variant), 0.4); border-bottom: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));">
+                      <th class="text-left pa-2 text-body-2 font-weight-bold" style="min-width: 180px;">Écran</th>
+                      <th v-for="action in ACTIONS" :key="action" class="text-center pa-1 text-caption font-weight-medium text-capitalize" style="min-width: 60px;">
+                        {{ action }}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(screen, i) in SCREENS"
+                      :key="screen.subject"
+                      :style="i % 2 === 0 ? '' : 'background: rgba(var(--v-theme-surface-variant), 0.15)'"
+                    >
+                      <td class="pa-2 text-body-2">{{ screen.label }}</td>
+                      <td v-for="action in ACTIONS" :key="action" class="text-center pa-1">
+                        <VCheckbox
+                          v-if="permissionExists(action, screen.subject)"
+                          v-model="userPermMatrix[screen.subject][action]"
+                          hide-details
+                          density="compact"
+                          class="d-flex justify-center"
+                        />
+                        <span v-else class="text-disabled text-xs">—</span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </VWindowItem>
+
+          </VWindow>
         </VCardText>
+
         <VDivider />
         <VCardActions class="pa-4">
           <VSpacer />
-          <VBtn variant="outlined" @click="isEditDialogOpen = false">
-            {{ $t('Cancel') }}
+          <VBtn variant="outlined" @click="isEditDialogOpen = false">Annuler</VBtn>
+          <VBtn
+            v-if="editTab === 'info'"
+            color="primary"
+            :loading="isSavingEdit"
+            @click="saveEdit"
+          >
+            Enregistrer
           </VBtn>
-          <VBtn color="primary" :loading="isSavingEdit" @click="saveEdit">
-            {{ $t('Save') }}
+          <VBtn
+            v-else-if="editTab === 'role'"
+            color="primary"
+            :loading="isSavingEdit"
+            @click="saveRole"
+          >
+            Assigner le rôle
+          </VBtn>
+          <VBtn
+            v-else-if="editTab === 'permissions'"
+            color="primary"
+            :loading="isSavingEdit"
+            @click="saveUserPermissions"
+          >
+            Sauvegarder permissions
           </VBtn>
         </VCardActions>
       </VCard>
