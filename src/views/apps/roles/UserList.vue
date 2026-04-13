@@ -296,19 +296,19 @@ const openEditDialog = async user => {
   editSelectedRole.value = user.roles?.[0]?.id ?? user.roles?.[0] ?? null
   isEditDialogOpen.value = true
 
-  // Récupérer les détails complets de l'user pour pré-cocher ses permissions actuelles
+  // Récupérer les détails complets de l'user pour pré-cocher ses permissions directes
   try {
     const res = await $api(`/users/${user.id}`, { method: 'GET' })
     const fullUser = res?.data ?? res
 
-    // Toutes les permissions que l'user possède (rôle + directes)
-    const allPerms = (fullUser?.permissions ?? []).map(p => p?.name ?? p)
+    // Uniquement les permissions directes (pas celles héritées du rôle)
+    const directPerms = (fullUser?.direct_permissions ?? []).map(p => p?.name ?? p)
 
     const matrix = {}
     SCREENS.forEach(s => {
       matrix[s.subject] = {}
       ACTIONS.forEach(a => {
-        matrix[s.subject][a] = allPerms.includes(`${a}-${s.subject}`)
+        matrix[s.subject][a] = directPerms.includes(`${a}-${s.subject}`)
       })
     })
     userPermMatrix.value        = matrix
@@ -363,30 +363,24 @@ const saveRole = async () => {
   finally { isSavingEdit.value = false }
 }
 
-// Sauvegarde onglet Permissions individuelles
+// Sauvegarde onglet Permissions individuelles (diff uniquement)
 const saveUserPermissions = async () => {
   isSavingEdit.value = true
   try {
     const toAssign = []
     const toRevoke = []
-    const prevDirectPerms = (() => {
-      const arr = []
-      SCREENS.forEach(s => ACTIONS.forEach(a => {
-        // On récupère l'état initial depuis editingUser si dispo
-      }))
-      return arr
-    })()
 
     SCREENS.forEach(s => {
       ACTIONS.forEach(a => {
         if (!permissionExists(a, s.subject)) return
-        const perm = `${a}-${s.subject}`
-        if (userPermMatrix.value[s.subject]?.[a]) toAssign.push(perm)
-        else toRevoke.push(perm)
+        const perm    = `${a}-${s.subject}`
+        const isNow   = userPermMatrix.value[s.subject]?.[a] ?? false
+        const wasBefore = initialUserPermMatrix.value[s.subject]?.[a] ?? false
+        if (isNow && !wasBefore) toAssign.push(perm)
+        if (!isNow && wasBefore) toRevoke.push(perm)
       })
     })
 
-    // Toujours envoyer l'état complet : assigner les cochés, révoquer les décochés
     if (toAssign.length)
       await $api(`/users/${editingUser.value.id}/permissions`, { method: 'POST', body: { permissions: toAssign } })
     if (toRevoke.length)
