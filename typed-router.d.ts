@@ -170,5 +170,6 @@ declare module 'vue-router/auto-routes' {
     'template-wizard-examples-property-listing': RouteRecordInfo<'template-wizard-examples-property-listing', '/template/wizard-examples/property-listing', Record<never, never>, Record<never, never>>,
     'template-apps-email-filter': RouteRecordInfo<'template-apps-email-filter', '/template/apps/email/:filter', { filter: ParamValue<true> }, { filter: ParamValue<false> }>,
     'template-apps-email-label': RouteRecordInfo<'template-apps-email-label', '/template/apps/email/:label', { label: ParamValue<true> }, { label: ParamValue<false> }>,
+    'users-list': RouteRecordInfo<'users-list', '/users/list', Record<never, never>, Record<never, never>>,
   }
 }

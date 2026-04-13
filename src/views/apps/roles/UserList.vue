@@ -299,23 +299,23 @@ const openEditDialog = async user => {
   editSelectedRole.value = user.roles?.[0]?.id ?? user.roles?.[0] ?? null
   isEditDialogOpen.value = true
 
-  // Récupérer les détails complets de l'user pour avoir ses permissions directes
+  // Récupérer les détails complets de l'user pour pré-cocher ses permissions actuelles
   try {
     const res = await $api(`/users/${user.id}`, { method: 'GET' })
     const fullUser = res?.data ?? res
-    // permissions directes = permissions sur l'user lui-même (pas celles du rôle)
-    const directPerms = fullUser?.direct_permissions ?? fullUser?.permissions ?? []
+
+    // Toutes les permissions que l'user possède (rôle + directes)
+    const allPerms = (fullUser?.permissions ?? []).map(p => p?.name ?? p)
 
     const matrix = {}
     SCREENS.forEach(s => {
       matrix[s.subject] = {}
       ACTIONS.forEach(a => {
-        matrix[s.subject][a] = directPerms.includes(`${a}-${s.subject}`)
+        matrix[s.subject][a] = allPerms.includes(`${a}-${s.subject}`)
       })
     })
     userPermMatrix.value = matrix
   } catch (e) {
-    // Initialiser matrice vide si erreur
     const matrix = {}
     SCREENS.forEach(s => { matrix[s.subject] = {}; ACTIONS.forEach(a => { matrix[s.subject][a] = false }) })
     userPermMatrix.value = matrix
