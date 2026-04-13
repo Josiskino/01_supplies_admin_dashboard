@@ -74,7 +74,8 @@ const fetchUsers = async () => {
 const fetchRoles = async () => {
   try {
     const res = await $api('/roles', { method: 'GET' })
-    roles.value = (res?.data ?? res ?? []).map(r => ({ title: r.name, value: r.id, name: r.name }))
+    const raw = res?.data?.roles ?? res?.data ?? res
+    roles.value = (Array.isArray(raw) ? raw : []).map(r => ({ title: r.name, value: r.id, name: r.name }))
   } catch (e) {
     console.error('fetchRoles:', e)
   }
