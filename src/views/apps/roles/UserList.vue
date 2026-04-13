@@ -413,7 +413,7 @@ const viewUserDetails = async (user) => {
 
   try {
     // Fetch full user details from API
-    const response = await $api(`/users/staff/${user.id}`, {
+    const response = await $api(`/users/${user.id}`, {
       method: 'GET',
     })
 
