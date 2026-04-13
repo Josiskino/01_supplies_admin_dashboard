@@ -282,9 +282,10 @@ const KNOWN_PERMISSIONS = new Set([
 const permissionExists = (action, subject) =>
   KNOWN_PERMISSIONS.has(`${action}-${subject}`)
 
-// Matrice : permissions directes de l'utilisateur (pas celles héritées du rôle)
+// Matrice de permissions de l'utilisateur
 const userPermMatrix        = ref({})
 const initialUserPermMatrix = ref({})
+const currentDirectPerms    = ref([])
 
 const openEditDialog = async user => {
   editingUser.value    = user
@@ -296,19 +297,23 @@ const openEditDialog = async user => {
   editSelectedRole.value = user.roles?.[0]?.id ?? user.roles?.[0] ?? null
   isEditDialogOpen.value = true
 
-  // Récupérer les détails complets de l'user pour pré-cocher ses permissions directes
+  // Récupérer les détails complets de l'user
   try {
     const res = await $api(`/users/${user.id}`, { method: 'GET' })
     const fullUser = res?.data ?? res
 
-    // Uniquement les permissions directes (pas celles héritées du rôle)
-    const directPerms = (fullUser?.direct_permissions ?? []).map(p => p?.name ?? p)
+    // Initialiser depuis getAllPermissions (rôle + directs) = ce que l'user voit effectivement
+    // Les cases cochées = accès effectif actuel
+    const effectivePerms = (fullUser?.permissions ?? []).map(p => p?.name ?? p)
+
+    // Stocker les permissions directes actuelles pour le diff à la sauvegarde
+    currentDirectPerms.value = (fullUser?.direct_permissions ?? []).map(p => p?.name ?? p)
 
     const matrix = {}
     SCREENS.forEach(s => {
       matrix[s.subject] = {}
       ACTIONS.forEach(a => {
-        matrix[s.subject][a] = directPerms.includes(`${a}-${s.subject}`)
+        matrix[s.subject][a] = effectivePerms.includes(`${a}-${s.subject}`)
       })
     })
     userPermMatrix.value        = matrix
@@ -318,6 +323,7 @@ const openEditDialog = async user => {
     SCREENS.forEach(s => { matrix[s.subject] = {}; ACTIONS.forEach(a => { matrix[s.subject][a] = false }) })
     userPermMatrix.value        = matrix
     initialUserPermMatrix.value = JSON.parse(JSON.stringify(matrix))
+    currentDirectPerms.value    = []
   }
 }
 
@@ -363,26 +369,27 @@ const saveRole = async () => {
   finally { isSavingEdit.value = false }
 }
 
-// Sauvegarde onglet Permissions individuelles (diff uniquement)
+// Sauvegarde onglet Permissions — sync complet des permissions directes
 const saveUserPermissions = async () => {
   isSavingEdit.value = true
   try {
-    const toAssign = []
-    const toRevoke = []
-
+    // Liste des permissions cochées maintenant
+    const checkedPerms = []
     SCREENS.forEach(s => {
       ACTIONS.forEach(a => {
         if (!permissionExists(a, s.subject)) return
-        const perm    = `${a}-${s.subject}`
-        const isNow   = userPermMatrix.value[s.subject]?.[a] ?? false
-        const wasBefore = initialUserPermMatrix.value[s.subject]?.[a] ?? false
-        if (isNow && !wasBefore) toAssign.push(perm)
-        if (!isNow && wasBefore) toRevoke.push(perm)
+        if (userPermMatrix.value[s.subject]?.[a]) checkedPerms.push(`${a}-${s.subject}`)
       })
     })
 
+    // Diff par rapport aux permissions directes actuelles
+    const toAssign = checkedPerms.filter(p => !currentDirectPerms.value.includes(p))
+    const toRevoke = currentDirectPerms.value.filter(p => !checkedPerms.includes(p))
+
+    // Permissions cochées mais non directes = à assigner (remplace la permission rôle par une directe)
     if (toAssign.length)
       await $api(`/users/${editingUser.value.id}/permissions`, { method: 'POST', body: { permissions: toAssign } })
+    // Permissions directes décochées = à révoquer
     if (toRevoke.length)
       await $api(`/users/${editingUser.value.id}/permissions`, { method: 'DELETE', body: { permissions: toRevoke } })
 

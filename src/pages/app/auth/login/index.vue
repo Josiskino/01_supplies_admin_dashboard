@@ -141,13 +141,11 @@ const login = async () => {
       accessToken = res.data.token
       userData = res.data.user
 
-      // Convert permissions from backend format to CASL format
-      // Backend: ['create-delivery', 'view-delivery']
-      // CASL needs: [{ action: 'create', subject: 'delivery' }, ...]
-      const permissions = userData?.permissions || []
+      // CASL basé uniquement sur les permissions directes (pas celles héritées du rôle)
+      // Cela permet à l'admin de contrôler exactement ce que chaque utilisateur voit
+      // Les permissions directes = getAllPermissions() au 1er login (voir UserResource)
+      const permissions = userData?.direct_permissions || userData?.permissions || []
 
-      // Split sur le premier tiret seulement pour gérer les noms composés
-      // Ex: 'view-business-stats' → { action: 'view', subject: 'business-stats' }
       userAbilityRules = permissions.map(permission => {
         const firstDash = permission.indexOf('-')
         if (firstDash === -1) return { action: permission, subject: 'all' }
