@@ -5,47 +5,46 @@ const permissions = ref([])
 const isLoading   = ref(false)
 
 // ─── Modales ────────────────────────────────────────────────────────────────
-const isCreateDialogOpen    = ref(false)
+const isCreateDialogOpen     = ref(false)
 const isPermissionDialogOpen = ref(false)
 const selectedRole           = ref(null)
 const isSaving               = ref(false)
 
-// Formulaire création
 const newRoleName  = ref('')
 const createErrors = ref({})
+const permMatrix   = ref({})
 
-// Matrice de permissions : { 'delivery': { view: true, create: false, … } }
-const permMatrix = ref({})
-
-// ─── Groupes d'écrans pour la matrice ───────────────────────────────────────
-// Format : subject CASL → libellé affiché
+// ─── Écrans & actions pour la matrice ───────────────────────────────────────
 const SCREENS = [
-  { subject: 'delivery',             label: 'Livraisons' },
-  { subject: 'partner',              label: 'Partenaires' },
-  { subject: 'driver',               label: 'Livreurs (Couriers)' },
-  { subject: 'customer',             label: 'Clients' },
-  { subject: 'financial',            label: 'Financier (accès section)' },
-  { subject: 'payment',              label: 'Transactions / Paiements' },
-  { subject: 'price-adjustment',     label: 'Ajustements de prix' },
-  { subject: 'expense',              label: 'Dépenses' },
-  { subject: 'business-stats',       label: 'Statistiques' },
-  { subject: 'user',                 label: 'Utilisateurs' },
-  { subject: 'notifications-admin',  label: 'Notifications (admin)' },
-  { subject: 'activity-logs',        label: 'Journal d\'activité' },
-  { subject: 'roles-permissions',    label: 'Rôles & Permissions' },
-  { subject: 'settings',             label: 'Paramètres' },
+  { subject: 'delivery',            label: 'Livraisons' },
+  { subject: 'partner',             label: 'Partenaires' },
+  { subject: 'driver',              label: 'Livreurs' },
+  { subject: 'customer',            label: 'Clients' },
+  { subject: 'financial',           label: 'Financier (accès section)' },
+  { subject: 'payment',             label: 'Transactions / Paiements' },
+  { subject: 'price-adjustment',    label: 'Ajustements de prix' },
+  { subject: 'expense',             label: 'Dépenses' },
+  { subject: 'business-stats',      label: 'Statistiques' },
+  { subject: 'user',                label: 'Utilisateurs' },
+  { subject: 'notifications-admin', label: 'Notifications (admin)' },
+  { subject: 'activity-logs',       label: 'Journal d\'activité' },
+  { subject: 'roles-permissions',   label: 'Rôles & Permissions' },
+  { subject: 'settings',            label: 'Paramètres' },
 ]
 
 const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'validate', 'assign']
 
-// ─── API ─────────────────────────────────────────────────────────────────────
+const roleColors = ['primary', 'success', 'error', 'warning', 'info', 'secondary']
+const getRoleColor = i => roleColors[i % roleColors.length]
+
+// ─── API ──────────────────────────────────────────────────────────────────────
 const fetchRoles = async () => {
   isLoading.value = true
   try {
     const res = await $api('/roles', { method: 'GET' })
     roles.value = res?.data ?? (Array.isArray(res) ? res : [])
   } catch (e) {
-    console.error('Erreur chargement rôles', e)
+    console.error('fetchRoles:', e)
   } finally {
     isLoading.value = false
   }
@@ -56,18 +55,15 @@ const fetchPermissions = async () => {
     const res = await $api('/permissions', { method: 'GET' })
     permissions.value = res?.data ?? (Array.isArray(res) ? res : [])
   } catch (e) {
-    console.error('Erreur chargement permissions', e)
+    console.error('fetchPermissions:', e)
   }
 }
 
-onMounted(() => {
-  fetchRoles()
-  fetchPermissions()
-})
+onMounted(() => { fetchRoles(); fetchPermissions() })
 
-// ─── Création d'un rôle ──────────────────────────────────────────────────────
+// ─── Création ────────────────────────────────────────────────────────────────
 const openCreateDialog = () => {
-  newRoleName.value  = ''
+  newRoleName.value = ''
   createErrors.value = {}
   isCreateDialogOpen.value = true
 }
@@ -79,10 +75,7 @@ const createRole = async () => {
   }
   isSaving.value = true
   try {
-    await $api('/roles', {
-      method: 'POST',
-      body: { name: newRoleName.value.trim() },
-    })
+    await $api('/roles', { method: 'POST', body: { name: newRoleName.value.trim() } })
     isCreateDialogOpen.value = false
     await fetchRoles()
   } catch (e) {
@@ -92,112 +85,62 @@ const createRole = async () => {
   }
 }
 
-const deleteRole = async (role) => {
+const deleteRole = async role => {
   if (!confirm(`Supprimer le rôle "${role.name}" ?`)) return
   try {
     await $api(`/roles/${role.id}`, { method: 'DELETE' })
     await fetchRoles()
-  } catch (e) {
-    console.error('Erreur suppression rôle', e)
-  }
+  } catch (e) { console.error('deleteRole:', e) }
 }
 
-// ─── Gestion des permissions ─────────────────────────────────────────────────
-const openPermissionDialog = (role) => {
-  selectedRole.value = role
+// ─── Permissions ─────────────────────────────────────────────────────────────
+const permissionExists = (action, subject) =>
+  permissions.value.some(p => (p.name ?? p) === `${action}-${subject}`)
 
-  // Initialiser la matrice à partir des permissions actuelles du rôle
+const openPermissionDialog = role => {
+  selectedRole.value = role
   const matrix = {}
-  SCREENS.forEach(screen => {
-    matrix[screen.subject] = {}
-    ACTIONS.forEach(action => {
-      const permName = `${action}-${screen.subject}`
-      matrix[screen.subject][action] = role.permissions?.includes(permName) ?? false
+  SCREENS.forEach(s => {
+    matrix[s.subject] = {}
+    ACTIONS.forEach(a => {
+      matrix[s.subject][a] = role.permissions?.includes(`${a}-${s.subject}`) ?? false
     })
   })
   permMatrix.value = matrix
   isPermissionDialogOpen.value = true
 }
 
-// Vérifie si une permission existe dans la liste globale
-const permissionExists = (action, subject) => {
-  const name = `${action}-${subject}`
-  return permissions.value.some(p => (p.name ?? p) === name)
-}
-
-// Sauvegarder les changements de la matrice
 const savePermissions = async () => {
   isSaving.value = true
   try {
     const toAssign = []
     const toRevoke = []
-
-    SCREENS.forEach(screen => {
-      ACTIONS.forEach(action => {
-        const permName = `${action}-${screen.subject}`
-        if (!permissionExists(action, screen.subject)) return
-
-        const hasNow    = permMatrix.value[screen.subject]?.[action] ?? false
-        const hadBefore = selectedRole.value.permissions?.includes(permName) ?? false
-
-        if (hasNow && !hadBefore) toAssign.push(permName)
-        if (!hasNow && hadBefore) toRevoke.push(permName)
+    SCREENS.forEach(s => {
+      ACTIONS.forEach(a => {
+        if (!permissionExists(a, s.subject)) return
+        const perm    = `${a}-${s.subject}`
+        const hasNow  = permMatrix.value[s.subject]?.[a] ?? false
+        const hadBefore = selectedRole.value.permissions?.includes(perm) ?? false
+        if (hasNow && !hadBefore) toAssign.push(perm)
+        if (!hasNow && hadBefore) toRevoke.push(perm)
       })
     })
-
-    if (toAssign.length > 0) {
-      await $api(`/roles/${selectedRole.value.id}/permissions`, {
-        method: 'POST',
-        body: { permissions: toAssign },
-      })
-    }
-    if (toRevoke.length > 0) {
-      await $api(`/roles/${selectedRole.value.id}/permissions`, {
-        method: 'DELETE',
-        body: { permissions: toRevoke },
-      })
-    }
-
+    if (toAssign.length)
+      await $api(`/roles/${selectedRole.value.id}/permissions`, { method: 'POST', body: { permissions: toAssign } })
+    if (toRevoke.length)
+      await $api(`/roles/${selectedRole.value.id}/permissions`, { method: 'DELETE', body: { permissions: toRevoke } })
     isPermissionDialogOpen.value = false
     await fetchRoles()
-  } catch (e) {
-    console.error('Erreur sauvegarde permissions', e)
-  } finally {
-    isSaving.value = false
-  }
+  } catch (e) { console.error('savePermissions:', e) }
+  finally { isSaving.value = false }
 }
 
-// Tout cocher / décocher pour une ligne
-const toggleRow = (subject) => {
-  const anyChecked = ACTIONS.some(a => permissionExists(a, subject) && permMatrix.value[subject]?.[a])
-  ACTIONS.forEach(a => {
-    if (permissionExists(a, subject))
-      permMatrix.value[subject][a] = !anyChecked
-  })
-}
-
-// Tout cocher / décocher pour une colonne
-const toggleColumn = (action) => {
-  const anyChecked = SCREENS.some(s => permissionExists(action, s.subject) && permMatrix.value[s.subject]?.[action])
-  SCREENS.forEach(s => {
-    if (permissionExists(action, s.subject))
-      permMatrix.value[s.subject][action] = !anyChecked
-  })
-}
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-const roleColors = ['primary', 'success', 'error', 'warning', 'info', 'secondary']
-const getRoleColor = (index) => roleColors[index % roleColors.length]
-
-const countPermissions = (role) => role.permissions?.length ?? 0
+const toggleRow    = subject => { const any = ACTIONS.some(a => permissionExists(a, subject) && permMatrix.value[subject]?.[a]); ACTIONS.forEach(a => { if (permissionExists(a, subject)) permMatrix.value[subject][a] = !any }) }
+const toggleColumn = action  => { const any = SCREENS.some(s => permissionExists(action, s.subject) && permMatrix.value[s.subject]?.[action]); SCREENS.forEach(s => { if (permissionExists(action, s.subject)) permMatrix.value[s.subject][action] = !any }) }
 </script>
 
 <template>
-  <!-- ── Chargement ─────────────────────────────────────────────────────────── -->
-  <div
-    v-if="isLoading"
-    class="text-center py-8"
-  >
+  <div v-if="isLoading" class="text-center py-8">
     <VProgressCircular indeterminate color="primary" />
   </div>
 
@@ -211,67 +154,92 @@ const countPermissions = (role) => role.permissions?.length ?? 0
       lg="4"
     >
       <VCard class="h-100">
-        <VCardText>
-          <div class="d-flex align-center justify-space-between mb-3">
-            <VChip
-              :color="getRoleColor(index)"
-              size="small"
-              label
-            >
-              {{ role.name }}
-            </VChip>
+        <VCardText class="pb-2">
+          <!-- En-tête : nom + actions -->
+          <div class="d-flex align-center justify-space-between mb-4">
+            <div class="d-flex align-center gap-2">
+              <VAvatar
+                :color="getRoleColor(index)"
+                variant="tonal"
+                size="38"
+              >
+                <VIcon icon="tabler-shield-check" size="20" />
+              </VAvatar>
+              <div>
+                <div class="text-body-1 font-weight-semibold text-capitalize">{{ role.name }}</div>
+                <div class="text-xs text-medium-emphasis">
+                  {{ role.permissions?.length ?? 0 }} permission{{ (role.permissions?.length ?? 0) !== 1 ? 's' : '' }}
+                </div>
+              </div>
+            </div>
+
             <div class="d-flex gap-1">
-              <IconBtn
+              <VBtn
                 size="small"
+                variant="tonal"
+                :color="getRoleColor(index)"
                 @click="openPermissionDialog(role)"
               >
-                <VIcon icon="tabler-lock-cog" size="18" />
-                <VTooltip activator="parent">Gérer les permissions</VTooltip>
-              </IconBtn>
+                <VIcon icon="tabler-lock-cog" size="16" class="me-1" />
+                Permissions
+              </VBtn>
               <IconBtn
                 v-if="role.name !== 'Super Admin'"
                 size="small"
                 color="error"
                 @click="deleteRole(role)"
               >
-                <VIcon icon="tabler-trash" size="18" />
-                <VTooltip activator="parent">Supprimer le rôle</VTooltip>
+                <VIcon icon="tabler-trash" size="16" />
+                <VTooltip activator="parent">Supprimer</VTooltip>
               </IconBtn>
             </div>
           </div>
 
-          <div class="text-body-2 text-medium-emphasis">
-            <VIcon icon="tabler-shield-check" size="16" class="me-1" />
-            {{ countPermissions(role) }} permission{{ countPermissions(role) !== 1 ? 's' : '' }}
+          <!-- Aperçu des permissions (max 5) -->
+          <div class="d-flex flex-wrap gap-1">
+            <VChip
+              v-for="perm in (role.permissions ?? []).slice(0, 5)"
+              :key="perm"
+              size="x-small"
+              variant="tonal"
+              :color="getRoleColor(index)"
+            >
+              {{ perm }}
+            </VChip>
+            <VChip
+              v-if="(role.permissions?.length ?? 0) > 5"
+              size="x-small"
+              variant="outlined"
+            >
+              +{{ role.permissions.length - 5 }}
+            </VChip>
+            <span
+              v-if="!role.permissions?.length"
+              class="text-xs text-medium-emphasis fst-italic"
+            >Aucune permission assignée</span>
           </div>
         </VCardText>
       </VCard>
     </VCol>
 
     <!-- ── Carte création ─────────────────────────────────────────────────── -->
-    <VCol
-      cols="12"
-      sm="6"
-      lg="4"
-    >
+    <VCol cols="12" sm="6" lg="4">
       <VCard
         class="h-100 d-flex align-center justify-center cursor-pointer"
-        style="min-height: 110px; border: 2px dashed rgba(var(--v-border-color), var(--v-border-opacity));"
+        style="min-height: 130px; border: 2px dashed rgba(var(--v-border-color), var(--v-border-opacity));"
         @click="openCreateDialog"
       >
         <VCardText class="text-center">
-          <VIcon icon="tabler-plus" size="32" color="primary" class="mb-2" />
+          <VIcon icon="tabler-plus" size="36" color="primary" class="mb-2" />
           <div class="text-body-1 text-primary font-weight-medium">Créer un nouveau rôle</div>
+          <div class="text-xs text-medium-emphasis mt-1">Définissez un rôle personnalisé</div>
         </VCardText>
       </VCard>
     </VCol>
   </VRow>
 
-  <!-- ── Dialog création de rôle ──────────────────────────────────────────── -->
-  <VDialog
-    v-model="isCreateDialogOpen"
-    max-width="480"
-  >
+  <!-- ── Dialog création ───────────────────────────────────────────────────── -->
+  <VDialog v-model="isCreateDialogOpen" max-width="480">
     <VCard>
       <VCardTitle class="d-flex align-center pa-4">
         <VIcon icon="tabler-shield-plus" class="me-2" />
@@ -291,39 +259,24 @@ const countPermissions = (role) => role.permissions?.length ?? 0
       <VDivider />
       <VCardActions class="pa-4">
         <VSpacer />
-        <VBtn
-          variant="outlined"
-          @click="isCreateDialogOpen = false"
-        >
-          Annuler
-        </VBtn>
-        <VBtn
-          color="primary"
-          :loading="isSaving"
-          @click="createRole"
-        >
-          Créer
-        </VBtn>
+        <VBtn variant="outlined" @click="isCreateDialogOpen = false">Annuler</VBtn>
+        <VBtn color="primary" :loading="isSaving" @click="createRole">Créer</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 
   <!-- ── Dialog matrice de permissions ────────────────────────────────────── -->
-  <VDialog
-    v-model="isPermissionDialogOpen"
-    max-width="900"
-    scrollable
-  >
+  <VDialog v-model="isPermissionDialogOpen" max-width="920" scrollable>
     <VCard v-if="selectedRole">
       <VCardTitle class="d-flex align-center pa-4">
         <VIcon icon="tabler-lock-cog" class="me-2" />
-        Permissions — <strong class="ms-1">{{ selectedRole.name }}</strong>
+        Permissions —
+        <span class="text-primary ms-1">{{ selectedRole.name }}</span>
         <VSpacer />
         <IconBtn @click="isPermissionDialogOpen = false">
           <VIcon icon="tabler-x" />
         </IconBtn>
       </VCardTitle>
-
       <VDivider />
 
       <VCardText class="pa-0">
@@ -331,51 +284,26 @@ const countPermissions = (role) => role.permissions?.length ?? 0
           <table class="permission-matrix w-100">
             <thead>
               <tr>
-                <th class="screen-col text-left pa-3">Écran / Module</th>
+                <th class="screen-col text-left pa-3 text-body-2 font-weight-bold">Écran / Module</th>
                 <th
                   v-for="action in ACTIONS"
                   :key="action"
                   class="action-col text-center pa-2"
                 >
-                  <div class="text-capitalize text-body-2 font-weight-medium">
-                    {{ action }}
-                  </div>
-                  <VBtn
-                    size="x-small"
-                    variant="text"
-                    density="compact"
-                    class="mt-1"
-                    @click="toggleColumn(action)"
-                  >
-                    tout
-                  </VBtn>
+                  <div class="text-capitalize text-body-2 font-weight-medium">{{ action }}</div>
+                  <VBtn size="x-small" variant="text" density="compact" class="mt-1" @click="toggleColumn(action)">tout</VBtn>
                 </th>
               </tr>
             </thead>
             <tbody>
-              <tr
-                v-for="screen in SCREENS"
-                :key="screen.subject"
-                class="permission-row"
-              >
+              <tr v-for="screen in SCREENS" :key="screen.subject" class="permission-row">
                 <td class="screen-col pa-3">
                   <div class="d-flex align-center gap-2">
-                    <span class="text-body-1">{{ screen.label }}</span>
-                    <VBtn
-                      size="x-small"
-                      variant="text"
-                      density="compact"
-                      @click="toggleRow(screen.subject)"
-                    >
-                      tout
-                    </VBtn>
+                    <span class="text-body-2">{{ screen.label }}</span>
+                    <VBtn size="x-small" variant="text" density="compact" @click="toggleRow(screen.subject)">tout</VBtn>
                   </div>
                 </td>
-                <td
-                  v-for="action in ACTIONS"
-                  :key="action"
-                  class="action-col text-center pa-2"
-                >
+                <td v-for="action in ACTIONS" :key="action" class="action-col text-center pa-1">
                   <VCheckbox
                     v-if="permissionExists(action, screen.subject)"
                     v-model="permMatrix[screen.subject][action]"
@@ -383,11 +311,7 @@ const countPermissions = (role) => role.permissions?.length ?? 0
                     density="compact"
                     class="d-flex justify-center"
                   />
-                  <span
-                    v-else
-                    class="text-medium-emphasis"
-                    title="Permission non définie"
-                  >—</span>
+                  <span v-else class="text-disabled text-xs">—</span>
                 </td>
               </tr>
             </tbody>
@@ -396,52 +320,23 @@ const countPermissions = (role) => role.permissions?.length ?? 0
       </VCardText>
 
       <VDivider />
-
       <VCardActions class="pa-4">
         <VSpacer />
-        <VBtn
-          variant="outlined"
-          @click="isPermissionDialogOpen = false"
-        >
-          Annuler
-        </VBtn>
-        <VBtn
-          color="primary"
-          :loading="isSaving"
-          @click="savePermissions"
-        >
-          Enregistrer
-        </VBtn>
+        <VBtn variant="outlined" @click="isPermissionDialogOpen = false">Annuler</VBtn>
+        <VBtn color="primary" :loading="isSaving" @click="savePermissions">Enregistrer</VBtn>
       </VCardActions>
     </VCard>
   </VDialog>
 </template>
 
 <style scoped>
-.permission-matrix {
-  border-collapse: collapse;
-}
-
+.permission-matrix { border-collapse: collapse; }
 .permission-matrix thead tr {
   background-color: rgba(var(--v-theme-surface-variant), 0.5);
   border-bottom: 2px solid rgba(var(--v-border-color), var(--v-border-opacity));
 }
-
-.permission-row:nth-child(even) {
-  background-color: rgba(var(--v-theme-surface-variant), 0.2);
-}
-
-.permission-row:hover {
-  background-color: rgba(var(--v-theme-primary), 0.05);
-}
-
-.screen-col {
-  min-width: 220px;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
-
-.action-col {
-  min-width: 80px;
-  border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity));
-}
+.permission-row:nth-child(even) { background-color: rgba(var(--v-theme-surface-variant), 0.2); }
+.permission-row:hover { background-color: rgba(var(--v-theme-primary), 0.05); }
+.screen-col { min-width: 220px; border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
+.action-col { min-width: 80px; border-right: 1px solid rgba(var(--v-border-color), var(--v-border-opacity)); }
 </style>

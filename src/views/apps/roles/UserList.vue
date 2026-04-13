@@ -239,6 +239,36 @@ const getStatusName = status => {
 
 const isAddNewUserDrawerVisible = ref(false)
 
+// Edit user dialog
+const isEditDialogOpen = ref(false)
+const editingUser = ref(null)
+const isSavingEdit = ref(false)
+const editErrors = ref({})
+const editForm = reactive({ name: '', email: '', phone: '' })
+
+const openEditDialog = user => {
+  editingUser.value = user
+  editForm.name  = user.name ?? ''
+  editForm.email = user.email ?? ''
+  editForm.phone = user.phone ?? ''
+  editErrors.value = {}
+  isEditDialogOpen.value = true
+}
+
+const saveEdit = async () => {
+  isSavingEdit.value = true
+  editErrors.value = {}
+  try {
+    await $api(`/users/${editingUser.value.id}`, { method: 'PUT', body: { ...editForm } })
+    isEditDialogOpen.value = false
+    fetchUsers()
+  } catch (e) {
+    editErrors.value = e?.data?.errors ?? {}
+  } finally {
+    isSavingEdit.value = false
+  }
+}
+
 // User details dialog
 const isUserDetailsDialogOpen = ref(false)
 const selectedUser = ref(null)
@@ -537,7 +567,7 @@ const getUserPermissions = (user) => {
                   <VListItemTitle>{{ $t('View') }}</VListItemTitle>
                 </VListItem>
 
-                <VListItem link>
+                <VListItem @click="openEditDialog(item)">
                   <template #prepend>
                     <VIcon icon="tabler-pencil" />
                   </template>
@@ -763,6 +793,53 @@ const getUserPermissions = (user) => {
             @click="isUserDetailsDialogOpen = false"
           >
             {{ $t('Close') }}
+          </VBtn>
+        </VCardActions>
+      </VCard>
+    </VDialog>
+
+    <!-- 👉 Edit User Dialog -->
+    <VDialog v-model="isEditDialogOpen" max-width="480">
+      <VCard>
+        <VCardTitle class="d-flex align-center pa-4">
+          <VIcon icon="tabler-user-edit" class="me-2" />
+          {{ $t('Edit User') }} — {{ editingUser?.name }}
+        </VCardTitle>
+        <VDivider />
+        <VCardText class="pa-4">
+          <VRow>
+            <VCol cols="12">
+              <AppTextField
+                v-model="editForm.name"
+                :label="$t('Full Name')"
+                :error-messages="editErrors.name"
+              />
+            </VCol>
+            <VCol cols="12">
+              <AppTextField
+                v-model="editForm.email"
+                :label="$t('Email')"
+                type="email"
+                :error-messages="editErrors.email"
+              />
+            </VCol>
+            <VCol cols="12">
+              <AppTextField
+                v-model="editForm.phone"
+                :label="$t('Phone')"
+                :error-messages="editErrors.phone"
+              />
+            </VCol>
+          </VRow>
+        </VCardText>
+        <VDivider />
+        <VCardActions class="pa-4">
+          <VSpacer />
+          <VBtn variant="outlined" @click="isEditDialogOpen = false">
+            {{ $t('Cancel') }}
+          </VBtn>
+          <VBtn color="primary" :loading="isSavingEdit" @click="saveEdit">
+            {{ $t('Save') }}
           </VBtn>
         </VCardActions>
       </VCard>
