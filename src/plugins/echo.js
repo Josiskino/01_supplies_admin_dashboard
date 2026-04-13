@@ -16,7 +16,7 @@ export const echo = new Echo({
     authorize: (socketId, callback) => {
       const token = useCookie('accessToken').value
 
-      fetch(`${BASE_URL}/broadcasting/auth`, {
+      fetch(`${BASE_URL}/api/broadcasting/auth`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
