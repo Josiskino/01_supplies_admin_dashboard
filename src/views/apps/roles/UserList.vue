@@ -287,7 +287,8 @@ const permissionExists = (action, subject) =>
   KNOWN_PERMISSIONS.has(`${action}-${subject}`)
 
 // Matrice : permissions directes de l'utilisateur (pas celles héritées du rôle)
-const userPermMatrix = ref({})
+const userPermMatrix        = ref({})
+const initialUserPermMatrix = ref({})
 
 const openEditDialog = async user => {
   editingUser.value    = user
@@ -314,13 +315,26 @@ const openEditDialog = async user => {
         matrix[s.subject][a] = allPerms.includes(`${a}-${s.subject}`)
       })
     })
-    userPermMatrix.value = matrix
+    userPermMatrix.value        = matrix
+    initialUserPermMatrix.value = JSON.parse(JSON.stringify(matrix))
   } catch (e) {
     const matrix = {}
     SCREENS.forEach(s => { matrix[s.subject] = {}; ACTIONS.forEach(a => { matrix[s.subject][a] = false }) })
-    userPermMatrix.value = matrix
+    userPermMatrix.value        = matrix
+    initialUserPermMatrix.value = JSON.parse(JSON.stringify(matrix))
   }
 }
+
+const hasPermChanges = computed(() => {
+  for (const s of SCREENS) {
+    for (const a of ACTIONS) {
+      if (!permissionExists(a, s.subject)) continue
+      if ((userPermMatrix.value[s.subject]?.[a] ?? false) !== (initialUserPermMatrix.value[s.subject]?.[a] ?? false))
+        return true
+    }
+  }
+  return false
+})
 
 // Sauvegarde onglet Infos
 const saveEdit = async () => {
@@ -1049,6 +1063,7 @@ const getUserPermissions = (user) => {
             v-else-if="editTab === 'permissions'"
             color="primary"
             :loading="isSavingEdit"
+            :disabled="!hasPermChanges"
             @click="saveUserPermissions"
           >
             Sauvegarder permissions
