@@ -33,7 +33,7 @@ const allNavItems = [
   // 3. Livreurs
   {
     title: 'Couriers',
-    icon: { icon: 'tabler-motorcycle' },
+    icon: { icon: 'tabler-users' },
     to: 'couriers-list',
     action: 'view',
     subject: 'driver',
