@@ -146,8 +146,13 @@ const login = async () => {
       // CASL needs: [{ action: 'create', subject: 'delivery' }, ...]
       const permissions = userData?.permissions || []
 
+      // Split sur le premier tiret seulement pour gérer les noms composés
+      // Ex: 'view-business-stats' → { action: 'view', subject: 'business-stats' }
       userAbilityRules = permissions.map(permission => {
-        const [action, subject] = permission.split('-')
+        const firstDash = permission.indexOf('-')
+        if (firstDash === -1) return { action: permission, subject: 'all' }
+        const action  = permission.substring(0, firstDash)
+        const subject = permission.substring(firstDash + 1)
 
         return { action, subject }
       })

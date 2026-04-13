@@ -2,6 +2,7 @@
 defineOptions({ inheritAttrs: false })
 
 import { getFilteredNavigation } from '@/navigation/vertical/dashboard'
+import { ability } from '@/plugins/casl/ability'
 import { echo } from '@/plugins/echo'
 import { themeConfig } from '@themeConfig'
 
@@ -52,13 +53,50 @@ const handleOptOutChange = ({ action, opt_out }) => {
   optOutToast.value = true
 }
 
+// ─── Permissions temps réel (Pusher) ───────────────────────────────────────
+
+const userAbilityRulesCookie = useCookie('userAbilityRules')
+
+const handlePermissionsUpdated = ({ permissions }) => {
+  // Convertir les permissions backend en règles CASL
+  // Ex: 'view-business-stats' → { action: 'view', subject: 'business-stats' }
+  const newRules = (permissions || []).map(permission => {
+    const firstDash = permission.indexOf('-')
+    if (firstDash === -1) return { action: permission, subject: 'all' }
+
+    return {
+      action:  permission.substring(0, firstDash),
+      subject: permission.substring(firstDash + 1),
+    }
+  })
+
+  // Mettre à jour CASL → la navigation se recalcule automatiquement
+  ability.update(newRules)
+  userAbilityRulesCookie.value = newRules
+
+  // Forcer le recalcul de la navigation
+  navItemsKey.value++
+}
+
 onMounted(() => {
   echo.channel('notification-opt-outs')
     .listen('.notification-opt-out-changed', handleOptOutChange)
+
+  // Écouter les changements de permissions sur le canal privé de l'utilisateur
+  const userData = useCookie('userData').value
+  if (userData?.id) {
+    echo.private(`user.${userData.id}`)
+      .listen('.UserPermissionsUpdated', handlePermissionsUpdated)
+  }
 })
 
 onUnmounted(() => {
   echo.leave('notification-opt-outs')
+
+  const userData = useCookie('userData').value
+  if (userData?.id) {
+    echo.leave(`user.${userData.id}`)
+  }
 })
 </script>
 

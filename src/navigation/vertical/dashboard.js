@@ -1,274 +1,260 @@
-// Navigation items configuration
+import { ability } from '@/plugins/casl/ability'
+
+/**
+ * Configuration de la navigation verticale.
+ *
+ * Chaque item peut avoir :
+ * - action + subject  → vérifié via CASL (ability.can)
+ * - adminOnly         → visible uniquement par admin / Super Admin
+ * - superAdminOnly    → visible uniquement par Super Admin
+ * - children[]        → items enfants (action/subject propres ou hérités)
+ */
 const allNavItems = [
-  // Commented out - Dashboard is no longer displayed in navigation
-  // {
-  //   title: 'Dashboards',
-  //   icon: { icon: 'tabler-smart-home' },
-  //   to: 'dashboard',
-  //   badgeContent: '5',
-  //   badgeClass: 'bg-error',
-  //   roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
-  // },
   { heading: 'App' },
 
-  // 1. Livraison (Delivery)
-
+  // 1. Livraisons
   {
     title: 'Delivery',
     icon: { icon: 'tabler-truck' },
     to: 'delivery-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur', 'Stagiaire'],
-    // Commented out for future use - uncomment to restore dropdown menu
-    // children: [
-    //   { title: 'Dashboard', to: 'delivery-dashboard' },
-    //   { title: 'List', to: 'delivery-list' },
-    // ],
+    action: 'view',
+    subject: 'delivery',
   },
-  // 2. Partenaires (Partners)
+
+  // 2. Partenaires
   {
     title: 'Partners',
     icon: { icon: 'tabler-users' },
     to: 'partners-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur', 'Stagiaire'],
+    action: 'view',
+    subject: 'partner',
   },
-  // 3. Livreurs (Couriers)
-  { 
+
+  // 3. Livreurs
+  {
     title: 'Couriers',
-    icon: { icon: 'tabler-users' },
+    icon: { icon: 'tabler-motorcycle' },
     to: 'couriers-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Superviseur'],
-    // Commented out - Activity screen is no longer displayed in navigation
-    // children: [
-    //   { title: 'List', to: 'couriers-list' },
-    //   { title: 'Activity', to: 'couriers-activity' },
-    // ],
+    action: 'view',
+    subject: 'driver',
   },
-  // 4. Clients (Customers)
+
+  // 4. Clients
   {
     title: 'Customers',
-    icon: { icon: 'tabler-users' },
+    icon: { icon: 'tabler-user-circle' },
     to: 'customer-list',
-    roles: ['Logisticien', 'Assistant Logisticien', 'Service Client', 'Comptable', 'Superviseur', 'Stagiaire'],
+    action: 'view',
+    subject: 'customer',
   },
-  // 5. Financier (Financial)
+
+  // 5. Financier (groupe)
   {
     title: 'Financial',
     icon: { icon: 'tabler-currency-dollar' },
-    roles: ['Comptable', 'Superviseur'],
+    action: 'view',
+    subject: 'financial',
     children: [
-      { title: 'Transactions', to: 'financial-transactions' },
-      { title: 'Price Adjustments', to: 'financial-price-adjustments', roles: ['Superviseur'] },
-      { title: 'Expenses', to: 'financial-expenses' },
-      { title: 'Driver Turnover', to: 'financial-driver-turnover' },
-      { title: 'Report', to: 'financial-report' },
+      {
+        title: 'Transactions',
+        to: 'financial-transactions',
+        action: 'view',
+        subject: 'payment',
+      },
+      {
+        title: 'Price Adjustments',
+        to: 'financial-price-adjustments',
+        action: 'view',
+        subject: 'price-adjustment',
+      },
+      {
+        title: 'Expenses',
+        to: 'financial-expenses',
+        action: 'view',
+        subject: 'expense',
+      },
+      {
+        title: 'Driver Turnover',
+        to: 'financial-driver-turnover',
+        action: 'view',
+        subject: 'payment',
+      },
+      {
+        title: 'Report',
+        to: 'financial-report',
+        action: 'view',
+        subject: 'financial',
+      },
     ],
   },
-  // 6. Statistiques (Statistics)
+
+  // 6. Statistiques
   {
     title: 'Statistics',
     icon: { icon: 'tabler-chart-bar' },
     to: 'statistics',
-    roles: ['Business Developer'],
+    action: 'view',
+    subject: 'business-stats',
   },
-  // 7. Exclusions de notifications
+
+  // ── Section admin ─────────────────────────────────────────────
+
+  { heading: 'Administration' },
+
+  // 7. Utilisateurs
+  {
+    title: 'Users',
+    icon: { icon: 'tabler-users-group' },
+    to: 'users-list',
+    adminOnly: true,
+    action: 'view',
+    subject: 'user',
+  },
+
+  // 8. Notifications (opt-outs)
   {
     title: 'Notifications',
     icon: { icon: 'tabler-bell-off' },
-    roles: [], // Admin & Super Admin uniquement (roles vide = admin only)
+    adminOnly: true,
+    action: 'view',
+    subject: 'notifications-admin',
     children: [
       { title: 'Opt-outs globaux', to: 'notification-opt-outs-list' },
       { title: 'Exclusions par livraison', to: 'notification-opt-outs-delivery-exclusions' },
       { title: 'Templates de messages', to: 'notification-opt-outs-templates' },
     ],
   },
-  // 8. Journal d'activité (Activity Logs)
+
+  // 9. Journal d'activité
   {
     title: 'Journal d\'activité',
     icon: { icon: 'tabler-activity' },
     to: 'activity-logs',
-    roles: [], // Admin & Super Admin uniquement
     superAdminOnly: true,
+    action: 'view',
+    subject: 'activity-logs',
   },
-  // 9. Rôles et Permissions (Roles & Permissions)
 
+  // 10. Rôles & Permissions
   {
     title: 'Roles & Permissions',
     icon: { icon: 'tabler-lock' },
     to: 'role',
-    roles: [], // Only Super Admin or specific role - adjust as needed
+    adminOnly: true,
+    action: 'view',
+    subject: 'roles-permissions',
   },
-  // 7. Paramètres (Settings)
-  { 
-    title: 'Settings', 
+
+  // 11. Paramètres
+  {
+    title: 'Settings',
     icon: { icon: 'tabler-settings' },
     to: 'settings',
-    roles: [], // Only Super Admin or specific role - adjust as needed
-  }, 
-  // Commented out - Reports section is no longer displayed in navigation
-  // { 
-  //   title: 'Reports',
-  //   icon: { icon: 'tabler-chart-bar' },
-  //   roles: ['Logisticien', 'Assistant Logisticien', 'Comptable', 'Service Client'], // Accessible to all
-  // }, 
+    adminOnly: true,
+    action: 'view',
+    subject: 'settings',
+  },
 ]
 
-// Function to get user role from cookie
+// ─── Helpers rôle ──────────────────────────────────────────────────────────
+
 export const getUserRole = () => {
   const userData = useCookie('userData').value
-  if (!userData) {
-    console.log('[Navigation] No userData found')
+  if (!userData) return null
 
-    return null
-  }
-
-  // Check different possible role field names
-  const role = userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0]
-
-  console.log('[Navigation] ==========================================')
-  console.log('[Navigation] UserData structure:', {
-    'userData.role': userData.role,
-    'userData.role?.name': userData.role?.name,
-    'userData.roles': userData.roles,
-    'userData.roles?.[0]': userData.roles?.[0],
-    'userData.roles?.[0]?.name': userData.roles?.[0]?.name,
-  })
-  console.log('[Navigation] Detected role (raw):', role)
-  console.log('[Navigation] Detected role (type):', typeof role)
-  console.log('[Navigation] ==========================================')
-
-  return role
+  return userData.role?.name || userData.role || userData.roles?.[0]?.name || userData.roles?.[0] || null
 }
 
-// Function to filter navigation items based on user role
+const isAdminRole = role => {
+  const r = role?.toString().trim().toLowerCase()
+
+  return r === 'admin' || r === 'super admin' || r === 'superadmin' || r === 'super-admin'
+}
+
+const isSuperAdminRole = role => {
+  const r = role?.toString().trim().toLowerCase()
+
+  return r === 'super admin' || r === 'superadmin' || r === 'super-admin'
+}
+
+// ─── Filtrage navigation ────────────────────────────────────────────────────
+
+/**
+ * Retourne les items de navigation accessibles à l'utilisateur connecté.
+ * Utilise CASL (ability.can) comme source de vérité principale.
+ */
 export const getFilteredNavigation = () => {
-  const userRole = getUserRole()
+  const userRole   = getUserRole()
+  const superAdmin = isSuperAdminRole(userRole)
+  const admin      = isAdminRole(userRole)
 
-  console.log('[Navigation] Filtering navigation for role:', userRole)
+  const canAccess = (item) => {
+    // Super Admin voit tout
+    if (superAdmin) return true
 
-  if (!userRole) {
-    // If no role, return only headings (dashboard is commented out)
-    console.log('[Navigation] No role found, returning headings only')
+    // Réservé Super Admin seulement
+    if (item.superAdminOnly) return false
 
-    return allNavItems.filter(item => item.heading)
-  }
+    // Admin voit les items adminOnly
+    if (item.adminOnly && admin) return true
+    if (item.adminOnly && !admin) return false
 
-  // Normalize user role for comparison (case-insensitive)
-  const normalizedUserRole = userRole?.toString().trim().toLowerCase()
-
-  // If user is admin, show all items
-  // Check for: "Super Admin", "super admin", "SuperAdmin", "admin", etc.
-  const isSuperAdmin = normalizedUserRole === 'super admin' ||
-                       normalizedUserRole === 'superadmin' ||
-                       normalizedUserRole === 'super-admin'
-
-  const isAdmin = normalizedUserRole === 'admin' || isSuperAdmin
-
-  if (isAdmin) {
-    console.log('[Navigation] Admin role detected, showing all items')
-
-    // Return all items for admin, but filter out superAdminOnly items for non-super admins
-    return allNavItems.filter(item => !item.superAdminOnly || isSuperAdmin)
-  }
-
-  const filtered = allNavItems.filter(item => {
-    // Headings are always shown
-    if (item.heading) return true
-
-    // If item has no roles array, it's not accessible (like Settings, Roles & Permissions)
-    if (!item.roles || item.roles.length === 0) return false
-
-    // Check if user role is in the allowed roles (case-insensitive comparison)
-    const normalizedItemRoles = item.roles.map(r => {
-      const roleStr = r?.toString().trim().toLowerCase()
-
-      console.log(`[Navigation] Normalizing role "${r}" -> "${roleStr}"`)
-
-      return roleStr
-    })
-
-    const isAllowed = normalizedItemRoles.includes(normalizedUserRole)
-
-    console.log(`[Navigation] Item "${item.title}": ${isAllowed ? 'ALLOWED' : 'DENIED'}`)
-    console.log(`  - User role: "${normalizedUserRole}"`)
-    console.log(`  - Allowed roles: [${normalizedItemRoles.join(', ')}]`)
-    console.log(`  - Match: ${isAllowed}`)
-
-    // Filter children that have their own roles restriction
-    if (isAllowed && item.children) {
-      item.children = item.children.filter(child => {
-        if (!child.roles || child.roles.length === 0) return true
-        const normalizedChildRoles = child.roles.map(r => r?.toString().trim().toLowerCase())
-
-        return normalizedChildRoles.includes(normalizedUserRole)
-      })
+    // Vérification CASL
+    if (item.action && item.subject) {
+      return ability.can(item.action, item.subject)
     }
 
-    return isAllowed
-  })
+    return false
+  }
 
-  console.log('[Navigation] Filtered items:', filtered.map(i => i.title || i.heading))
+  return allNavItems
+    .filter(item => {
+      // Les headings sont toujours inclus (filtrés après si section vide)
+      if (item.heading) return true
 
-  return filtered
+      return canAccess(item)
+    })
+    .map(item => {
+      // Filtrer les enfants aussi
+      if (item.children) {
+        return {
+          ...item,
+          children: item.children.filter(child => {
+            if (superAdmin || admin) return true
+            if (!child.action || !child.subject) return true
+
+            return ability.can(child.action, child.subject)
+          }),
+        }
+      }
+
+      return item
+    })
+    .filter((item, index, arr) => {
+      // Supprimer les headings orphelins (suivis d'un autre heading ou fin de liste)
+      if (!item.heading) return true
+      const next = arr[index + 1]
+
+      return next && !next.heading
+    })
 }
 
-// Function to get the first accessible page for a user role
+// ─── Premier écran accessible ───────────────────────────────────────────────
+
 export const getFirstAccessiblePage = (userRole = null) => {
-  // If no role provided, try to get it from cookie
-  if (!userRole) {
-    userRole = getUserRole()
-  }
+  if (!userRole) userRole = getUserRole()
+  if (!userRole) return null
 
-  if (!userRole) {
-    return null
-  }
+  const filtered = getFilteredNavigation()
 
-  // Normalize user role for comparison (case-insensitive)
-  const normalizedUserRole = userRole?.toString().trim().toLowerCase()
-
-  // If user is admin, return first item
-  const isAdmin = normalizedUserRole === 'admin' || 
-                  normalizedUserRole === 'super admin' || 
-                  normalizedUserRole === 'superadmin' ||
-                  normalizedUserRole === 'super-admin'
-
-  if (isAdmin) {
-    // For admin, return first non-heading item
-    const firstItem = allNavItems.find(item => !item.heading && (item.to || item.children))
-    if (firstItem) {
-      if (firstItem.children && firstItem.children.length > 0) {
-        return firstItem.children[0].to
-      }
-      return firstItem.to
-    }
-    return null
-  }
-
-  // Filter items based on role
-  const filtered = allNavItems.filter(item => {
-    if (item.heading) return false
-    if (!item.roles || item.roles.length === 0) return false
-
-    const normalizedItemRoles = item.roles.map(r => r?.toString().trim().toLowerCase())
-    return normalizedItemRoles.includes(normalizedUserRole)
-  })
-
-  // Find first accessible item
   for (const item of filtered) {
-    // If item has children, return first child
-    if (item.children && item.children.length > 0) {
-      return item.children[0].to
-    }
-    // If item has direct route, return it
-    if (item.to) {
-      return item.to
-    }
+    if (item.heading) continue
+    if (item.children?.length) return item.children[0].to
+    if (item.to) return item.to
   }
 
   return null
 }
 
-// Export all nav items for reference
 export { allNavItems }
-
-// Default export - will be computed in the component
 export default allNavItems
