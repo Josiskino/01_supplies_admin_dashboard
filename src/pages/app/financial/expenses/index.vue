@@ -10,8 +10,19 @@ const selectedCategoryId = ref('')
 const selectedExpenseType = ref('')
 const searchQuery = ref('')
 const driverNameSearch = ref('')
+const selectedPeriod = ref('this_month')
 const dateFrom = ref(null)
 const dateTo = ref(null)
+
+// Period preset options
+const periodOptions = computed(() => [
+  { title: t('Today') || 'Aujourd\'hui', value: 'today' },
+  { title: t('This week') || 'Cette semaine', value: 'this_week' },
+  { title: t('This month') || 'Ce mois', value: 'this_month' },
+  { title: t('Custom range') || 'Plage personnalisée', value: 'custom' },
+])
+
+const isCustomPeriod = computed(() => selectedPeriod.value === 'custom')
 
 // Data table options
 const itemsPerPage = ref(15)
@@ -21,6 +32,7 @@ const isLoading = ref(false)
 // Expenses data
 const expenses = ref([])
 const totalExpenses = ref(0)
+const filteredTotalAmount = ref(0)
 
 // All expenses for statistics (without filters)
 const allExpenses = ref([])
@@ -45,10 +57,9 @@ const headers = computed(() => [
   { title: t('Actions') || 'Actions', key: 'actions', sortable: false, width: '120px' },
 ])
 
-// Statistics - Total of current filtered results
-const currentViewTotal = computed(() => {
-  return expenses.value.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0)
-})
+// Statistics - Total of current filtered results (computed by the backend over
+// the entire filtered set, independent of pagination)
+const currentViewTotal = computed(() => filteredTotalAmount.value)
 
 // Statistics - All company expenses (without date filters)
 const companyExpensesTotal = computed(() => {
@@ -107,12 +118,17 @@ const fetchExpenses = async () => {
       queryParams.search = searchQuery.value
     }
 
-    if (dateFrom.value) {
-      queryParams.date_from = dateFrom.value
+    if (selectedPeriod.value) {
+      queryParams.period = selectedPeriod.value
     }
 
-    if (dateTo.value) {
-      queryParams.date_to = dateTo.value
+    if (selectedPeriod.value === 'custom') {
+      if (dateFrom.value) {
+        queryParams.date_from = dateFrom.value
+      }
+      if (dateTo.value) {
+        queryParams.date_to = dateTo.value
+      }
     }
 
     const queryString = new URLSearchParams(queryParams).toString()
@@ -126,17 +142,21 @@ const fetchExpenses = async () => {
     if (response?.data && Array.isArray(response.data)) {
       expenses.value = response.data
       totalExpenses.value = response.meta?.total || response.data.length
+      filteredTotalAmount.value = parseFloat(response.aggregates?.filtered_total_amount ?? 0)
     } else if (Array.isArray(response)) {
       expenses.value = response
       totalExpenses.value = response.length
+      filteredTotalAmount.value = response.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0)
     } else {
       expenses.value = []
       totalExpenses.value = 0
+      filteredTotalAmount.value = 0
     }
   } catch (error) {
     console.error('Error fetching expenses:', error)
     expenses.value = []
     totalExpenses.value = 0
+    filteredTotalAmount.value = 0
   } finally {
     isLoading.value = false
   }
@@ -262,9 +282,17 @@ const deleteExpense = async expense => {
 }
 
 // Watch for changes and refetch
-watch([selectedCategoryId, selectedExpenseType, searchQuery, driverNameSearch, dateFrom, dateTo, itemsPerPage], () => {
+watch([selectedCategoryId, selectedExpenseType, searchQuery, driverNameSearch, selectedPeriod, dateFrom, dateTo, itemsPerPage], () => {
   page.value = 1
   fetchExpenses()
+})
+
+// Reset custom dates when leaving the custom period
+watch(selectedPeriod, newPeriod => {
+  if (newPeriod !== 'custom') {
+    dateFrom.value = null
+    dateTo.value = null
+  }
 })
 
 watch(page, () => {
@@ -333,8 +361,7 @@ onMounted(() => {
                     {{ formatPrice(currentViewTotal) }}
                   </div>
                   <div class="text-xs text-medium-emphasis mt-1">
-                    <span v-if="dateFrom || dateTo">{{ $t('Filtered period') || 'Période filtrée' }}</span>
-                    <span v-else>{{ $t('Current page') || 'Page actuelle' }}</span>
+                    {{ periodOptions.find(o => o.value === selectedPeriod)?.title || ($t('Filtered period') || 'Période filtrée') }}
                   </div>
                 </div>
                 <VAvatar
@@ -482,6 +509,21 @@ onMounted(() => {
             sm="6"
             md="3"
           >
+            <AppSelect
+              v-model="selectedPeriod"
+              :items="periodOptions"
+              :label="$t('Period') || 'Période'"
+              :placeholder="$t('Select a period') || 'Sélectionner une période'"
+              prepend-inner-icon="tabler-calendar"
+            />
+          </VCol>
+
+          <VCol
+            v-if="isCustomPeriod"
+            cols="12"
+            sm="6"
+            md="3"
+          >
             <AppDateTimePicker
               v-model="dateFrom"
               :label="$t('Date From')"
@@ -492,6 +534,7 @@ onMounted(() => {
           </VCol>
 
           <VCol
+            v-if="isCustomPeriod"
             cols="12"
             sm="6"
             md="3"
