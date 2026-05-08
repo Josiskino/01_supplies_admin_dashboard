@@ -167,12 +167,23 @@ const expenseTypeOptions = computed(() => [
   { title: t('Driver Expense') || 'Dépense livreur', value: 'driver' },
 ])
 
-// For driver expenses, only show the "Carburant" category
+// Categories scoped to the selected expense type:
+// - driver expenses: only "Carburant" and "Salaire"
+// - company expenses: every category except "Salaire" (driver-only)
 const availableCategories = computed(() => {
-  if (form.value.expense_type !== 'driver') return expenseCategories.value
-  return expenseCategories.value.filter(c =>
-    (c.title || '').toLowerCase().includes('carburant')
-  )
+  const isDriverOnly = title => {
+    const t = (title || '').toLowerCase()
+    return t.includes('salaire')
+  }
+  const isDriverAllowed = title => {
+    const t = (title || '').toLowerCase()
+    return t.includes('carburant') || t.includes('salaire')
+  }
+
+  if (form.value.expense_type === 'driver') {
+    return expenseCategories.value.filter(c => isDriverAllowed(c.title))
+  }
+  return expenseCategories.value.filter(c => !isDriverOnly(c.title))
 })
 
 // Filtered drivers based on search
