@@ -1,5 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { useTheme } from 'vuetify'
+import { hexToRgb } from '@layouts/utils'
 import PeriodFilter from '@/components/analytics/PeriodFilter.vue'
 import KpiCard from '@/components/analytics/KpiCard.vue'
 import TopCustomersTable from '@/components/analytics/TopCustomersTable.vue'
@@ -9,6 +11,8 @@ import VariabilityList from '@/components/analytics/VariabilityList.vue'
 import DownloadButton from '@/components/common/DownloadButton.vue'
 import { useAnalytics } from '@/composables/useAnalytics'
 import VueApexCharts from 'vue3-apexcharts'
+
+const vuetifyTheme = useTheme()
 
 definePage({
   meta: {
@@ -143,19 +147,60 @@ const revenueChartSeries = computed(() => [{
   data: revenueSeries.value.map(r => r.revenue),
 }])
 
-const revenueChartOptions = computed(() => ({
-  chart: { type: 'area', toolbar: { show: false }, zoom: { enabled: false }, animations: { enabled: false } },
-  dataLabels: { enabled: false },
-  stroke: { curve: 'smooth', width: 3 },
-  xaxis: {
-    categories: revenueSeries.value.map(r => r.bucket),
-    labels: { style: { fontSize: '11px' } },
-  },
-  yaxis: { labels: { formatter: v => Number(v).toLocaleString('fr-FR') } },
-  tooltip: { y: { formatter: v => `${Number(v).toLocaleString('fr-FR')} FCFA` } },
-  fill: { type: 'gradient', gradient: { opacityFrom: 0.45, opacityTo: 0.05 } },
-  colors: ['#6366f1'],
-}))
+const revenueChartOptions = computed(() => {
+  const currentTheme = vuetifyTheme.current.value.colors
+  const variableTheme = vuetifyTheme.current.value.variables
+  const isDark = vuetifyTheme.current.value.dark
+  const labelColor = `rgba(${ hexToRgb(currentTheme['on-surface']) },${ variableTheme['disabled-opacity'] })`
+  const borderColor = `rgba(${ hexToRgb(String(variableTheme['border-color'])) },${ variableTheme['border-opacity'] })`
+
+  return {
+    chart: {
+      type: 'area',
+      toolbar: { show: false },
+      zoom: { enabled: false },
+      animations: { enabled: false },
+      foreColor: labelColor,
+    },
+    theme: { mode: isDark ? 'dark' : 'light' },
+    dataLabels: { enabled: false },
+    stroke: { curve: 'smooth', width: 3 },
+    grid: {
+      borderColor,
+      strokeDashArray: 4,
+      padding: { left: 8, right: 8 },
+    },
+    xaxis: {
+      categories: revenueSeries.value.map(r => r.bucket),
+      axisBorder: { color: borderColor },
+      axisTicks: { color: borderColor },
+      labels: {
+        style: { fontSize: '11px', colors: labelColor },
+        rotate: -35,
+        rotateAlways: false,
+      },
+    },
+    yaxis: {
+      labels: {
+        formatter: v => Number(v).toLocaleString('fr-FR'),
+        style: { colors: labelColor },
+      },
+    },
+    tooltip: {
+      theme: isDark ? 'dark' : 'light',
+      y: { formatter: v => `${Number(v).toLocaleString('fr-FR')} FCFA` },
+    },
+    fill: {
+      type: 'gradient',
+      gradient: {
+        shadeIntensity: 1,
+        opacityFrom: isDark ? 0.55 : 0.4,
+        opacityTo: isDark ? 0.1 : 0.05,
+      },
+    },
+    colors: ['#6366f1'],
+  }
+})
 
 const formatCurrency = v => Number(v || 0).toLocaleString('fr-FR')
 
