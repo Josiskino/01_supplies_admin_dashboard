@@ -252,18 +252,23 @@ const SCREENS = [
   { subject: 'partner',             label: 'Partenaires' },
   { subject: 'driver',              label: 'Livreurs' },
   { subject: 'customer',            label: 'Clients' },
+  { subject: 'map',                 label: 'Carte' },
   { subject: 'financial',           label: 'Financier (accès section)' },
   { subject: 'payment',             label: 'Transactions / Paiements' },
   { subject: 'price-adjustment',    label: 'Ajustements de prix' },
   { subject: 'expense',             label: 'Dépenses' },
+  { subject: 'driver-daily-ca',     label: 'CA Journalier (logistique)' },
   { subject: 'business-stats',      label: 'Statistiques' },
+  { subject: 'analytics',           label: 'Analytics clients' },
+  { subject: 'analytics-settings',  label: 'Paramètres Analytics' },
+  { subject: 'data',                label: 'Export de données (Excel)' },
   { subject: 'user',                label: 'Utilisateurs' },
   { subject: 'notifications-admin', label: 'Notifications (admin)' },
   { subject: 'activity-logs',       label: 'Journal d\'activité' },
   { subject: 'roles-permissions',   label: 'Rôles & Permissions' },
   { subject: 'settings',            label: 'Paramètres' },
 ]
-const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'validate', 'assign']
+const ACTIONS = ['view', 'create', 'edit', 'delete', 'approve', 'validate', 'assign', 'manage', 'export']
 
 // Liste statique des permissions existantes (synchronisée avec RolePermissionSeeder)
 const KNOWN_PERMISSIONS = new Set([
@@ -275,6 +280,9 @@ const KNOWN_PERMISSIONS = new Set([
   'view-payment', 'create-payment', 'edit-payment', 'delete-payment', 'validate-payment',
   'view-expense', 'create-expense', 'edit-expense', 'delete-expense',
   'view-business-stats',
+  'view-map',
+  'view-driver-daily-ca',
+  'view-analytics', 'manage-analytics-settings', 'export-data',
   'view-user', 'create-user', 'edit-user', 'delete-user', 'assign-roles',
   'view-notifications-admin', 'view-activity-logs', 'view-roles-permissions', 'view-settings',
 ])
@@ -302,18 +310,16 @@ const openEditDialog = async user => {
     const res = await $api(`/users/${user.id}`, { method: 'GET' })
     const fullUser = res?.data ?? res
 
-    // Initialiser depuis getAllPermissions (rôle + directs) = ce que l'user voit effectivement
-    // Les cases cochées = accès effectif actuel
-    const effectivePerms = (fullUser?.permissions ?? []).map(p => p?.name ?? p)
-
-    // Stocker les permissions directes actuelles pour le diff à la sauvegarde
+    // Stocker les permissions directes actuelles (indépendantes du rôle)
     currentDirectPerms.value = (fullUser?.direct_permissions ?? []).map(p => p?.name ?? p)
 
+    // La matrice reflète uniquement les permissions directes — pas celles du rôle
+    // (correspond à la description de l'onglet : "indépendamment de son rôle")
     const matrix = {}
     SCREENS.forEach(s => {
       matrix[s.subject] = {}
       ACTIONS.forEach(a => {
-        matrix[s.subject][a] = effectivePerms.includes(`${a}-${s.subject}`)
+        matrix[s.subject][a] = currentDirectPerms.value.includes(`${a}-${s.subject}`)
       })
     })
     userPermMatrix.value        = matrix
