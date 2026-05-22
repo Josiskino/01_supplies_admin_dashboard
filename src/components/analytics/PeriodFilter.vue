@@ -29,7 +29,7 @@ const buildValue = () => ({
   date_to:   isCustom.value ? dateTo.value   : null,
 })
 
-watch([period], () => {
+watch(period, () => {
   if (!isCustom.value) {
     dateFrom.value = null
     dateTo.value = null
@@ -37,6 +37,10 @@ watch([period], () => {
     emit('apply', buildValue())
   }
 })
+
+const selectPreset = value => {
+  period.value = value
+}
 
 const applyCustom = () => {
   emit('update:modelValue', buildValue())
@@ -51,7 +55,7 @@ const applyCustom = () => {
     rounded="lg"
   >
     <VCardText class="d-flex flex-wrap align-center gap-3 py-3">
-      <div class="d-flex align-center gap-2">
+      <div class="d-flex align-center gap-2 me-2">
         <VIcon
           icon="tabler-calendar"
           size="20"
@@ -60,23 +64,18 @@ const applyCustom = () => {
         <span class="text-body-2 font-weight-medium">Période</span>
       </div>
 
-      <VBtnToggle
-        v-model="period"
-        mandatory
-        density="compact"
-        color="primary"
-        variant="outlined"
-        divided
-      >
+      <div class="d-flex flex-wrap gap-2">
         <VBtn
           v-for="preset in presets"
           :key="preset.value"
-          :value="preset.value"
+          :variant="period === preset.value ? 'elevated' : 'outlined'"
+          :color="period === preset.value ? 'primary' : 'default'"
           size="small"
+          @click="selectPreset(preset.value)"
         >
           {{ preset.label }}
         </VBtn>
-      </VBtnToggle>
+      </div>
 
       <template v-if="isCustom">
         <VTextField
