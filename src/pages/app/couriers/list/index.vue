@@ -1,4 +1,5 @@
 <script setup>
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { useStatusManagement } from '@/composables/useStatusManagement'
 import CouriersAddDrawer from '@/pages/app/couriers/add/index.vue'
 import { echo } from '@/plugins/echo'
@@ -403,6 +404,13 @@ const exportCouriers = async () => {
               style="inline-size: 7rem;"
               density="compact"
               @update:model-value="itemsPerPage = parseInt($event, 10)"
+            />
+            <DownloadButton
+              endpoint="/exports/drivers"
+              :params="{ search: searchQuery }"
+              filename="livreurs"
+              label="Tout télécharger"
+              density="compact"
             />
             <VBtn
               prepend-icon="tabler-plus"

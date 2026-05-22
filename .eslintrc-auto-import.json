@@ -379,6 +379,8 @@
     "normalizePhone": true,
     "phoneRules": true,
     "stripSpaces": true,
-    "usePhoneValidation": true
+    "usePhoneValidation": true,
+    "useAnalytics": true,
+    "useExportDownload": true
   }
 }

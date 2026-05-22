@@ -1,5 +1,6 @@
 <script setup>
 import CustomerAddDrawer from '@/pages/app/customer/add/index.vue'
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 import CustomerDetailsDialog from './customer-details-dialog.vue'
@@ -506,6 +507,14 @@ const exportCustomers = async () => {
           >
             {{ $t('Export') }}
           </VBtn>
+
+          <!-- 👉 Download full Excel (backend) -->
+          <DownloadButton
+            endpoint="/exports/customers"
+            :params="{ search: searchQuery }"
+            filename="clients"
+            label="Tout télécharger"
+          />
 
           <!-- 👉 Add customer button -->
           <VBtn

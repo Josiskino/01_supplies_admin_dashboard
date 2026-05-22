@@ -1,5 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { useI18n } from 'vue-i18n'
 import DriversToSettleDialog from './drivers-to-settle-dialog.vue'
 import SettlementAddDialog from './settlement-add.vue'
@@ -528,13 +529,20 @@ onMounted(() => {
               {{ $t('Manage driver payment settlements') || 'Gérer les règlements des livreurs' }}
             </VCardSubtitle>
           </div>
-          <VBtn
-            color="primary"
-            prepend-icon="tabler-users"
-            @click="openDriversToSettleDialog"
-          >
-            {{ $t('Drivers to Settle') || 'Livreurs à régler' }}
-          </VBtn>
+          <div class="d-flex align-center gap-2">
+            <DownloadButton
+              endpoint="/exports/driver-payments"
+              filename="paiements-livreurs"
+              label="Tout télécharger"
+            />
+            <VBtn
+              color="primary"
+              prepend-icon="tabler-users"
+              @click="openDriversToSettleDialog"
+            >
+              {{ $t('Drivers to Settle') || 'Livreurs à régler' }}
+            </VBtn>
+          </div>
         </div>
       </VCardItem>
 

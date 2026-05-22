@@ -1,5 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { useDeliveryStatuses } from '@/composables/useStatusManagement'
 import { generateCombinedMapLink } from '@/utils/googleMaps'
 import { useI18n } from 'vue-i18n'
@@ -814,8 +815,16 @@ const openRoute = (pickup, dropoff) => {
           <VCol
             cols="12"
             md="2"
-            class="d-flex align-end"
+            class="d-flex align-end gap-2"
           >
+            <DownloadButton
+              endpoint="/exports/deliveries"
+              :params="{ search: searchQuery, date_from: dateFrom, date_to: dateTo, period: 'custom' }"
+              filename="livraisons"
+              label="Excel"
+              icon="tabler-file-spreadsheet"
+              size="default"
+            />
             <VBtn
               prepend-icon="tabler-plus"
               color="primary"

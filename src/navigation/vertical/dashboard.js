@@ -88,13 +88,40 @@ const allNavItems = [
     ],
   },
 
-  // 6. Statistiques
+  // 6. CA Journalier (accessible à la logistique uniquement)
+  {
+    title: 'CA Journalier',
+    icon: { icon: 'tabler-chart-arrows-vertical' },
+    to: 'financial-daily-drivers',
+    action: 'view',
+    subject: 'driver-daily-ca',
+  },
+
+  // 7. Carte
+  {
+    title: 'Carte',
+    icon: { icon: 'tabler-map' },
+    to: 'map',
+    action: 'view',
+    subject: 'map',
+  },
+
+  // 7. Statistiques
   {
     title: 'Statistics',
     icon: { icon: 'tabler-chart-bar' },
     to: 'statistics',
     action: 'view',
     subject: 'business-stats',
+  },
+
+  // 8. Analytics clients (aide à la décision)
+  {
+    title: 'Analytics clients',
+    icon: { icon: 'tabler-chart-pie' },
+    to: 'analytics-clients',
+    action: 'view',
+    subject: 'analytics',
   },
 
   // ── Section admin ─────────────────────────────────────────────
@@ -156,6 +183,16 @@ const allNavItems = [
     adminOnly: true,
     action: 'view',
     subject: 'settings',
+  },
+
+  // 12. Paramètres Analytics (admin only)
+  {
+    title: 'Paramètres Analytics',
+    icon: { icon: 'tabler-adjustments' },
+    to: 'settings-analytics',
+    adminOnly: true,
+    action: 'manage',
+    subject: 'analytics-settings',
   },
 ]
 

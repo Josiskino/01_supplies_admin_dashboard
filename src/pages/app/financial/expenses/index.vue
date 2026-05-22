@@ -1,5 +1,6 @@
 <script setup>
 /* eslint-disable camelcase */
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { useI18n } from 'vue-i18n'
 import AddEditExpenseDialog from './add-edit-dialog.vue'
 
@@ -329,13 +330,28 @@ onMounted(() => {
               {{ $t('Manage company and driver expenses') || 'Gérer les dépenses de la société et des livreurs' }}
             </VCardSubtitle>
           </div>
-          <VBtn
-            color="primary"
-            prepend-icon="tabler-plus"
-            @click="openAddDialog"
-          >
-            {{ $t('Add Expense') || 'Ajouter une dépense' }}
-          </VBtn>
+          <div class="d-flex align-center gap-2">
+            <DownloadButton
+              endpoint="/exports/expenses"
+              :params="{
+                category_id: selectedCategoryId,
+                expense_type: selectedExpenseType,
+                search: searchQuery,
+                period: selectedPeriod,
+                date_from: dateFrom,
+                date_to: dateTo,
+              }"
+              filename="depenses"
+              label="Tout télécharger"
+            />
+            <VBtn
+              color="primary"
+              prepend-icon="tabler-plus"
+              @click="openAddDialog"
+            >
+              {{ $t('Add Expense') || 'Ajouter une dépense' }}
+            </VBtn>
+          </div>
         </div>
       </VCardItem>
 

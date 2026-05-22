@@ -1,4 +1,5 @@
 <script setup>
+import DownloadButton from '@/components/common/DownloadButton.vue'
 import { exportToExcel } from '@/utils/export'
 import { useI18n } from 'vue-i18n'
 import PartnerAddDialog from '../add.vue'
@@ -626,6 +627,13 @@ const exportPartners = async () => {
               style="inline-size: 7rem;"
               density="compact"
               @update:model-value="itemsPerPage = parseInt($event, 10)"
+            />
+            <DownloadButton
+              endpoint="/exports/partners"
+              :params="{ search: searchQuery, status_id: selectedStatus }"
+              filename="partenaires"
+              label="Tout télécharger"
+              density="compact"
             />
             <VBtn
               prepend-icon="tabler-plus"
