@@ -92,7 +92,7 @@ const formatDate = v => v ? new Date(v).toLocaleDateString('fr-FR') : '–'
       </template>
 
       <template #item.days_silent="{ item }">
-        <span class="font-weight-medium">{{ item.days_silent ?? '—' }}</span>
+        <span class="font-weight-medium">{{ item.days_silent !== null && item.days_silent !== undefined ? Math.round(item.days_silent) : '—' }}</span>
       </template>
 
       <template #item.churn_score="{ item }">
