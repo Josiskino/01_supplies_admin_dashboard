@@ -41,27 +41,24 @@ const setSort = newSort => emit('update:sort', newSort)
       </VCardTitle>
 
       <template #append>
-        <VBtnToggle
-          :model-value="sort"
-          mandatory
-          density="compact"
-          variant="outlined"
-          color="primary"
-          @update:model-value="setSort"
-        >
+        <div class="d-flex flex-wrap gap-2">
           <VBtn
-            value="revenue"
+            :variant="sort === 'revenue' ? 'elevated' : 'outlined'"
+            :color="sort === 'revenue' ? 'primary' : 'default'"
             size="small"
+            @click="setSort('revenue')"
           >
             Par CA
           </VBtn>
           <VBtn
-            value="orders"
+            :variant="sort === 'orders' ? 'elevated' : 'outlined'"
+            :color="sort === 'orders' ? 'primary' : 'default'"
             size="small"
+            @click="setSort('orders')"
           >
             Par commandes
           </VBtn>
-        </VBtnToggle>
+        </div>
       </template>
     </VCardItem>
 
