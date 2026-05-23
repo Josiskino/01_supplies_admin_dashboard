@@ -48,7 +48,10 @@ export const useExportDownload = () => {
         },
       }
 
-      let url = `${baseURL}/v1${endpoint}`
+      // baseURL already contains /v1 (cf. utils/api.js used by ofetch elsewhere),
+      // so don't prepend it again or we end up with /api/v1/v1/...
+      const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+      let url = `${baseURL}${normalizedEndpoint}`
 
       if (method === 'GET') {
         url += buildQueryString(params)
